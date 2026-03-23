@@ -6,11 +6,15 @@ require_once 'includes/functions.php';
 
 $error = '';
 
+// Handle form submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
-    
+
+    // Attempt login using Auth class
     if (Auth::login($username, $password)) {
+
+        // Redirect based on user role
         if ($_SESSION['role'] == 'patient') {
         header('Location: patient/index.php');
     } else {
@@ -123,6 +127,45 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             border-radius: 8px;
             margin-bottom: 20px;
         }
+        
+        /* Mobile responsive for better eye comfort */
+        @media (max-width: 768px) {
+            .login-card {
+                padding: 25px 20px;
+                max-width: 320px;
+                border-radius: 12px;
+            }
+            
+            .login-header h1 {
+                font-size: 20px;
+                margin-bottom: 6px;
+            }
+            
+            .login-header p {
+                font-size: 12px;
+            }
+            
+            .error-message {
+                font-size: 12px;
+                margin-bottom: 15px;
+            }
+            
+            .form-control {
+                padding: 10px 12px;
+                margin-bottom: 15px;
+                font-size: 14px;
+            }
+            
+            .btn-login {
+                padding: 10px;
+                font-size: 14px;
+            }
+            
+            .login-header {
+                margin-bottom: 15px;
+            }
+        }
+        
     </style>
 </head>
 <body>
