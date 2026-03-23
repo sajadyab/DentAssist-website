@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400">
+  <!-- Upper Arch (Teeth 1-16) -->
+  <g id="upper-arch" transform="translate(50, 50)">
+    <!-- Tooth 1 - Upper Right 3rd Molar -->
+    <path id="tooth-1" class="tooth" d="M30,20 L45,15 L60,20 L58,35 L45,40 L32,35 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="1"/>
+    <!-- Tooth 2 - Upper Right 2nd Molar -->
+    <path id="tooth-2" class="tooth" d="M70,15 L85,10 L100,15 L98,30 L85,35 L72,30 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="2"/>
+    <!-- Tooth 3 - Upper Right 1st Molar -->
+    <path id="tooth-3" class="tooth" d="M110,10 L125,8 L140,10 L138,25 L125,30 L112,25 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="3"/>
+    <!-- Tooth 4 - Upper Right 2nd Premolar -->
+    <path id="tooth-4" class="tooth" d="M150,8 L165,10 L180,15 L178,25 L165,28 L152,25 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="4"/>
+    <!-- Tooth 5 - Upper Right 1st Premolar -->
+    <path id="tooth-5" class="tooth" d="M190,10 L205,12 L220,18 L218,28 L205,30 L192,27 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="5"/>
+    <!-- Tooth 6 - Upper Right Canine -->
+    <path id="tooth-6" class="tooth" d="M230,15 L245,10 L260,15 L258,25 L245,28 L232,25 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="6"/>
+    <!-- Tooth 7 - Upper Right Lateral Incisor -->
+    <path id="tooth-7" class="tooth" d="M270,20 L285,15 L300,20 L298,30 L285,32 L272,28 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="7"/>
+    <!-- Tooth 8 - Upper Right Central Incisor -->
+    <path id="tooth-8" class="tooth" d="M310,22 L325,18 L340,22 L338,30 L325,33 L312,30 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="8"/>
+    <!-- Tooth 9 - Upper Left Central Incisor -->
+    <path id="tooth-9" class="tooth" d="M350,22 L365,18 L380,22 L378,30 L365,33 L352,30 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="9"/>
+    <!-- Tooth 10 - Upper Left Lateral Incisor -->
+    <path id="tooth-10" class="tooth" d="M390,20 L405,15 L420,20 L418,30 L405,32 L392,28 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="10"/>
+    <!-- Tooth 11 - Upper Left Canine -->
+    <path id="tooth-11" class="tooth" d="M430,15 L445,10 L460,15 L458,25 L445,28 L432,25 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="11"/>
+    <!-- Tooth 12 - Upper Left 1st Premolar -->
+    <path id="tooth-12" class="tooth" d="M470,10 L485,12 L500,18 L498,28 L485,30 L472,27 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="12"/>
+    <!-- Tooth 13 - Upper Left 2nd Premolar -->
+    <path id="tooth-13" class="tooth" d="M510,8 L525,10 L540,15 L538,25 L525,28 L512,25 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="13"/>
+    <!-- Tooth 14 - Upper Left 1st Molar -->
+    <path id="tooth-14" class="tooth" d="M550,10 L565,8 L580,10 L578,25 L565,30 L552,25 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="14"/>
+    <!-- Tooth 15 - Upper Left 2nd Molar -->
+    <path id="tooth-15" class="tooth" d="M590,15 L605,10 L620,15 L618,30 L605,35 L592,30 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="15"/>
+    <!-- Tooth 16 - Upper Left 3rd Molar -->
+    <path id="tooth-16" class="tooth" d="M630,20 L645,15 L660,20 L658,35 L645,40 L632,35 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="16"/>
+  </g>
+
+  <!-- Lower Arch (Teeth 17-32) -->
+  <g id="lower-arch" transform="translate(50, 200)">
+    <!-- Tooth 17 - Lower Left 3rd Molar -->
+    <path id="tooth-17" class="tooth" d="M30,20 L45,15 L60,20 L58,35 L45,40 L32,35 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="17"/>
+    <!-- Tooth 18 - Lower Left 2nd Molar -->
+    <path id="tooth-18" class="tooth" d="M70,15 L85,10 L100,15 L98,30 L85,35 L72,30 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="18"/>
+    <!-- Tooth 19 - Lower Left 1st Molar -->
+    <path id="tooth-19" class="tooth" d="M110,10 L125,8 L140,10 L138,25 L125,30 L112,25 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="19"/>
+    <!-- Tooth 20 - Lower Left 2nd Premolar -->
+    <path id="tooth-20" class="tooth" d="M150,8 L165,10 L180,15 L178,25 L165,28 L152,25 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="20"/>
+    <!-- Tooth 21 - Lower Left 1st Premolar -->
+    <path id="tooth-21" class="tooth" d="M190,10 L205,12 L220,18 L218,28 L205,30 L192,27 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="21"/>
+    <!-- Tooth 22 - Lower Left Canine -->
+    <path id="tooth-22" class="tooth" d="M230,15 L245,10 L260,15 L258,25 L245,28 L232,25 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="22"/>
+    <!-- Tooth 23 - Lower Left Lateral Incisor -->
+    <path id="tooth-23" class="tooth" d="M270,20 L285,15 L300,20 L298,30 L285,32 L272,28 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="23"/>
+    <!-- Tooth 24 - Lower Left Central Incisor -->
+    <path id="tooth-24" class="tooth" d="M310,22 L325,18 L340,22 L338,30 L325,33 L312,30 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="24"/>
+    <!-- Tooth 25 - Lower Right Central Incisor -->
+    <path id="tooth-25" class="tooth" d="M350,22 L365,18 L380,22 L378,30 L365,33 L352,30 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="25"/>
+    <!-- Tooth 26 - Lower Right Lateral Incisor -->
+    <path id="tooth-26" class="tooth" d="M390,20 L405,15 L420,20 L418,30 L405,32 L392,28 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="26"/>
+    <!-- Tooth 27 - Lower Right Canine -->
+    <path id="tooth-27" class="tooth" d="M430,15 L445,10 L460,15 L458,25 L445,28 L432,25 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="27"/>
+    <!-- Tooth 28 - Lower Right 1st Premolar -->
+    <path id="tooth-28" class="tooth" d="M470,10 L485,12 L500,18 L498,28 L485,30 L472,27 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="28"/>
+    <!-- Tooth 29 - Lower Right 2nd Premolar -->
+    <path id="tooth-29" class="tooth" d="M510,8 L525,10 L540,15 L538,25 L525,28 L512,25 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="29"/>
+    <!-- Tooth 30 - Lower Right 1st Molar -->
+    <path id="tooth-30" class="tooth" d="M550,10 L565,8 L580,10 L578,25 L565,30 L552,25 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="30"/>
+    <!-- Tooth 31 - Lower Right 2nd Molar -->
+    <path id="tooth-31" class="tooth" d="M590,15 L605,10 L620,15 L618,30 L605,35 L592,30 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="31"/>
+    <!-- Tooth 32 - Lower Right 3rd Molar -->
+    <path id="tooth-32" class="tooth" d="M630,20 L645,15 L660,20 L658,35 L645,40 L632,35 Z" fill="#28a745" stroke="#333" stroke-width="1" data-tooth="32"/>
+  </g>
+
+  <!-- Tooth numbers -->
+  <g id="tooth-numbers" font-size="8" text-anchor="middle" fill="#333">
+    <!-- Upper numbers -->
+    <text x="45" y="35">1</text>
+    <text x="85" y="30">2</text>
+    <text x="125" y="25">3</text>
+    <text x="165" y="25">4</text>
+    <text x="205" y="25">5</text>
+    <text x="245" y="25">6</text>
+    <text x="285" y="30">7</text>
+    <text x="325" y="32">8</text>
+    <text x="365" y="32">9</text>
+    <text x="405" y="30">10</text>
+    <text x="445" y="25">11</text>
+    <text x="485" y="25">12</text>
+    <text x="525" y="25">13</text>
+    <text x="565" y="25">14</text>
+    <text x="605" y="30">15</text>
+    <text x="645" y="35">16</text>
+    
+    <!-- Lower numbers -->
+    <text x="45" y="225">17</text>
+    <text x="85" y="220">18</text>
+    <text x="125" y="215">19</text>
+    <text x="165" y="215">20</text>
+    <text x="205" y="215">21</text>
+    <text x="245" y="215">22</text>
+    <text x="285" y="220">23</text>
+    <text x="325" y="222">24</text>
+    <text x="365" y="222">25</text>
+    <text x="405" y="220">26</text>
+    <text x="445" y="215">27</text>
+    <text x="485" y="215">28</text>
+    <text x="525" y="215">29</text>
+    <text x="565" y="215">30</text>
+    <text x="605" y="220">31</text>
+    <text x="645" y="225">32</text>
+  </g>
+</svg>
