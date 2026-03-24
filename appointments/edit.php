@@ -90,10 +90,100 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 include '../layouts/header.php';
 ?>
 
+<style>
+    .appointments-edit-header {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .appointments-edit-title {
+        margin-bottom: 0;
+    }
+
+    .appointments-edit-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .appointment-edit-card {
+        max-width: 75%;
+        margin: 0 auto 1rem;
+        border-radius: 12px;
+    }
+
+    .appointment-edit-card select.form-select:hover,
+    .appointment-edit-card select.form-select:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+    }
+
+    @media (max-width: 991.98px) {
+        .appointment-edit-card {
+            max-width: 90%;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .appointments-edit-title {
+            font-size: 1.15rem;
+            width: 100%;
+        }
+
+        .appointments-edit-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            width: 100%;
+        }
+
+        .appointments-edit-actions .btn {
+            width: 100%;
+            padding: 0.5rem 0.6rem;
+            font-size: 14px;
+        }
+
+        .appointments-edit-actions .btn-secondary {
+            grid-column: 1 / -1;
+        }
+
+        .appointment-edit-card {
+            max-width: 100%;
+        }
+
+        .appointment-edit-card .card-body {
+            padding: 1rem;
+        }
+
+        .appointment-edit-card .form-control,
+        .appointment-edit-card .form-select {
+            padding: 0.6rem 0.75rem;
+            font-size: 14px;
+        }
+
+        .appointment-edit-card .form-label {
+            font-size: 14px;
+        }
+
+        .appointment-edit-card .btn {
+            padding: 0.55rem 0.85rem;
+            font-size: 14px;
+        }
+
+        .appointment-edit-form-actions {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .appointment-edit-form-actions .btn {
+            width: 100%;
+        }
+    }
+</style>
+
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3">Edit Appointment</h1>
-        <div>
+    <div class="d-flex justify-content-between align-items-center mb-4 appointments-edit-header">
+        <h1 class="h3 appointments-edit-title">Edit Appointment</h1>
+        <div class="appointments-edit-actions">
             <a href="view.php?id=<?php echo $appointmentId; ?>" class="btn btn-info">
                 <i class="fas fa-eye"></i> View
             </a>
@@ -111,7 +201,7 @@ include '../layouts/header.php';
         <div class="alert alert-success"><?php echo $success; ?></div>
     <?php endif; ?>
 
-    <div class="card">
+    <div class="card appointment-edit-card">
         <div class="card-body">
             <form method="POST" action="">
                 <div class="row">
@@ -198,7 +288,7 @@ include '../layouts/header.php';
                 </div>
 
                 <hr>
-                <div class="d-flex justify-content-end gap-2">
+                <div class="d-flex justify-content-end gap-2 appointment-edit-form-actions">
                     <button type="submit" class="btn btn-primary">Update Appointment</button>
                     <a href="view.php?id=<?php echo $appointmentId; ?>" class="btn btn-secondary">Cancel</a>
                 </div>

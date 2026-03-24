@@ -64,10 +64,177 @@ $appointments = $db->fetchAll(
 include '../layouts/header.php';
 ?>
 
+<style>
+    .appointments-page-title {
+        margin-bottom: 0.75rem;
+    }
+
+    .appointments-page-header {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .btn-new-appointment {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.55rem 1.25rem;
+        font-weight: 600;
+        border-radius: 10px;
+    }
+
+    .appointments-filters .form-label {
+        font-weight: 500;
+    }
+
+    .appointments-date-nav {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .appointments-date-nav .appointments-date-heading {
+        text-align: center;
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: 1.1rem;
+    }
+
+    .appointments-table-wrap .table {
+        font-size: 0.875rem;
+    }
+
+    .appointments-table-wrap .table thead th {
+        padding: 0.45rem 0.5rem;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+
+    .appointments-table-wrap .table tbody td {
+        padding: 0.35rem 0.5rem;
+        vertical-align: middle;
+    }
+
+    .appointments-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.35rem;
+        max-width: 140px;
+    }
+
+    .appointments-actions .btn {
+        padding: 0.2rem 0.35rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #appointmentModal .modal-dialog {
+        margin: 0.5rem auto;
+    }
+
+    @media (max-width: 575.98px) {
+        #appointmentModal .modal-dialog {
+            margin: 0;
+            max-width: 100%;
+            height: 100%;
+            min-height: 100%;
+        }
+
+        #appointmentModal .modal-content {
+            min-height: 100vh;
+            border-radius: 0;
+            border: 0;
+        }
+
+        #appointmentModal .modal-body {
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .appointments-page-title {
+            font-size: 1.15rem;
+            width: 100%;
+        }
+
+        .appointments-page-header .btn {
+            width: 100%;
+            padding: 0.55rem 0.85rem;
+            font-size: 14px;
+        }
+
+        .appointments-page-header .btn-new-appointment {
+            width: 100%;
+            max-width: 320px;
+            margin-left: auto;
+            margin-right: auto;
+            justify-content: center;
+        }
+
+        .appointments-filters .card-body {
+            padding: 1rem;
+        }
+
+        .appointments-filters .form-control,
+        .appointments-filters .form-select {
+            padding: 0.6rem 0.75rem;
+            font-size: 14px;
+        }
+
+        .appointments-filters .form-label {
+            font-size: 14px;
+        }
+
+        .appointments-date-nav .btn {
+            flex: 1 1 auto;
+            min-width: 0;
+            padding: 0.5rem 0.6rem;
+            font-size: 14px;
+        }
+
+        .appointments-date-nav .appointments-date-heading {
+            order: -1;
+            width: 100%;
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .appointments-table-wrap .table {
+            font-size: 13px;
+        }
+
+        .appointments-table-wrap .table thead th,
+        .appointments-table-wrap .table tbody td {
+            padding: 0.3rem 0.35rem;
+        }
+
+        .appointments-actions {
+            max-width: 100%;
+            gap: 0.3rem;
+        }
+
+        #appointmentModal .modal-body .form-control,
+        #appointmentModal .modal-body .form-select {
+            padding: 0.6rem 0.75rem;
+            font-size: 14px;
+        }
+
+        #appointmentModal .modal-body .form-label {
+            font-size: 14px;
+        }
+
+        #appointmentModal .modal-footer .btn {
+            padding: 0.55rem 0.85rem;
+            font-size: 14px;
+        }
+    }
+</style>
+
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3">Appointments</h1>
-        <button class="btn btn-primary" onclick="window.location.href='add.php'">
+    <div class="d-flex justify-content-between align-items-center mb-4 appointments-page-header">
+        <h1 class="h3 appointments-page-title">Appointments</h1>
+        <button type="button" class="btn btn-primary btn-new-appointment" onclick="window.location.href='add.php'">
             <i class="fas fa-plus"></i> New Appointment
         </button>
     </div>
@@ -80,7 +247,7 @@ include '../layouts/header.php';
     <?php endif; ?>
     
     <!-- Filters -->
-    <div class="card mb-4">
+    <div class="card mb-4 appointments-filters">
         <div class="card-body">
             <form method="GET" class="row g-3">
                 <div class="col-md-4">
@@ -123,26 +290,26 @@ include '../layouts/header.php';
     </div>
     
     <!-- Date Navigation -->
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <a href="?date=<?php echo date('Y-m-d', strtotime($date . ' -1 day')); ?>&status=<?php echo $status; ?>&doctor_id=<?php echo $doctorId; ?>" 
+    <div class="d-flex justify-content-between align-items-center mb-3 appointments-date-nav">
+        <a href="?date=<?php echo date('Y-m-d', strtotime($date . ' -1 day')); ?>&status=<?php echo urlencode($status); ?>&doctor_id=<?php echo urlencode($doctorId); ?>"
            class="btn btn-outline-primary">
-            <i class="fas fa-chevron-left"></i> Previous Day
+            <i class="fas fa-chevron-left"></i> <span class="d-none d-sm-inline">Previous Day</span><span class="d-sm-none">Prev</span>
         </a>
-        <h4><?php echo date('l, F j, Y', strtotime($date)); ?></h4>
-        <a href="?date=<?php echo date('Y-m-d', strtotime($date . ' +1 day')); ?>&status=<?php echo $status; ?>&doctor_id=<?php echo $doctorId; ?>" 
+        <h4 class="appointments-date-heading mb-0"><?php echo date('l, F j, Y', strtotime($date)); ?></h4>
+        <a href="?date=<?php echo date('Y-m-d', strtotime($date . ' +1 day')); ?>&status=<?php echo urlencode($status); ?>&doctor_id=<?php echo urlencode($doctorId); ?>"
            class="btn btn-outline-primary">
-            Next Day <i class="fas fa-chevron-right"></i>
+            <span class="d-none d-sm-inline">Next Day</span><span class="d-sm-none">Next</span> <i class="fas fa-chevron-right"></i>
         </a>
     </div>
     
     <!-- Appointments List -->
     <div class="card">
-        <div class="card-body">
+        <div class="card-body appointments-table-wrap">
             <?php if (empty($appointments)): ?>
                 <p class="text-muted text-center py-4">No appointments found for this date</p>
             <?php else: ?>
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table table-hover mb-0">
                         <thead>
                             <tr>
                                 <th>Time</th>
@@ -176,23 +343,23 @@ include '../layouts/header.php';
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <div class="btn-group" role="group">
-                                            <button type="button" class="btn btn-sm btn-info" 
+                                        <div class="appointments-actions">
+                                            <button type="button" class="btn btn-sm btn-info"
                                                     onclick="viewAppointment(<?php echo $apt['id']; ?>)"
                                                     title="View">
                                                 <i class="fas fa-eye"></i>
                                             </button>
-                                            <button type="button" class="btn btn-sm btn-warning" 
+                                            <button type="button" class="btn btn-sm btn-warning"
                                                     onclick="editAppointment(<?php echo $apt['id']; ?>)"
                                                     title="Edit">
                                                 <i class="fas fa-edit"></i>
                                             </button>
-                                            <button type="button" class="btn btn-sm btn-success" 
+                                            <button type="button" class="btn btn-sm btn-success"
                                                     onclick="updateStatus(<?php echo $apt['id']; ?>, 'completed')"
                                                     title="Mark Completed">
                                                 <i class="fas fa-check"></i>
                                             </button>
-                                            <button type="button" class="btn btn-sm btn-danger" 
+                                            <button type="button" class="btn btn-sm btn-danger"
                                                     onclick="cancelAppointment(<?php echo $apt['id']; ?>)"
                                                     title="Cancel">
                                                 <i class="fas fa-times"></i>
@@ -211,7 +378,7 @@ include '../layouts/header.php';
 
 <!-- Add/Edit Appointment Modal -->
 <div class="modal fade" id="appointmentModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="modalTitle">New Appointment</h5>

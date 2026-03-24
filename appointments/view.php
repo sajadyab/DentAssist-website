@@ -51,18 +51,126 @@ include '../layouts/header.php';
 ?>
 
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3">
+    <style>
+        .appointment-view-title-wrap {
+            min-width: 0;
+        }
+
+        .appointment-view-header-btns {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            justify-content: flex-end;
+        }
+
+        .appointment-status-bar-inner {
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+
+        .appointment-status-bar-inner .status-group {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .appointment-view-main .card-header,
+        .appointment-view-side .card-header {
+            padding: 0.65rem 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .appointment-view-title {
+                font-size: 1.1rem;
+                line-height: 1.35;
+            }
+
+            .appointment-view-header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.75rem;
+            }
+
+            .appointment-view-header > h1 {
+                margin-bottom: 0 !important;
+            }
+
+            .appointment-view-header-btns {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                justify-content: stretch;
+            }
+
+            .appointment-view-header-btns .btn {
+                width: 100%;
+                padding: 0.5rem 0.6rem;
+                font-size: 14px;
+            }
+
+            .appointment-view-header-btns .btn-secondary {
+                grid-column: 1 / -1;
+            }
+
+            .appointment-view-header-btns .btn-back-mobile {
+                background-color: var(--primary-color);
+                border-color: var(--primary-color);
+                color: #fff;
+            }
+
+            .appointment-view-header-btns .btn-back-mobile:hover {
+                background-color: #2980b9;
+                border-color: #2980b9;
+                color: #fff;
+            }
+
+            .appointment-status-card .card-body {
+                padding: 0.85rem 1rem;
+            }
+
+            .appointment-status-bar-inner {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .appointment-status-bar-inner .ms-4 {
+                margin-left: 0 !important;
+            }
+
+            .appointment-view-main .card-body,
+            .appointment-view-side .card-body,
+            .appointment-view-side .card-footer {
+                padding: 0.85rem 1rem;
+            }
+
+            .appointment-view-cols > .col-md-8,
+            .appointment-view-cols > .col-md-4 {
+                flex: 0 0 100%;
+                max-width: 100%;
+            }
+
+            .appointment-view-main .row .col-md-6 {
+                flex: 0 0 100%;
+                max-width: 100%;
+            }
+
+            .appointment-view-side .d-grid .btn {
+                padding: 0.55rem 0.75rem;
+                font-size: 14px;
+            }
+        }
+    </style>
+
+    <div class="d-flex justify-content-between align-items-center mb-4 appointment-view-header flex-wrap gap-2">
+        <h1 class="h3 appointment-view-title appointment-view-title-wrap mb-0">
             <i class="fas fa-calendar-check"></i> Appointment Details
         </h1>
-        <div>
-            <button class="btn btn-warning" onclick="editAppointment()">
+        <div class="appointment-view-header-btns">
+            <button type="button" class="btn btn-warning" onclick="editAppointment()">
                 <i class="fas fa-edit"></i> Edit
             </button>
-            <button class="btn btn-danger" onclick="cancelAppointment()">
+            <button type="button" class="btn btn-danger" onclick="cancelAppointment()">
                 <i class="fas fa-times"></i> Cancel
             </button>
-            <a href="index.php" class="btn btn-secondary">
+            <a href="index.php" class="btn btn-secondary btn-back-mobile">
                 <i class="fas fa-arrow-left"></i> Back
             </a>
         </div>
@@ -71,29 +179,34 @@ include '../layouts/header.php';
     <!-- Status Bar -->
     <div class="row mb-4">
         <div class="col-12">
-            <div class="card">
+            <div class="card appointment-status-card">
                 <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="me-3">
-                            <h6 class="mb-0">Status:</h6>
+                    <div class="d-flex align-items-center appointment-status-bar-inner">
+                        <div class="me-3 status-group">
+                            <h6 class="mb-1">Status</h6>
+                            <?php echo getStatusBadge($appointment['status']); ?>
                         </div>
-                        <?php echo getStatusBadge($appointment['status']); ?>
-                        
-                        <div class="ms-4">
-                            <h6 class="mb-0">Check-in:</h6>
+
+                        <div class="ms-md-4 status-group">
+                            <h6 class="mb-1">Check-in</h6>
                             <span class="badge bg-<?php echo $appointment['status'] == 'checked-in' ? 'success' : 'secondary'; ?>">
                                 <?php echo $appointment['status'] == 'checked-in' ? 'Checked In' : 'Not Checked In'; ?>
                             </span>
                         </div>
-                        
-                        <div class="ms-4">
-                            <h6 class="mb-0">Reminders:</h6>
+
+                        <div class="ms-md-4 status-group">
+                            <h6 class="mb-1">Reminders</h6>
+                            <div class="d-flex flex-wrap gap-1">
                             <?php if ($appointment['reminder_sent_48h']): ?>
                                 <span class="badge bg-success">48h Sent</span>
                             <?php endif; ?>
                             <?php if ($appointment['reminder_sent_24h']): ?>
                                 <span class="badge bg-success">24h Sent</span>
                             <?php endif; ?>
+                            <?php if (!$appointment['reminder_sent_48h'] && !$appointment['reminder_sent_24h']): ?>
+                                <span class="text-muted small">None sent</span>
+                            <?php endif; ?>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -101,9 +214,9 @@ include '../layouts/header.php';
         </div>
     </div>
     
-    <div class="row">
+    <div class="row appointment-view-cols">
         <!-- Main Details -->
-        <div class="col-md-8">
+        <div class="col-md-8 appointment-view-main">
             <div class="card mb-4">
                 <div class="card-header">
                     <h5 class="card-title mb-0">Appointment Information</h5>
@@ -123,7 +236,7 @@ include '../layouts/header.php';
                         
                         <div class="col-md-6 mb-3">
                             <label class="fw-bold">Doctor:</label>
-                            <p class="mb-0">Dr. <?php echo htmlspecialchars($appointment['doctor_name']); ?></p>
+                            <p class="mb-0"><?php echo htmlspecialchars($appointment['doctor_name']); ?></p>
                             <small><?php echo $appointment['doctor_email']; ?></small>
                         </div>
                         
@@ -225,7 +338,7 @@ include '../layouts/header.php';
         </div>
         
         <!-- Sidebar -->
-        <div class="col-md-4">
+        <div class="col-md-4 appointment-view-side">
             <!-- Quick Actions -->
             <div class="card mb-4">
                 <div class="card-header">
@@ -313,96 +426,6 @@ include '../layouts/header.php';
 </div>
 
 <style>
-        /* Mobile responsive improvements for appointment page */
-@media (max-width: 768px) {
-
-    /* Page title and top bar */
-    .container-fluid h1.h3 {
-        font-size: 20px;
-    }
-
-    .d-flex.justify-content-between.align-items-center.mb-4 {
-        flex-direction: column;
-        align-items: flex-start !important;
-        gap: 10px;
-    }
-
-    /* New appointment button */
-    .btn-primary {
-        font-size: 14px;
-        padding: 8px 12px;
-    }
-
-    /* Filters card */
-    .card-body form .form-label {
-        font-size: 13px;
-    }
-
-    .card-body form .form-control,
-    .card-body form .form-select {
-        font-size: 14px;
-        padding: 8px 10px;
-    }
-
-    /* Filter button */
-    .card-body form button {
-        font-size: 14px;
-        padding: 8px;
-    }
-
-    /* Date navigation */
-    .d-flex.justify-content-between.align-items-center.mb-3 {
-        flex-direction: column;
-        gap: 10px;
-        text-align: center;
-    }
-
-    .d-flex.justify-content-between.align-items-center.mb-3 h4 {
-        font-size: 16px;
-    }
-
-    /* Table adjustments */
-    .table {
-        font-size: 13px;
-    }
-
-    .table th,
-    .table td {
-        padding: 8px;
-        vertical-align: middle;
-    }
-
-    /* Hide less important columns on mobile */
-    .table th:nth-child(4),
-    .table td:nth-child(4), /* Treatment */
-
-    .table th:nth-child(6),
-    .table td:nth-child(6) { /* Chair */
-        display: none;
-    }
-
-    /* Action buttons */
-    .btn-group .btn {
-        padding: 5px 7px;
-        font-size: 12px;
-    }
-
-    /* Modal improvements */
-    .modal-dialog {
-        margin: 10px;
-    }
-
-    .modal-body .form-control,
-    .modal-body .form-select {
-        font-size: 14px;
-        padding: 8px;
-    }
-
-    .modal-body label {
-        font-size: 13px;
-    }
-
-}
 .timeline-sm {
     position: relative;
     padding-left: 20px;
