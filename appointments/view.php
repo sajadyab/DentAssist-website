@@ -123,7 +123,7 @@ include '../layouts/header.php';
                         
                         <div class="col-md-6 mb-3">
                             <label class="fw-bold">Doctor:</label>
-                            <p class="mb-0">Dr. <?php echo htmlspecialchars($appointment['doctor_name']); ?></p>
+                            <p class="mb-0"><?php echo htmlspecialchars($appointment['doctor_name']); ?></p>
                             <small><?php echo $appointment['doctor_email']; ?></small>
                         </div>
                         
