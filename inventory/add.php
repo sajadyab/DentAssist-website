@@ -94,18 +94,18 @@ include '../layouts/header.php';
         margin: 0 auto 1rem;
     }
 
-    .inventory-card select.form-select option:hover,
-    .inventory-card select.form-select option:focus {
-        background-color: #007bff;
-        color: white;
+    .inventory-card select.form-select:hover,
+    .inventory-card select.form-select:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
     }
 
     .cancel-btn {
         background-color: #dc3545;
         border-color: #dc3545;
-        padding: 0.375rem 0.55rem;
+        padding: 0.375rem 0.65rem;
         width: auto;
-        min-width: 100px;
+        min-width: 4.25rem;
     }
 
     .cancel-btn:hover {
@@ -118,11 +118,41 @@ include '../layouts/header.php';
             max-width: 90%;
         }
     }
+
+    @media (max-width: 768px) {
+        .inventory-add-title {
+            font-size: 1.15rem;
+        }
+
+        .inventory-card {
+            max-width: 100%;
+            border-radius: 12px;
+        }
+
+        .inventory-card .card-body {
+            padding: 1rem;
+        }
+
+        .inventory-card .form-control,
+        .inventory-card .form-select {
+            padding: 0.6rem 0.75rem;
+            font-size: 14px;
+        }
+
+        .inventory-card .form-label {
+            font-size: 14px;
+        }
+
+        .inventory-card .btn {
+            padding: 0.55rem 0.85rem;
+            font-size: 14px;
+        }
+    }
 </style>
 
 <div class="container-fluid">
 
-<h1 class="h3 mb-4">Add Inventory Item</h1>
+<h1 class="h3 mb-4 inventory-add-title">Add Inventory Item</h1>
 
 <?php if ($error): ?>
 <div class="alert alert-danger">
