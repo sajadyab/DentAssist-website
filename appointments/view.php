@@ -313,6 +313,96 @@ include '../layouts/header.php';
 </div>
 
 <style>
+        /* Mobile responsive improvements for appointment page */
+@media (max-width: 768px) {
+
+    /* Page title and top bar */
+    .container-fluid h1.h3 {
+        font-size: 20px;
+    }
+
+    .d-flex.justify-content-between.align-items-center.mb-4 {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 10px;
+    }
+
+    /* New appointment button */
+    .btn-primary {
+        font-size: 14px;
+        padding: 8px 12px;
+    }
+
+    /* Filters card */
+    .card-body form .form-label {
+        font-size: 13px;
+    }
+
+    .card-body form .form-control,
+    .card-body form .form-select {
+        font-size: 14px;
+        padding: 8px 10px;
+    }
+
+    /* Filter button */
+    .card-body form button {
+        font-size: 14px;
+        padding: 8px;
+    }
+
+    /* Date navigation */
+    .d-flex.justify-content-between.align-items-center.mb-3 {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+    }
+
+    .d-flex.justify-content-between.align-items-center.mb-3 h4 {
+        font-size: 16px;
+    }
+
+    /* Table adjustments */
+    .table {
+        font-size: 13px;
+    }
+
+    .table th,
+    .table td {
+        padding: 8px;
+        vertical-align: middle;
+    }
+
+    /* Hide less important columns on mobile */
+    .table th:nth-child(4),
+    .table td:nth-child(4), /* Treatment */
+
+    .table th:nth-child(6),
+    .table td:nth-child(6) { /* Chair */
+        display: none;
+    }
+
+    /* Action buttons */
+    .btn-group .btn {
+        padding: 5px 7px;
+        font-size: 12px;
+    }
+
+    /* Modal improvements */
+    .modal-dialog {
+        margin: 10px;
+    }
+
+    .modal-body .form-control,
+    .modal-body .form-select {
+        font-size: 14px;
+        padding: 8px;
+    }
+
+    .modal-body label {
+        font-size: 13px;
+    }
+
+}
 .timeline-sm {
     position: relative;
     padding-left: 20px;
