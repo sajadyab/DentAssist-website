@@ -123,11 +123,83 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 include '../layouts/header.php';
 ?>
 
+<style>
+    .appointments-schedule-header {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .appointments-schedule-title {
+        margin-bottom: 0;
+    }
+
+    .appointment-detail-card,
+    .appointment-side-card {
+        border-radius: 12px;
+    }
+
+    .appointment-detail-card .card-header,
+    .appointment-side-card .card-header {
+        padding: 0.65rem 1rem;
+    }
+
+    .appointment-form-actions {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    @media (max-width: 767.98px) {
+        .appointments-schedule-title {
+            font-size: 1.15rem;
+            width: 100%;
+        }
+
+        .appointments-schedule-header .btn {
+            width: 100%;
+            padding: 0.55rem 0.85rem;
+            font-size: 14px;
+        }
+
+        .appointment-detail-card .card-body,
+        .appointment-side-card .card-body {
+            padding: 1rem;
+        }
+
+        .appointment-detail-card .form-control,
+        .appointment-detail-card .form-select,
+        .appointment-side-card .form-control {
+            padding: 0.6rem 0.75rem;
+            font-size: 14px;
+        }
+
+        .appointment-detail-card .form-label,
+        .appointment-side-card .form-label {
+            font-size: 14px;
+        }
+
+        .appointment-form-actions {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .appointment-form-actions .btn {
+            width: 100%;
+            padding: 0.55rem 0.85rem;
+            font-size: 14px;
+        }
+
+        .appointment-side-card .btn {
+            padding: 0.5rem 0.75rem;
+            font-size: 14px;
+        }
+    }
+</style>
+
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3">Schedule New Appointment</h1>
+    <div class="d-flex justify-content-between align-items-center mb-4 appointments-schedule-header">
+        <h1 class="h3 appointments-schedule-title">Schedule New Appointment</h1>
         <a href="index.php" class="btn btn-secondary">
-            <i class="fas fa-arrow-left"></i> Back to Appointments
+            <i class="fas fa-arrow-left"></i> <span class="d-none d-sm-inline">Back to Appointments</span><span class="d-sm-none">Back</span>
         </a>
     </div>
     
@@ -139,9 +211,9 @@ include '../layouts/header.php';
         <div class="alert alert-success"><?php echo $success; ?></div>
     <?php endif; ?>
     
-    <div class="row">
-        <div class="col-md-8">
-            <div class="card">
+    <div class="row g-3">
+        <div class="col-lg-8">
+            <div class="card appointment-detail-card">
                 <div class="card-header">
                     <h5 class="card-title mb-0">Appointment Details</h5>
                 </div>
@@ -234,23 +306,23 @@ include '../layouts/header.php';
                         
                         <hr>
                         
-                        <div class="d-flex justify-content-end gap-2">
-                            <button type="submit" name="save_and_new" class="btn btn-info">
-                                Save & Schedule Another
+                        <div class="d-flex justify-content-lg-end appointment-form-actions">
+                            <button type="submit" name="save_and_new" class="btn btn-info order-lg-0">
+                                Save &amp; Schedule Another
                             </button>
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" class="btn btn-primary order-lg-1">
                                 Schedule Appointment
                             </button>
-                            <a href="index.php" class="btn btn-secondary">Cancel</a>
+                            <a href="index.php" class="btn btn-secondary order-lg-2">Cancel</a>
                         </div>
                     </form>
                 </div>
             </div>
         </div>
         
-        <div class="col-md-4">
+        <div class="col-lg-4">
             <!-- Patient Info Card -->
-            <div class="card mb-3" id="patientInfoCard" style="display: none;">
+            <div class="card appointment-side-card mb-3" id="patientInfoCard" style="display: none;">
                 <div class="card-header">
                     <h5 class="card-title mb-0">Patient Information</h5>
                 </div>
@@ -260,7 +332,7 @@ include '../layouts/header.php';
             </div>
             
             <!-- Available Slots Card -->
-            <div class="card">
+            <div class="card appointment-side-card">
                 <div class="card-header">
                     <h5 class="card-title mb-0">Available Slots</h5>
                 </div>
@@ -272,7 +344,7 @@ include '../layouts/header.php';
             </div>
             
             <!-- Quick Actions -->
-            <div class="card mt-3">
+            <div class="card appointment-side-card mt-lg-3">
                 <div class="card-header">
                     <h5 class="card-title mb-0">Quick Actions</h5>
                 </div>
