@@ -5,319 +5,400 @@ require_once '../includes/auth.php';
 require_once '../includes/functions.php';
 
 Auth::requireLogin();
-if ($_SESSION['role'] != 'admin' && $_SESSION['role'] != 'staff') {
-    header('Location: ../dashboard.php');
-    exit;
-}
+$pageTitle = __('financial_dashboard', 'Financial Dashboard');
 
 $db = Database::getInstance();
 
-// Get current month/year for filtering
-$currentMonth = date('m');
-$currentYear = date('Y');
-$selectedMonth = $_GET['month'] ?? $currentMonth;
-$selectedYear = $_GET['year'] ?? $currentYear;
+// Handle expense form submission (POST)
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_expenses'])) {
+    $monthYear = $_POST['month_year'] ?? null;
+    $salaryPerAssistant = floatval($_POST['salary_per_assistant'] ?? 0);
+    $assistants = intval($_POST['assistants_count'] ?? 0);
+    $salariesTotal = $salaryPerAssistant * $assistants; // total salaries = salary per assistant × number of assistants
+    $electricity = floatval($_POST['electricity'] ?? 0);
+    $rent = floatval($_POST['rent'] ?? 0);
+    $other = floatval($_POST['other_expenses'] ?? 0);
+    $notes = $_POST['notes'] ?? null;
 
-// Calculate financial data
-$startDate = $selectedYear . '-' . $selectedMonth . '-01';
-$endDate = date('Y-m-t', strtotime($startDate)); // Last day of month
+    if ($monthYear) {
+        $existing = $db->fetchOne(
+            "SELECT id FROM monthly_expenses WHERE month_year = ?",
+            [$monthYear],
+            "s"
+        );
+        if ($existing) {
+            $db->execute(
+                "UPDATE monthly_expenses SET 
+                    salaries_total = ?, assistants_count = ?, electricity = ?, rent = ?, other_expenses = ?, notes = ?
+                 WHERE month_year = ?",
+                [$salariesTotal, $assistants, $electricity, $rent, $other, $notes, $monthYear],
+                "ddddsss"
+            );
+        } else {
+            $db->insert(
+                "INSERT INTO monthly_expenses (month_year, salaries_total, assistants_count, electricity, rent, other_expenses, notes)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [$monthYear, $salariesTotal, $assistants, $electricity, $rent, $other, $notes],
+                "sidddds"
+            );
+        }
 
-// Total income from invoices
-$incomeQuery = "SELECT SUM(total_amount) as total_income FROM invoices WHERE payment_status = 'paid' AND created_at BETWEEN ? AND ?";
-$income = $db->fetchOne($incomeQuery, [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])['total_income'] ?? 0;
-
-// Total expenses
-$expenseQuery = "SELECT SUM(amount) as total_expenses FROM expenses WHERE payment_status = 'paid' AND expense_date BETWEEN ? AND ?";
-$expenses = $db->fetchOne($expenseQuery, [$startDate, $endDate])['total_expenses'] ?? 0;
-
-// Subscription payments
-$subscriptionQuery = "SELECT SUM(amount) as subscription_income FROM subscription_payments WHERE status = 'completed' AND payment_date BETWEEN ? AND ?";
-$subscriptionIncome = $db->fetchOne($subscriptionQuery, [$startDate, $endDate])['subscription_income'] ?? 0;
-
-// Net profit
-$netProfit = ($income + $subscriptionIncome) - $expenses;
-
-// Get expense breakdown by type
-$expenseBreakdown = $db->fetchAll(
-    "SELECT expense_type, SUM(amount) as total FROM expenses WHERE payment_status = 'paid' AND expense_date BETWEEN ? AND ? GROUP BY expense_type",
-    [$startDate, $endDate]
-);
-
-// Get monthly income trend (last 12 months)
-$monthlyIncome = [];
-for ($i = 11; $i >= 0; $i--) {
-    $monthStart = date('Y-m-01', strtotime("-$i months"));
-    $monthEnd = date('Y-m-t', strtotime("-$i months"));
-
-    $monthIncome = $db->fetchOne(
-        "SELECT SUM(total_amount) as income FROM invoices WHERE payment_status = 'paid' AND created_at BETWEEN ? AND ?",
-        [$monthStart . ' 00:00:00', $monthEnd . ' 23:59:59']
-    )['income'] ?? 0;
-
-    $monthSubscriptions = $db->fetchOne(
-        "SELECT SUM(amount) as subs FROM subscription_payments WHERE status = 'completed' AND payment_date BETWEEN ? AND ?",
-        [$monthStart, $monthEnd]
-    )['subs'] ?? 0;
-
-    $monthlyIncome[] = [
-        'month' => date('M Y', strtotime($monthStart)),
-        'income' => $monthIncome + $monthSubscriptions
-    ];
+        // Redirect back to the same month
+        $redirectMonth = date('Y-m', strtotime($monthYear));
+        header("Location: " . url("reports/financial.php?month=$redirectMonth"));
+        exit;
+    }
 }
 
-// Get recent expenses
-$recentExpenses = $db->fetchAll(
-    "SELECT e.*, u.username as created_by_name FROM expenses e LEFT JOIN users u ON e.created_by = u.id ORDER BY e.created_at DESC LIMIT 10"
-);
+// Get current month (default: current month)
+$selectedMonth = isset($_GET['month']) ? $_GET['month'] : date('Y-m');
+$selectedDate = date('Y-m-01', strtotime($selectedMonth . '-01'));
 
-// Get pending payments
-$pendingInvoices = $db->fetchAll(
-    "SELECT i.*, p.first_name, p.last_name FROM invoices i JOIN patients p ON i.patient_id = p.id WHERE i.payment_status = 'pending' ORDER BY i.created_at DESC LIMIT 5"
+// Fetch monthly expenses for the selected month (or create if not exists)
+$expenses = $db->fetchOne(
+    "SELECT * FROM monthly_expenses WHERE month_year = ?",
+    [$selectedDate],
+    "s"
 );
+if (!$expenses) {
+    $db->execute(
+        "INSERT INTO monthly_expenses (month_year, salaries_total, assistants_count, electricity, rent, other_expenses) VALUES (?, 0, 0, 0, 0, 0)",
+        [$selectedDate],
+        "s"
+    );
+    $expenses = $db->fetchOne("SELECT * FROM monthly_expenses WHERE month_year = ?", [$selectedDate], "s");
+}
 
-$pageTitle = 'Financial Dashboard';
+// Calculate total revenue (from invoices paid) for the selected month
+$revenue = $db->fetchOne(
+    "SELECT SUM(paid_amount) as total 
+     FROM invoices 
+     WHERE payment_status IN ('paid', 'partial') 
+       AND DATE_FORMAT(invoice_date, '%Y-%m') = ?",
+    [$selectedMonth],
+    "s"
+);
+$revenue = $revenue['total'] ?? 0;
+
+// Calculate total cost of inventory purchases for the selected month
+$inventoryCost = $db->fetchOne(
+    "SELECT SUM(quantity_change * (SELECT cost_per_unit FROM inventory WHERE id = inventory_id)) as total
+     FROM inventory_transactions 
+     WHERE transaction_type = 'purchase' 
+       AND DATE_FORMAT(performed_at, '%Y-%m') = ?",
+    [$selectedMonth],
+    "s"
+);
+$inventoryCost = $inventoryCost['total'] ?? 0;
+
+// Manual expenses from monthly_expenses table
+$manualExpenses = ($expenses['salaries_total'] ?? 0) +
+                  ($expenses['electricity'] ?? 0) +
+                  ($expenses['rent'] ?? 0) +
+                  ($expenses['other_expenses'] ?? 0);
+
+$totalExpenses = $inventoryCost + $manualExpenses;
+$netProfit = $revenue - $totalExpenses;
+
+// Get previous month's data for comparison
+$prevMonth = date('Y-m', strtotime($selectedMonth . '-01 -1 month'));
+$prevSelectedDate = date('Y-m-01', strtotime($prevMonth . '-01'));
+
+$prevExpenses = $db->fetchOne(
+    "SELECT * FROM monthly_expenses WHERE month_year = ?",
+    [$prevSelectedDate],
+    "s"
+);
+$prevManual = ($prevExpenses['salaries_total'] ?? 0) + ($prevExpenses['electricity'] ?? 0) + ($prevExpenses['rent'] ?? 0) + ($prevExpenses['other_expenses'] ?? 0);
+
+$prevRevenue = $db->fetchOne(
+    "SELECT SUM(paid_amount) as total FROM invoices WHERE payment_status IN ('paid', 'partial') AND DATE_FORMAT(invoice_date, '%Y-%m') = ?",
+    [$prevMonth],
+    "s"
+);
+$prevRevenue = $prevRevenue['total'] ?? 0;
+
+$prevInventoryCost = $db->fetchOne(
+    "SELECT SUM(quantity_change * (SELECT cost_per_unit FROM inventory WHERE id = inventory_id)) as total
+     FROM inventory_transactions 
+     WHERE transaction_type = 'purchase' 
+       AND DATE_FORMAT(performed_at, '%Y-%m') = ?",
+    [$prevMonth],
+    "s"
+);
+$prevInventoryCost = $prevInventoryCost['total'] ?? 0;
+
+$prevTotalExpenses = $prevInventoryCost + $prevManual;
+$prevNetProfit = $prevRevenue - $prevTotalExpenses;
+
+$profitChange = $netProfit - $prevNetProfit;
+$profitChangePercent = $prevNetProfit != 0 ? ($profitChange / abs($prevNetProfit)) * 100 : 0;
+
+// Get data for the last 12 months for charts
+$months = [];
+$revenues = [];
+$expensesTotal = [];
+$profits = [];
+for ($i = 11; $i >= 0; $i--) {
+    $monthDate = date('Y-m-01', strtotime("-$i months"));
+    $monthKey = date('Y-m', strtotime($monthDate));
+    $months[] = date('M Y', strtotime($monthDate));
+
+    // Revenue
+    $rev = $db->fetchOne(
+        "SELECT SUM(paid_amount) as total FROM invoices WHERE payment_status IN ('paid', 'partial') AND DATE_FORMAT(invoice_date, '%Y-%m') = ?",
+        [$monthKey],
+        "s"
+    );
+    $rev = $rev['total'] ?? 0;
+    $revenues[] = $rev;
+
+    // Inventory cost
+    $invCost = $db->fetchOne(
+        "SELECT SUM(quantity_change * (SELECT cost_per_unit FROM inventory WHERE id = inventory_id)) as total
+         FROM inventory_transactions 
+         WHERE transaction_type = 'purchase' 
+           AND DATE_FORMAT(performed_at, '%Y-%m') = ?",
+        [$monthKey],
+        "s"
+    );
+    $invCost = $invCost['total'] ?? 0;
+
+    // Manual expenses for that month
+    $manExp = $db->fetchOne(
+        "SELECT salaries_total, electricity, rent, other_expenses FROM monthly_expenses WHERE month_year = ?",
+        [$monthDate],
+        "s"
+    );
+    $manual = 0;
+    if ($manExp) {
+        $manual = ($manExp['salaries_total'] ?? 0) + ($manExp['electricity'] ?? 0) + ($manExp['rent'] ?? 0) + ($manExp['other_expenses'] ?? 0);
+    }
+    $totalExp = $invCost + $manual;
+    $expensesTotal[] = $totalExp;
+    $profits[] = $rev - $totalExp;
+}
+
 include '../layouts/header.php';
 ?>
 
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3">Financial Dashboard</h1>
-        <div class="d-flex gap-2">
-            <select class="form-select" id="monthSelect" style="width: auto;">
-                <?php for ($m = 1; $m <= 12; $m++): ?>
-                    <option value="<?php echo $m; ?>" <?php echo $m == $selectedMonth ? 'selected' : ''; ?>>
-                        <?php echo date('F', mktime(0, 0, 0, $m, 1)); ?>
-                    </option>
-                <?php endfor; ?>
-            </select>
-            <select class="form-select" id="yearSelect" style="width: auto;">
-                <?php for ($y = date('Y') - 2; $y <= date('Y') + 1; $y++): ?>
-                    <option value="<?php echo $y; ?>" <?php echo $y == $selectedYear ? 'selected' : ''; ?>>
-                        <?php echo $y; ?>
-                    </option>
-                <?php endfor; ?>
-            </select>
+        <h1 class="h3"><?php echo __('financial_dashboard', 'Financial Dashboard'); ?></h1>
+        <div class="btn-group">
+            <button class="btn btn-primary" onclick="showExpenseModal()">
+                <i class="fas fa-edit"></i> <?php echo __('edit_expenses', 'Edit Expenses'); ?>
+            </button>
+            <a href="?month=<?php echo date('Y-m', strtotime($selectedMonth . '-01 -1 month')); ?>" class="btn btn-outline-secondary">
+                <i class="fas fa-chevron-left"></i> <?php echo __('previous_month', 'Previous Month'); ?>
+            </a>
+            <a href="?month=<?php echo date('Y-m', strtotime($selectedMonth . '-01 +1 month')); ?>" class="btn btn-outline-secondary">
+                <?php echo __('next_month', 'Next Month'); ?> <i class="fas fa-chevron-right"></i>
+            </a>
         </div>
     </div>
 
-    <!-- Financial Summary Cards -->
+    <!-- Summary Cards -->
     <div class="row mb-4">
         <div class="col-md-3">
-            <div class="card bg-success text-white">
+            <div class="card bg-primary text-white">
                 <div class="card-body">
-                    <h5 class="card-title">Total Income</h5>
-                    <h3>$<?php echo number_format($income + $subscriptionIncome, 2); ?></h3>
-                    <small>Treatment + Subscription Income</small>
+                    <h6 class="card-title"><?php echo __('revenue', 'Revenue'); ?></h6>
+                    <h2 class="mb-0"><?php echo formatCurrency($revenue); ?></h2>
+                    <small><?php echo __('from_paid_invoices', 'From paid invoices'); ?></small>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="card bg-danger text-white">
                 <div class="card-body">
-                    <h5 class="card-title">Total Expenses</h5>
-                    <h3>$<?php echo number_format($expenses, 2); ?></h3>
-                    <small>All expense categories</small>
+                    <h6 class="card-title"><?php echo __('expenses', 'Expenses'); ?></h6>
+                    <h2 class="mb-0"><?php echo formatCurrency($totalExpenses); ?></h2>
+                    <small><?php echo __('inventory', 'Inventory') . ': ' . formatCurrency($inventoryCost) . ' | ' . __('manual', 'Manual') . ': ' . formatCurrency($manualExpenses); ?></small>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card <?php echo $netProfit >= 0 ? 'bg-info' : 'bg-warning'; ?> text-white">
+            <div class="card bg-success text-white">
                 <div class="card-body">
-                    <h5 class="card-title">Net Profit</h5>
-                    <h3>$<?php echo number_format($netProfit, 2); ?></h3>
-                    <small>Income - Expenses</small>
+                    <h6 class="card-title"><?php echo __('net_profit', 'Net Profit'); ?></h6>
+                    <h2 class="mb-0"><?php echo formatCurrency($netProfit); ?></h2>
+                    <small><?php echo __('vs_prev_month', 'vs last month'); ?>:
+                        <?php echo ($profitChange >= 0 ? '+' : '') . formatCurrency($profitChange); ?>
+                        (<?php echo number_format($profitChangePercent, 1); ?>%)
+                    </small>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-primary text-white">
+            <div class="card bg-info text-white">
                 <div class="card-body">
-                    <h5 class="card-title">Pending Payments</h5>
-                    <h3><?php echo count($pendingInvoices); ?></h3>
-                    <small>Unpaid invoices</small>
+                    <h6 class="card-title"><?php echo __('profit_margin', 'Profit Margin'); ?></h6>
+                    <h2 class="mb-0"><?php echo $revenue > 0 ? number_format(($netProfit / $revenue) * 100, 1) : 0; ?>%</h2>
+                    <small><?php echo __('of_revenue', 'of revenue'); ?></small>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Charts Row -->
+    <!-- Monthly Expenses Details -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0"><?php echo __('monthly_breakdown', 'Monthly Breakdown'); ?> - <?php echo date('F Y', strtotime($selectedDate)); ?></h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6><?php echo __('revenue_details', 'Revenue Details'); ?></h6>
+                    <table class="table table-sm">
+                        <tr><th><?php echo __('paid_invoices', 'Paid Invoices'); ?></th><td class="text-end"><?php echo formatCurrency($revenue); ?></td></tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h6><?php echo __('expense_details', 'Expense Details'); ?></h6>
+                    <table class="table table-sm">
+                        <tr><th><?php echo __('inventory_purchases', 'Inventory Purchases'); ?></th><td class="text-end"><?php echo formatCurrency($inventoryCost); ?></td></tr>
+                        <tr><th><?php echo __('salaries', 'Salaries'); ?></th><td class="text-end"><?php echo formatCurrency($expenses['salaries_total'] ?? 0); ?></td></tr>
+                        <tr><th><?php echo __('electricity', 'Electricity'); ?></th><td class="text-end"><?php echo formatCurrency($expenses['electricity'] ?? 0); ?></td></tr>
+                        <tr><th><?php echo __('rent', 'Rent'); ?></th><td class="text-end"><?php echo formatCurrency($expenses['rent'] ?? 0); ?></td></tr>
+                        <tr><th><?php echo __('other_expenses', 'Other Expenses'); ?></th><td class="text-end"><?php echo formatCurrency($expenses['other_expenses'] ?? 0); ?></td></tr>
+                        <tr class="fw-bold"><th><?php echo __('total_expenses', 'Total Expenses'); ?></th><td class="text-end"><?php echo formatCurrency($totalExpenses); ?></td></tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts -->
     <div class="row mb-4">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">
-                    <h5>Income Trend (Last 12 Months)</h5>
-                </div>
-                <div class="card-body">
-                    <canvas id="incomeChart" width="400" height="200"></canvas>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5>Expense Breakdown</h5>
-                </div>
-                <div class="card-body">
-                    <canvas id="expenseChart" width="300" height="200"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Recent Activity -->
-    <div class="row">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5>Recent Expenses</h5>
-                    <a href="add_expense.php" class="btn btn-sm btn-primary">Add Expense</a>
-                </div>
-                <div class="card-body">
-                    <?php if (empty($recentExpenses)): ?>
-                        <p class="text-muted">No expenses recorded yet.</p>
-                    <?php else: ?>
-                        <div class="table-responsive">
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>Type</th>
-                                        <th>Description</th>
-                                        <th>Amount</th>
-                                        <th>Date</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($recentExpenses as $expense): ?>
-                                        <tr>
-                                            <td><?php echo ucfirst($expense['expense_type']); ?></td>
-                                            <td><?php echo htmlspecialchars(substr($expense['description'], 0, 30)); ?>...</td>
-                                            <td>$<?php echo number_format($expense['amount'], 2); ?></td>
-                                            <td><?php echo formatDate($expense['expense_date']); ?></td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
-
         <div class="col-md-6">
             <div class="card">
                 <div class="card-header">
-                    <h5>Pending Payments</h5>
+                    <h5 class="card-title mb-0"><?php echo __('revenue_vs_expenses', 'Revenue vs Expenses'); ?></h5>
                 </div>
                 <div class="card-body">
-                    <?php if (empty($pendingInvoices)): ?>
-                        <p class="text-muted">No pending payments.</p>
-                    <?php else: ?>
-                        <div class="table-responsive">
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>Patient</th>
-                                        <th>Amount</th>
-                                        <th>Date</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($pendingInvoices as $invoice): ?>
-                                        <tr>
-                                            <td><?php echo htmlspecialchars($invoice['first_name'] . ' ' . $invoice['last_name']); ?></td>
-                                            <td>$<?php echo number_format($invoice['total_amount'], 2); ?></td>
-                                            <td><?php echo formatDate($invoice['created_at']); ?></td>
-                                            <td>
-                                                <a href="../billing/invoice_view.php?id=<?php echo $invoice['id']; ?>" class="btn btn-sm btn-outline-primary">View</a>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    <?php endif; ?>
+                    <canvas id="revenueExpenseChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0"><?php echo __('net_profit_trend', 'Net Profit Trend'); ?></h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="profitChart" height="250"></canvas>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Chart.js -->
+<!-- Modal for Editing Monthly Expenses -->
+<div class="modal fade" id="expenseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><?php echo __('edit_monthly_expenses', 'Edit Monthly Expenses'); ?> - <?php echo date('F Y', strtotime($selectedDate)); ?></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="" id="expenseForm">
+                <input type="hidden" name="update_expenses" value="1">
+                <div class="modal-body">
+                    <input type="hidden" name="month_year" value="<?php echo $selectedDate; ?>">
+                    <div class="mb-3">
+                        <label class="form-label"><?php echo __('assistants_count', 'Number of Assistants'); ?></label>
+                        <input type="number" class="form-control" name="assistants_count" value="<?php echo $expenses['assistants_count'] ?? 0; ?>">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label"><?php echo __('salary_per_assistant', 'Salary per Assistant'); ?></label>
+                        <input type="number" step="0.01" class="form-control" name="salary_per_assistant" 
+                               value="<?php echo ($expenses['assistants_count'] ?? 0) > 0 ? round(($expenses['salaries_total'] ?? 0) / ($expenses['assistants_count'] ?? 1), 2) : 0; ?>">
+                        <small class="text-muted"><?php echo __('total_salaries', 'Total Salaries') . ': ' . formatCurrency($expenses['salaries_total'] ?? 0); ?></small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label"><?php echo __('electricity', 'Electricity'); ?></label>
+                        <input type="number" step="0.01" class="form-control" name="electricity" value="<?php echo $expenses['electricity'] ?? 0; ?>">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label"><?php echo __('rent', 'Rent'); ?></label>
+                        <input type="number" step="0.01" class="form-control" name="rent" value="<?php echo $expenses['rent'] ?? 0; ?>">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label"><?php echo __('other_expenses', 'Other Expenses'); ?></label>
+                        <input type="number" step="0.01" class="form-control" name="other_expenses" value="<?php echo $expenses['other_expenses'] ?? 0; ?>">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label"><?php echo __('notes', 'Notes'); ?></label>
+                        <textarea class="form-control" name="notes" rows="2"><?php echo htmlspecialchars($expenses['notes'] ?? ''); ?></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?php echo __('cancel', 'Cancel'); ?></button>
+                    <button type="submit" class="btn btn-primary"><?php echo __('save_changes', 'Save Changes'); ?></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-// Income Trend Chart
-const incomeCtx = document.getElementById('incomeChart').getContext('2d');
-const incomeChart = new Chart(incomeCtx, {
-    type: 'line',
-    data: {
-        labels: <?php echo json_encode(array_column($monthlyIncome, 'month')); ?>,
-        datasets: [{
-            label: 'Monthly Income',
-            data: <?php echo json_encode(array_column($monthlyIncome, 'income')); ?>,
-            borderColor: 'rgb(75, 192, 192)',
-            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-            tension: 0.1
-        }]
-    },
-    options: {
-        responsive: true,
-        scales: {
-            y: {
-                beginAtZero: true,
-                ticks: {
-                    callback: function(value) {
-                        return '$' + value.toLocaleString();
-                    }
-                }
-            }
-        }
-    }
-});
+    const months = <?php echo json_encode($months); ?>;
+    const revenues = <?php echo json_encode($revenues); ?>;
+    const expensesTotal = <?php echo json_encode($expensesTotal); ?>;
+    const profits = <?php echo json_encode($profits); ?>;
 
-// Expense Breakdown Chart
-const expenseCtx = document.getElementById('expenseChart').getContext('2d');
-const expenseData = <?php echo json_encode($expenseBreakdown); ?>;
-const expenseChart = new Chart(expenseCtx, {
-    type: 'doughnut',
-    data: {
-        labels: expenseData.length > 0 ? expenseData.map(item => item.expense_type.charAt(0).toUpperCase() + item.expense_type.slice(1)) : ['No Data'],
-        datasets: [{
-            data: expenseData.length > 0 ? expenseData.map(item => parseFloat(item.total)) : [1],
-            backgroundColor: [
-                '#FF6384',
-                '#36A2EB',
-                '#FFCE56',
-                '#4BC0C0',
-                '#9966FF',
-                '#FF9F40'
+    new Chart(document.getElementById('revenueExpenseChart'), {
+        type: 'bar',
+        data: {
+            labels: months,
+            datasets: [
+                {
+                    label: '<?php echo __('revenue', 'Revenue'); ?>',
+                    data: revenues,
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: '<?php echo __('expenses', 'Expenses'); ?>',
+                    data: expensesTotal,
+                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 1
+                }
             ]
-        }]
-    },
-    options: {
-        responsive: true,
-        plugins: {
-            tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        if (expenseData.length === 0) return 'No expense data';
-                        return context.label + ': $' + context.parsed.toLocaleString();
-                    }
-                }
-            }
+        },
+        options: {
+            responsive: true,
+            scales: { y: { beginAtZero: true, ticks: { callback: v => '$' + v.toLocaleString() } } }
         }
+    });
+
+    new Chart(document.getElementById('profitChart'), {
+        type: 'line',
+        data: {
+            labels: months,
+            datasets: [{
+                label: '<?php echo __('net_profit', 'Net Profit'); ?>',
+                data: profits,
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: { y: { beginAtZero: true, ticks: { callback: v => '$' + v.toLocaleString() } } }
+        }
+    });
+
+    function showExpenseModal() {
+        new bootstrap.Modal(document.getElementById('expenseModal')).show();
     }
-});
-
-// Month/Year filter
-document.getElementById('monthSelect').addEventListener('change', updateFilters);
-document.getElementById('yearSelect').addEventListener('change', updateFilters);
-
-function updateFilters() {
-    const month = document.getElementById('monthSelect').value;
-    const year = document.getElementById('yearSelect').value;
-    window.location.href = `?month=${month}&year=${year}`;
-}
 </script>
 
 <?php include '../layouts/footer.php'; ?>
