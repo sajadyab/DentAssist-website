@@ -6,15 +6,11 @@ require_once 'includes/functions.php';
 
 $error = '';
 
-// Handle form submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
-
-    // Attempt login using Auth class
+    
     if (Auth::login($username, $password)) {
-
-        // Redirect based on user role
         if ($_SESSION['role'] == 'patient') {
         header('Location: patient/index.php');
     } else {
@@ -206,7 +202,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </form>
 
     <div class="text-center mt-3">
-        <small>Don't have an account? <a href="register.php">Register as a patient</a></small>
+        <small>Forgot password? <a href="forgot_password.php">Click here.</a></small>
     </div>
 </div>
 </body>
