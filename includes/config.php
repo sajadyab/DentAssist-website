@@ -12,31 +12,9 @@ define('DB_PASS', '');
 define('DB_NAME', 'dental_clinic');
 
 // Application configuration
-define('SITE_NAME', 'DentAssist<br>Smart Dental Clinic');
-// Outgoing mail for password reset (php.ini sendmail / SMTP must be configured on the server)
-if (!defined('MAIL_FROM_ADDRESS')) {
-    define('MAIL_FROM_ADDRESS', 'noreply@' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
-}
-if (!defined('MAIL_FROM_NAME')) {
-    define('MAIL_FROM_NAME', SITE_NAME);
-}
-
-// Optional: WhatsApp Cloud API (Meta) alternative to Twilio for password reset.
-// If set (non-empty), `api/reset_password.php` will send WhatsApp via Graph API.
-// You will need to create a WhatsApp Business Account + Cloud API phone number.
-if (!defined('WHATSAPP_CLOUD_ACCESS_TOKEN')) {
-    define('WHATSAPP_CLOUD_ACCESS_TOKEN', '');
-}
-if (!defined('WHATSAPP_CLOUD_PHONE_NUMBER_ID')) {
-    define('WHATSAPP_CLOUD_PHONE_NUMBER_ID', '');
-}
+define('SITE_NAME', 'Dental Clinic Management System _ByteDent_');
 // Correct SITE_URL to match project directory (case-sensitive on some setups)
-define('SITE_URL', 'http://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/Dental');
-// Public URL used in WhatsApp links (must be reachable from patient phone).
-// Example: https://your-domain.com/Dental or https://xxxx.ngrok-free.app/Dental
-if (!defined('PUBLIC_SITE_URL')) {
-    define('PUBLIC_SITE_URL', '');
-}
+define('SITE_URL', 'http://' . $_SERVER['HTTP_HOST'] . '/Dental');
 // Upload path and URL
 define('UPLOAD_PATH', $_SERVER['DOCUMENT_ROOT'] . '/Dental/assets/uploads/');
 define('UPLOAD_URL', SITE_URL . '/assets/uploads/');

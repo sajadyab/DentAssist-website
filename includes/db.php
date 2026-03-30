@@ -35,9 +35,26 @@ class Database {
         return $this->conn;
     }
     
+    // Transaction Methods
+    public function beginTransaction() {
+        return $this->conn->begin_transaction();
+    }
+    
+    public function commit() {
+        return $this->conn->commit();
+    }
+    
+    public function rollback() {
+        return $this->conn->rollback();
+    }
+    
     // Prepare and execute query with parameters
     public function query($sql, $params = [], $types = "") {
         $stmt = $this->conn->prepare($sql);
+        
+        if (!$stmt) {
+            throw new Exception("Prepare failed: " . $this->conn->error);
+        }
         
         if (!empty($params)) {
             $stmt->bind_param($types, ...$params);
