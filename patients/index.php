@@ -107,7 +107,9 @@ include '../layouts/header.php';
                                         <small><?php echo $patient['insurance_type'] ?? '-'; ?></small>
                                     </td>
                                     <td>
-                                        <?php echo $patient['last_visit_date'] ? formatDate($patient['last_visit_date']) : 'No visits'; ?>
+                                        <?php echo patientHasLastVisitDate($patient['last_visit_date'] ?? null)
+                                            ? htmlspecialchars(formatDate(normalizePatientOptionalDate($patient['last_visit_date'] ?? null)))
+                                            : 'No visits'; ?>
                                     </td>
                                     <td>
                                         <div class="btn-group" role="group">

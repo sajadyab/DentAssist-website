@@ -213,4 +213,23 @@ function generateRandomPassword($length = 8) {
     }
     return $password;
 }
+
+/** True when last_visit_date should be shown (not empty / zero-date). */
+function patientHasLastVisitDate($value): bool
+{
+    return normalizePatientOptionalDate($value) !== null;
+}
+
+// Optional DATE/DATETIME from forms: empty or MySQL zero-date → null for DB binding
+function normalizePatientOptionalDate($value): ?string
+{
+    if ($value === null) {
+        return null;
+    }
+    $v = trim((string) $value);
+    if ($v === '' || $v === '0000-00-00' || $v === '0000-00-00 00:00:00' || preg_match('/^0000-\d{2}-\d{2}/', $v)) {
+        return null;
+    }
+    return $v;
+}
 ?>
