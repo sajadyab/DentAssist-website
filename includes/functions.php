@@ -200,4 +200,17 @@ function getPatientIdFromUserId($userId) {
     $patient = $db->fetchOne("SELECT id FROM patients WHERE user_id = ?", [$userId], "i");
     return $patient ? $patient['id'] : null;
 }
+/**
+ * Generate a random password
+ * @param int $length
+ * @return string
+ */
+function generateRandomPassword($length = 8) {
+    $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+    $password = '';
+    for ($i = 0; $i < $length; $i++) {
+        $password .= $chars[random_int(0, strlen($chars) - 1)];
+    }
+    return $password;
+}
 ?>

@@ -10,18 +10,29 @@ class Auth {
     }
     
     // Require login - redirect if not logged in
-  public static function requireLogin() {
-    if (!self::isLoggedIn()) {
-        header("Location: /Dental/login.php");
-        exit;
+    public static function requireLogin() {
+        if (!self::isLoggedIn()) {
+            header("Location: /Dental/login.php");
+            exit;
+        }
     }
-}
-
-
     
     // Check if user has specific role
     public static function hasRole($role) {
         return isset($_SESSION['role']) && $_SESSION['role'] === $role;
+    }
+    
+    // Check if user is admin
+    public static function isAdmin() {
+        return isset($_SESSION['is_admin']) && $_SESSION['is_admin'] == 1;
+    }
+    
+    // Require admin access
+    public static function requireAdmin() {
+        self::requireLogin();
+        if (!self::isAdmin()) {
+            die("Access denied. Admin privileges required.");
+        }
     }
     
     // Require specific role
@@ -65,6 +76,7 @@ class Auth {
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['role'] = $user['role'];
+            $_SESSION['is_admin'] = $user['is_admin'] ?? 0;
             $_SESSION['full_name'] = $user['full_name'];
             $_SESSION['profile_image'] = $user['profile_image'];
             

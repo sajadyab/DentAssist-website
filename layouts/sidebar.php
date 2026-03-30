@@ -78,12 +78,7 @@ $role = $_SESSION['role'] ?? '';
                 </a>
             </li>
 
-            <li class="<?php echo $currentPage == 'reports/messages.php' ? 'active' : ''; ?>">
-                <a href="<?php echo url('reports/messages.php'); ?>">
-                    <i class="fas fa-envelope"></i>
-                    <span><?php echo __('message_center', 'Message Center'); ?></span>
-                </a>
-            </li>
+    
 
             <li class="<?php echo strpos($currentPage, 'report') !== false && $currentPage != 'reports/financial.php' && $currentPage != 'reports/messages.php' ? 'active' : ''; ?>">
                 <a href="<?php echo url('reports/index.php'); ?>">
@@ -116,6 +111,12 @@ $role = $_SESSION['role'] ?? '';
                 <a href="<?php echo url('patient/index.php'); ?>">
                     <i class="fas fa-home"></i>
                     <span><?php echo __('my_portal', 'My Portal'); ?></span>
+                </a>
+            </li>
+             <li>
+                <a href="<?php echo url('patient/profile.php'); ?>">
+                    <i class="fas fa-user-edit"></i>
+                    <span><?php echo __('profile', 'Profile'); ?></span>
                 </a>
             </li>
             <li>
@@ -161,11 +162,11 @@ $role = $_SESSION['role'] ?? '';
                 </a>
             </li>
             <li>
-                <a href="<?php echo url('patient/profile.php'); ?>">
-                    <i class="fas fa-user-edit"></i>
-                    <span><?php echo __('profile', 'Profile'); ?></span>
+                <a href="<?php echo url('settings/index.php'); ?>">
+                    <i class="fas fa-cog"></i> <span><?php echo __('settings', 'Settings'); ?></span>
                 </a>
             </li>
+           
         <?php endif; ?>
         
         <!-- Language Switcher -->
