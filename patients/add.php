@@ -4,11 +4,6 @@ require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
 
-// Generate a random password for new user accounts
-function generateRandomPassword($length = 8) {
-    return substr(str_shuffle('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, $length);
-}
-
 function normalizeE164Phone(?string $countryCode, ?string $localNumber): array
 {
     $code = preg_replace('/[^0-9]/', '', (string) $countryCode);

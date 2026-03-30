@@ -23,6 +23,41 @@ if (!$patient) {
 
 $pageTitle = 'Patient: ' . $patient['full_name'];
 
+// Remove dental history image (handwritten) from xrays + disk
+$removeMessage = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_dental_history_xray_id'])) {
+    $removeId = (int) ($_POST['remove_dental_history_xray_id'] ?? 0);
+    if ($removeId > 0) {
+        $rowToDelete = $db->fetchOne(
+            "SELECT id, file_path FROM xrays
+             WHERE id = ?
+               AND patient_id = ?
+               AND xray_type = 'Other'
+               AND notes LIKE 'Dental history (handwritten)%'
+             LIMIT 1",
+            [$removeId, $patientId],
+            'ii'
+        );
+
+        if ($rowToDelete) {
+            $path = (string) ($rowToDelete['file_path'] ?? '');
+            $db->execute(
+                "DELETE FROM xrays WHERE id = ? AND patient_id = ? LIMIT 1",
+                [$removeId, $patientId],
+                'ii'
+            );
+
+            if ($path !== '' && is_file($path)) {
+                @unlink($path);
+            }
+
+            $removeMessage = 'Image removed successfully.';
+        } else {
+            $removeMessage = 'Image not found or not removable.';
+        }
+    }
+}
+
 // Medical history: JSON from add.php { "conditions": [...], "notes": "..." } or legacy plain text
 $medicalConditions = [];
 $medicalAdditionalNotes = '';
@@ -38,12 +73,13 @@ if (is_array($decodedMedical) && (isset($decodedMedical['conditions']) || array_
     $medicalHistoryLegacyText = trim((string) $patient['medical_history']);
 }
 
-// Handwritten dental history image (same source as add.php / edit.php)
-$dentalHistoryImage = $db->fetchOne(
+// Handwritten dental history images (same source as add.php / edit.php)
+$dentalHistoryImages = $db->fetchAll(
     "SELECT id, file_name, file_path, uploaded_at FROM xrays
-     WHERE patient_id = ? AND xray_type = 'Other' AND notes LIKE 'Dental history (handwritten)%'
-     ORDER BY uploaded_at DESC, id DESC
-     LIMIT 1",
+     WHERE patient_id = ?
+       AND xray_type = 'Other'
+       AND notes LIKE 'Dental history (handwritten)%'
+     ORDER BY uploaded_at DESC, id DESC",
     [$patientId],
     "i"
 );
@@ -115,6 +151,10 @@ include '../layouts/header.php';
             </button>
         </div>
     </div>
+
+    <?php if ($removeMessage): ?>
+        <div class="alert alert-info mb-3"><?php echo htmlspecialchars($removeMessage); ?></div>
+    <?php endif; ?>
     
     <!-- Patient Summary Card -->
     <div class="row mb-4">
@@ -362,22 +402,55 @@ include '../layouts/header.php';
                         <!-- Dental History Tab (handwritten image + narrative from add.php) -->
                         <div class="tab-pane" id="dental-history" role="tabpanel">
                             <div class="row">
-                                <?php if ($dentalHistoryImage && !empty($dentalHistoryImage['file_path'])): ?>
-                                    <div class="col-12 mb-4">
-                                        <h6>Handwritten dental history (scan / screenshot)</h6>
-                                        <a href="<?php echo htmlspecialchars(patient_upload_url_for_xray($dentalHistoryImage)); ?>" target="_blank" rel="noopener">
-                                            <img src="<?php echo htmlspecialchars(patient_upload_url_for_xray($dentalHistoryImage)); ?>"
-                                                 alt="Handwritten dental history" class="img-fluid rounded border" style="max-height: 480px;">
-                                        </a>
-                                        <?php if (!empty($dentalHistoryImage['uploaded_at'])): ?>
-                                            <p class="text-muted small mb-0 mt-2">Uploaded <?php echo htmlspecialchars(formatDate($dentalHistoryImage['uploaded_at'])); ?></p>
-                                        <?php endif; ?>
-                                    </div>
-                                <?php else: ?>
-                                    <div class="col-12 mb-3">
+                                <div class="col-12 mb-4">
+                                    <h6>Handwritten dental history (scan / screenshot)</h6>
+
+                                    <?php if (!empty($dentalHistoryImages)): ?>
+                                        <div class="row">
+                                            <?php foreach ($dentalHistoryImages as $img): ?>
+                                                <div class="col-md-4 mb-3">
+                                                    <div class="card h-100">
+                                                        <div class="card-body p-2">
+                                                            <?php $imgUrl = patient_upload_url_for_xray($img); ?>
+                                                        <button
+                                                            type="button"
+                                                            class="btn p-0 border-0 bg-transparent"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#dentalHistoryModal"
+                                                            data-img="<?php echo htmlspecialchars($imgUrl); ?>"
+                                                            data-uploaded-at="<?php echo !empty($img['uploaded_at']) ? htmlspecialchars(formatDate($img['uploaded_at'])) : ''; ?>"
+                                                            aria-label="View handwritten dental history image"
+                                                        >
+                                                                <img
+                                                                    src="<?php echo htmlspecialchars($imgUrl); ?>"
+                                                                    class="img-fluid rounded border"
+                                                                    alt="Handwritten dental history"
+                                                                    style="max-height: 240px; width: 100%; object-fit: contain;"
+                                                                >
+                                                        </button>
+                                                            <?php if (!empty($img['uploaded_at'])): ?>
+                                                                <div class="text-muted small mt-2">
+                                                                    Uploaded <?php echo htmlspecialchars(formatDate($img['uploaded_at'])); ?>
+                                                                </div>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                        <div class="card-footer bg-white d-flex justify-content-end">
+                                                            <form method="POST" action="view.php?id=<?php echo $patientId; ?>" onsubmit="return confirm('Remove this image?');">
+                                                                <input type="hidden" name="remove_dental_history_xray_id" value="<?php echo (int) $img['id']; ?>">
+                                                                <button type="submit" class="btn btn-sm btn-danger">
+                                                                    <i class="fas fa-trash"></i> Remove
+                                                                </button>
+                                                            </form>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php else: ?>
                                         <p class="text-muted mb-0">No handwritten dental history image on file.</p>
-                                    </div>
-                                <?php endif; ?>
+                                    <?php endif; ?>
+                                </div>
+
                                 <div class="col-md-8 mb-3">
                                     <h6>Dental history</h6>
                                     <?php $dh = trim((string) ($patient['dental_history'] ?? '')); ?>
@@ -578,6 +651,49 @@ function scheduleAppointment() {
     // Redirect to appointment scheduling page with patient ID
     window.location.href = '../appointments/add.php?patient_id=<?php echo $patientId; ?>';
 }
+</script>
+
+<!-- Dental History Image Modal -->
+<div class="modal fade" id="dentalHistoryModal" tabindex="-1" aria-labelledby="dentalHistoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="dentalHistoryModalLabel">Handwritten Dental History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center">
+                    <img
+                        id="dentalHistoryModalImg"
+                        src=""
+                        alt="Handwritten dental history"
+                        class="img-fluid rounded border"
+                        style="max-height: 70vh; width: auto; object-fit: contain;"
+                    >
+                </div>
+                <div id="dentalHistoryModalUploadedAt" class="text-muted small mt-2"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const modalEl = document.getElementById('dentalHistoryModal');
+        if (!modalEl) return;
+
+        modalEl.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const imgUrl = button ? button.getAttribute('data-img') : '';
+            const uploadedAt = button ? button.getAttribute('data-uploaded-at') : '';
+
+            const imgEl = document.getElementById('dentalHistoryModalImg');
+            const uploadedEl = document.getElementById('dentalHistoryModalUploadedAt');
+
+            if (imgEl) imgEl.src = imgUrl || '';
+            if (uploadedEl) uploadedEl.textContent = uploadedAt ? ('Uploaded ' + uploadedAt) : '';
+        });
+    })();
 </script>
 
 <?php include '../layouts/footer.php'; ?>
