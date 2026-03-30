@@ -232,4 +232,84 @@ function normalizePatientOptionalDate($value): ?string
     }
     return $v;
 }
+
+function getPatientWhatsappPhone(array $user): string
+{
+    return (string) ($user['phone'] ?? $user['mobile'] ?? $user['whatsapp_phone'] ?? '');
+}
+
+
+/**
+ * Send WhatsApp via the local Node service (assets/js/whatsapp/send.js — port 3210).
+ * Run: npm start  (from project root)
+ */
+function sendWhatsapp(string $phone, string $message): array
+{
+    $endpoint = defined('WHATSAPP_NODE_SEND_URL')
+        ? (string) WHATSAPP_NODE_SEND_URL
+        : 'http://127.0.0.1:3210/send';
+    $payload = json_encode([
+        'phone' => $phone,
+        'message' => $message,
+    ]);
+
+    if ($payload === false) {
+        return ['ok' => false, 'error' => 'Failed to build local WhatsApp payload.'];
+    }
+
+    $ch = curl_init($endpoint);
+    if ($ch === false) {
+        return ['ok' => false, 'error' => 'Failed to initialize local WhatsApp request.'];
+    }
+
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_POSTFIELDS => $payload,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_CONNECTTIMEOUT => 3,
+    ]);
+
+    $raw = curl_exec($ch);
+    $curlError = curl_error($ch);
+    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($raw === false || $raw === null || $raw === '') {
+        return [
+            'ok' => false,
+            'error' => 'WhatsApp Node server is not reachable. Run: npm start (from the Dental project folder).',
+        ];
+    }
+
+    $decoded = json_decode($raw, true);
+    if ($httpCode >= 400) {
+        $err = is_array($decoded) ? (string) ($decoded['error'] ?? '') : '';
+        if ($err === '') {
+            $err = $curlError !== '' ? $curlError : ('HTTP ' . $httpCode);
+        }
+        return ['ok' => false, 'error' => 'Local WhatsApp server error: ' . $err];
+    }
+
+    if (!is_array($decoded) || !($decoded['ok'] ?? false)) {
+        return ['ok' => false, 'error' => 'WhatsApp Node server returned an invalid response. Is send.js running?'];
+    }
+
+    return ['ok' => true, 'error' => null];
+}
+
+// Get patient name by username
+function getPatientByUsername($username)
+{
+    $db = Database::getInstance();
+    $patient = $db->fetchOne(
+        "SELECT * FROM users WHERE username = ?",
+        [$username],
+        "s"
+    );
+    return $patient;
+}
+
+
 ?>

@@ -19,6 +19,12 @@ define('SITE_URL', 'http://' . $_SERVER['HTTP_HOST'] . '/Dental');
 define('UPLOAD_PATH', $_SERVER['DOCUMENT_ROOT'] . '/Dental/assets/uploads/');
 define('UPLOAD_URL', SITE_URL . '/assets/uploads/');
 
+
+// WhatsApp: PHP talks to the local Node server (npm start → assets/js/whatsapp/send.js)
+if (!defined('WHATSAPP_NODE_SEND_URL')) {
+    define('WHATSAPP_NODE_SEND_URL', 'http://127.0.0.1:3210/send');
+}
+
 // Timezone
 date_default_timezone_set('America/New_York');
 

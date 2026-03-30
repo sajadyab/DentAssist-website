@@ -23,6 +23,42 @@ if (!$patient) {
 
 $pageTitle = 'Patient: ' . $patient['full_name'];
 
+// Medical history: JSON from add.php { "conditions": [...], "notes": "..." } or legacy plain text
+$medicalConditions = [];
+$medicalAdditionalNotes = '';
+$medicalHistoryLegacyText = null;
+$decodedMedical = json_decode((string) ($patient['medical_history'] ?? ''), true);
+if (is_array($decodedMedical) && (isset($decodedMedical['conditions']) || array_key_exists('notes', $decodedMedical))) {
+    $c = $decodedMedical['conditions'] ?? [];
+    if (is_array($c)) {
+        $medicalConditions = array_values(array_filter(array_map('strval', $c)));
+    }
+    $medicalAdditionalNotes = trim((string) ($decodedMedical['notes'] ?? ''));
+} elseif (trim((string) ($patient['medical_history'] ?? '')) !== '') {
+    $medicalHistoryLegacyText = trim((string) $patient['medical_history']);
+}
+
+// Handwritten dental history image (same source as add.php / edit.php)
+$dentalHistoryImage = $db->fetchOne(
+    "SELECT id, file_name, file_path, uploaded_at FROM xrays
+     WHERE patient_id = ? AND xray_type = 'Other' AND notes LIKE 'Dental history (handwritten)%'
+     ORDER BY uploaded_at DESC, id DESC
+     LIMIT 1",
+    [$patientId],
+    "i"
+);
+
+/** Public URL for an xrays row (handles xrays/ vs dental-history/ uploads). */
+function patient_upload_url_for_xray(array $row): string
+{
+    $path = (string) ($row['file_path'] ?? '');
+    $name = (string) ($row['file_name'] ?? '');
+    if ($path !== '' && stripos($path, 'dental-history') !== false) {
+        return UPLOAD_URL . 'dental-history/' . rawurlencode(basename($path));
+    }
+    return UPLOAD_URL . 'xrays/' . rawurlencode($name !== '' ? $name : basename($path));
+}
+
 // Get appointments
 $appointments = $db->fetchAll(
     "SELECT a.*, u.full_name as doctor_name 
@@ -47,6 +83,7 @@ $treatmentPlans = $db->fetchAll(
 $xrays = $db->fetchAll(
     "SELECT * FROM xrays 
      WHERE patient_id = ?
+       AND NOT (xray_type = 'Other' AND COALESCE(notes, '') LIKE 'Dental history (handwritten)%')
      ORDER BY uploaded_at DESC",
     [$patientId],
     "i"
@@ -97,9 +134,9 @@ include '../layouts/header.php';
                                     $patient['city'],
                                     $patient['state'],
                                     $patient['postal_code'],
-                                    $patient['country']
+                                    !empty($patient['country']) ? $patient['country'] : 'LB',
                                 ]);
-                                echo implode(', ', $address) ?: 'No address';
+                                echo implode(', ', $address) ?: 'LB';
                                 ?>
                             </p>
                         </div>
@@ -160,6 +197,12 @@ include '../layouts/header.php';
                             <button class="nav-link" id="medical-tab" data-bs-toggle="tab" 
                                     data-bs-target="#medical" type="button" role="tab">
                                 Medical History
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" id="dental-history-tab" data-bs-toggle="tab"
+                                    data-bs-target="#dental-history" type="button" role="tab">
+                                Dental History
                             </button>
                         </li>
                         <li class="nav-item">
@@ -262,28 +305,95 @@ include '../layouts/header.php';
                             <?php endif; ?>
                         </div>
                         
-                        <!-- Medical History Tab -->
+                        <!-- Medical History Tab (matches add.php: conditions + notes + allergies + medications) -->
                         <div class="tab-pane" id="medical" role="tabpanel">
                             <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <h6>Medical History</h6>
-                                    <p><?php echo nl2br(htmlspecialchars($patient['medical_history'] ?? 'No medical history recorded')); ?></p>
+                                <div class="col-12 mb-3">
+                                    <h6>Conditions</h6>
+                                    <?php if (!empty($medicalConditions)): ?>
+                                        <div class="d-flex flex-wrap gap-2">
+                                            <?php foreach ($medicalConditions as $cond): ?>
+                                                <span class="badge bg-danger"><?php echo htmlspecialchars($cond); ?></span>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php elseif ($medicalHistoryLegacyText !== null): ?>
+                                        <p class="mb-0"><?php echo nl2br(htmlspecialchars($medicalHistoryLegacyText)); ?></p>
+                                        <p class="text-muted small mb-0 mt-1">Legacy format (stored before structured medical history).</p>
+                                    <?php else: ?>
+                                        <p class="text-muted mb-0">No conditions recorded.</p>
+                                    <?php endif; ?>
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <h6>Allergies</h6>
-                                    <p><?php echo nl2br(htmlspecialchars($patient['allergies'] ?? 'No allergies recorded')); ?></p>
+                                    <?php $allergiesVal = trim((string) ($patient['allergies'] ?? '')); ?>
+                                    <p class="mb-0"><?php echo $allergiesVal !== '' ? nl2br(htmlspecialchars($allergiesVal)) : '<span class="text-muted">No allergies recorded</span>'; ?></p>
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <h6>Current Medications</h6>
-                                    <p><?php echo nl2br(htmlspecialchars($patient['current_medications'] ?? 'No medications recorded')); ?></p>
+                                    <?php $medsVal = trim((string) ($patient['current_medications'] ?? '')); ?>
+                                    <p class="mb-0"><?php echo $medsVal !== '' ? nl2br(htmlspecialchars($medsVal)) : '<span class="text-muted">No medications recorded</span>'; ?></p>
                                 </div>
-                                <div class="col-md-6 mb-3">
-                                    <h6>Past Surgeries</h6>
-                                    <p><?php echo nl2br(htmlspecialchars($patient['past_surgeries'] ?? 'No surgeries recorded')); ?></p>
+                                <div class="col-12 mb-3">
+                                    <h6>Additional Notes</h6>
+                                    <?php if ($medicalAdditionalNotes !== ''): ?>
+                                        <p class="mb-0"><?php echo nl2br(htmlspecialchars($medicalAdditionalNotes)); ?></p>
+                                    <?php else: ?>
+                                        <p class="text-muted mb-0">None.</p>
+                                    <?php endif; ?>
                                 </div>
-                                <div class="col-md-6 mb-3">
-                                    <h6>Chronic Conditions</h6>
-                                    <p><?php echo nl2br(htmlspecialchars($patient['chronic_conditions'] ?? 'No chronic conditions recorded')); ?></p>
+                                <?php
+                                $legacyPast = trim((string) ($patient['past_surgeries'] ?? ''));
+                                $legacyChronic = trim((string) ($patient['chronic_conditions'] ?? ''));
+                                if ($legacyPast !== '' || $legacyChronic !== ''): ?>
+                                    <div class="col-12">
+                                        <hr>
+                                        <h6 class="text-muted">Older records</h6>
+                                        <?php if ($legacyPast !== ''): ?>
+                                            <p class="mb-2"><strong>Past surgeries:</strong><br><?php echo nl2br(htmlspecialchars($legacyPast)); ?></p>
+                                        <?php endif; ?>
+                                        <?php if ($legacyChronic !== ''): ?>
+                                            <p class="mb-0"><strong>Chronic conditions:</strong><br><?php echo nl2br(htmlspecialchars($legacyChronic)); ?></p>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <!-- Dental History Tab (handwritten image + narrative from add.php) -->
+                        <div class="tab-pane" id="dental-history" role="tabpanel">
+                            <div class="row">
+                                <?php if ($dentalHistoryImage && !empty($dentalHistoryImage['file_path'])): ?>
+                                    <div class="col-12 mb-4">
+                                        <h6>Handwritten dental history (scan / screenshot)</h6>
+                                        <a href="<?php echo htmlspecialchars(patient_upload_url_for_xray($dentalHistoryImage)); ?>" target="_blank" rel="noopener">
+                                            <img src="<?php echo htmlspecialchars(patient_upload_url_for_xray($dentalHistoryImage)); ?>"
+                                                 alt="Handwritten dental history" class="img-fluid rounded border" style="max-height: 480px;">
+                                        </a>
+                                        <?php if (!empty($dentalHistoryImage['uploaded_at'])): ?>
+                                            <p class="text-muted small mb-0 mt-2">Uploaded <?php echo htmlspecialchars(formatDate($dentalHistoryImage['uploaded_at'])); ?></p>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="col-12 mb-3">
+                                        <p class="text-muted mb-0">No handwritten dental history image on file.</p>
+                                    </div>
+                                <?php endif; ?>
+                                <div class="col-md-8 mb-3">
+                                    <h6>Dental history</h6>
+                                    <?php $dh = trim((string) ($patient['dental_history'] ?? '')); ?>
+                                    <?php if ($dh !== ''): ?>
+                                        <p class="mb-0"><?php echo nl2br(htmlspecialchars($dh)); ?></p>
+                                    <?php else: ?>
+                                        <p class="text-muted mb-0">Not recorded.</p>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <h6>Last visit</h6>
+                                    <?php if (patientHasLastVisitDate($patient['last_visit_date'] ?? null)): ?>
+                                        <p class="mb-0"><?php echo htmlspecialchars(formatDate(normalizePatientOptionalDate($patient['last_visit_date'] ?? null))); ?></p>
+                                    <?php else: ?>
+                                        <p class="text-muted mb-0">No visits</p>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>
@@ -326,8 +436,12 @@ include '../layouts/header.php';
                                     <?php foreach ($xrays as $xray): ?>
                                         <div class="col-md-3 mb-3">
                                             <div class="card">
-                                                <img src="<?php echo UPLOAD_URL . 'xrays/' . $xray['file_name']; ?>" 
-                                                     class="card-img-top" alt="X-Ray">
+                                                <?php
+                                                $isDentalHandwritten = (isset($xray['notes']) && strpos((string) $xray['notes'], 'Dental history (handwritten)') === 0);
+                                                $imgUrl = patient_upload_url_for_xray($xray);
+                                                ?>
+                                                <img src="<?php echo htmlspecialchars($imgUrl); ?>"
+                                                     class="card-img-top" alt="<?php echo $isDentalHandwritten ? 'Dental history' : 'X-Ray'; ?>">
                                                 <div class="card-body">
                                                     <h6><?php echo $xray['xray_type']; ?></h6>
                                                     <p class="small"><?php echo $xray['findings']; ?></p>
