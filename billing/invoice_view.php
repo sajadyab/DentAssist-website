@@ -10,7 +10,7 @@ $db = Database::getInstance();
 $invoiceId = $_GET['id'] ?? 0;
 
 $invoice = $db->fetchOne(
-    "SELECT i.*, p.full_name as patient_name, p.phone, p.email, p.address_line1, p.city, p.state, p.postal_code,
+    "SELECT i.*, p.full_name as patient_name, p.phone, p.email, p.address, p.country,
             a.appointment_date, a.treatment_type,
             u.full_name as created_by_name
      FROM invoices i
@@ -193,8 +193,14 @@ include '../layouts/header.php';
                 </div>
                 <div class="card-body">
                     <p><strong><?php echo htmlspecialchars($invoice['patient_name']); ?></strong></p>
-                    <p><?php echo $invoice['address_line1']; ?><br>
-                       <?php echo $invoice['city']; ?>, <?php echo $invoice['state']; ?> <?php echo $invoice['postal_code']; ?></p>
+                    <p>
+                        <?php
+                        $addr = trim((string) ($invoice['address'] ?? ''));
+                        $country = trim((string) ($invoice['country'] ?? 'LB'));
+                        $parts = array_filter([$addr, $country]);
+                        echo htmlspecialchars(implode(', ', $parts) ?: 'LB');
+                        ?>
+                    </p>
                     <p>Phone: <?php echo $invoice['phone']; ?><br>
                        Email: <?php echo $invoice['email']; ?></p>
                 </div>

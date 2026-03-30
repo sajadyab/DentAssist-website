@@ -177,17 +177,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     full_name, date_of_birth, gender, phone, email,
                     emergency_contact_name, emergency_contact_phone, emergency_contact_relation,
                     insurance_provider, insurance_id, insurance_type, insurance_coverage,
-                    medical_history, allergies, current_medications, past_surgeries,
-                    chronic_conditions, dental_history, previous_dentist, last_visit_date,
-                    address_line1, address_line2, city, state, postal_code, country,
+                    medical_history, allergies, current_medications,
+                    dental_history, last_visit_date,
+                    address, country,
                     user_id, created_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [
                     $fullName,
                     $_POST['date_of_birth'] ?? null,
                     $_POST['gender'] ?? null,
                     $phone,
-                    $patientsEmail,
+                    $patientsEmail !== '' ? $patientsEmail : null,
                     $_POST['emergency_contact_name'] ?? null,
                     $_POST['emergency_contact_phone'] ?? null,
                     $_POST['emergency_contact_relation'] ?? null,
@@ -198,21 +198,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $medicalHistoryPayload,
                     $_POST['allergies'] ?? null,
                     $_POST['current_medications'] ?? null,
-                    null,
-                    null,
                     $_POST['dental_history'] ?? null,
-                    null,
                     normalizePatientOptionalDate($_POST['last_visit_date'] ?? null),
                     $address !== '' ? $address : null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    'USA',
+                    'LB',
                     (int) $userId,
                     Auth::userId()
                 ],
-                "sssssssssssissssssssssssssii"
+                "sssssssssssissssssssii"
             );
 
             if (!$patientId) {

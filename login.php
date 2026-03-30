@@ -168,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
    <div class="login-card">
     <div class="login-header">
         <h1><?php echo SITE_NAME; ?></h1>
-        <p>Sign in to your account</p>
+        <small>Don't have an account? <a href="register.php">Register.</a></small>
     </div>
 
     <?php if ($error): ?>
@@ -177,6 +177,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <form method="POST" action="">
         <div class="mb-3">
+            <div class="d-flex justify-content-end mb-2">
+              
+            </div>
             <input type="text" 
                    class="form-control<?php echo $error ? ' error-field' : ''; ?>" 
                    name="username" 

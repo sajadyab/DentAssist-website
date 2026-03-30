@@ -23,7 +23,7 @@ if (!$patientId) {
 
 // Get invoice - only if it belongs to this patient
 $invoice = $db->fetchOne(
-    "SELECT i.*, p.full_name as patient_name, p.phone, p.email, p.address_line1, p.city, p.state, p.postal_code,
+    "SELECT i.*, p.full_name as patient_name, p.phone, p.email, p.address, p.country,
             a.appointment_date, a.treatment_type
      FROM invoices i
      JOIN patients p ON i.patient_id = p.id
@@ -215,10 +215,12 @@ include '../layouts/header.php';
                 <div class="card-body">
                     <p><strong><?php echo htmlspecialchars($invoice['patient_name']); ?></strong></p>
                     <p>
-                        <?php echo htmlspecialchars($invoice['address_line1'] ?? ''); ?><br>
-                        <?php if ($invoice['city']): ?>
-                        <?php echo htmlspecialchars($invoice['city']); ?>, <?php echo htmlspecialchars($invoice['state'] ?? ''); ?> <?php echo htmlspecialchars($invoice['postal_code'] ?? ''); ?>
-                        <?php endif; ?>
+                        <?php
+                        $addr = trim((string) ($invoice['address'] ?? ''));
+                        $country = trim((string) ($invoice['country'] ?? 'LB'));
+                        $parts = array_filter([$addr, $country]);
+                        echo htmlspecialchars(implode(', ', $parts) ?: 'LB');
+                        ?>
                     </p>
                     <p>
                         <i class="fas fa-phone"></i> <?php echo htmlspecialchars($invoice['phone']); ?><br>

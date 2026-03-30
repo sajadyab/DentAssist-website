@@ -31,38 +31,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         "UPDATE patients SET 
             full_name = ?, date_of_birth = ?, gender = ?, phone = ?, email = ?,
             emergency_contact_name = ?, emergency_contact_phone = ?, emergency_contact_relation = ?,
-            address_line1 = ?, address_line2 = ?, city = ?, state = ?, postal_code = ?, country = ?
+            address = ?, country = ?
          WHERE id = ?",
         [
             $_POST['full_name'],
             $_POST['date_of_birth'] ?? null,
             $_POST['gender'] ?? null,
             $_POST['phone'],
-            $_POST['email'],
+            (trim((string) ($_POST['email'] ?? '')) !== '' ? trim((string) $_POST['email']) : null),
             $_POST['emergency_contact_name'] ?? null,
             $_POST['emergency_contact_phone'] ?? null,
             $_POST['emergency_contact_relation'] ?? null,
-            $_POST['address_line1'] ?? null,
-            $_POST['address_line2'] ?? null,
-            $_POST['city'] ?? null,
-            $_POST['state'] ?? null,
-            $_POST['postal_code'] ?? null,
-            $_POST['country'] ?? 'USA',
+            $_POST['address'] ?? null,
+            $_POST['country'] ?? 'LB',
             $patientId
         ],
-        "ssssssssssssssi"
+        "sssssssssssi"
     );
 
     // Update user table if name/email/phone changed
     $db->execute(
-        "UPDATE users SET full_name = ?, email = ?, phone = ? WHERE id = ?",
+        "UPDATE users SET full_name = ?, phone = ? WHERE id = ?",
         [
             $_POST['full_name'],
-            $_POST['email'],
             $_POST['phone'],
             $userId
         ],
-        "sssi"
+        "ssi"
     );
 
     if ($result !== false) {
@@ -354,31 +349,10 @@ include '../layouts/header.php';
                     </h5>
                     <div class="row">
                         <div class="col-md-12 mb-3">
-                            <label class="form-label-modern">Street Address</label>
-                            <input type="text" class="form-control form-control-modern" name="address_line1" 
-                                   value="<?php echo htmlspecialchars($patient['address_line1'] ?? ''); ?>"
-                                   placeholder="House number and street name">
-                        </div>
-                        <div class="col-md-12 mb-3">
-                            <label class="form-label-modern">Address Line 2 (Optional)</label>
-                            <input type="text" class="form-control form-control-modern" name="address_line2" 
-                                   value="<?php echo htmlspecialchars($patient['address_line2'] ?? ''); ?>"
-                                   placeholder="Apartment, suite, unit, etc.">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label-modern">City</label>
-                            <input type="text" class="form-control form-control-modern" name="city" 
-                                   value="<?php echo htmlspecialchars($patient['city'] ?? ''); ?>">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label-modern">State / Province</label>
-                            <input type="text" class="form-control form-control-modern" name="state" 
-                                   value="<?php echo htmlspecialchars($patient['state'] ?? ''); ?>">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label-modern">Postal Code</label>
-                            <input type="text" class="form-control form-control-modern" name="postal_code" 
-                                   value="<?php echo htmlspecialchars($patient['postal_code'] ?? ''); ?>">
+                            <label class="form-label-modern">Address</label>
+                            <input type="text" class="form-control form-control-modern" name="address"
+                                   value="<?php echo htmlspecialchars($patient['address'] ?? ''); ?>"
+                                   placeholder="Full address">
                         </div>
                     </div>
                 </div>
@@ -433,13 +407,13 @@ include '../layouts/header.php';
                     </div>
                 </div>
 
-                <?php if ($patient['last_visit_date']): ?>
+                <?php if (patientHasLastVisitDate($patient['last_visit_date'] ?? null)): ?>
                 <div class="info-card">
                     <div class="d-flex align-items-center">
                         <i class="fas fa-clock"></i>
                         <div class="ms-3">
                             <div class="info-label">Last Visit</div>
-                            <div class="info-value"><?php echo formatDate($patient['last_visit_date']); ?></div>
+                            <div class="info-value"><?php echo htmlspecialchars(formatDate(normalizePatientOptionalDate($patient['last_visit_date'] ?? null))); ?></div>
                         </div>
                     </div>
                 </div>

@@ -119,16 +119,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 full_name = ?, date_of_birth = ?, gender = ?, phone = ?, email = ?,
                 emergency_contact_name = ?, emergency_contact_phone = ?, emergency_contact_relation = ?,
                 insurance_provider = ?, insurance_id = ?, insurance_type = ?, insurance_coverage = ?,
-                medical_history = ?, allergies = ?, current_medications = ?, past_surgeries = ?,
-                chronic_conditions = ?, dental_history = ?, previous_dentist = ?, last_visit_date = ?,
-                address_line1 = ?, address_line2 = ?, city = ?, state = ?, postal_code = ?, country = ?
+                medical_history = ?, allergies = ?, current_medications = ?,
+                dental_history = ?, last_visit_date = ?,
+                address = ?, country = ?
              WHERE id = ?",
             [
                 $_POST['full_name'],
                 $_POST['date_of_birth'] ?? null,
                 $_POST['gender'] ?? null,
                 (string) $phoneParsed['value'],
-                $_POST['email'],
+                (trim((string) ($_POST['email'] ?? '')) !== '' ? trim((string) $_POST['email']) : null),
                 $_POST['emergency_contact_name'] ?? null,
                 $_POST['emergency_contact_phone'] ?? null,
                 $_POST['emergency_contact_relation'] ?? null,
@@ -139,20 +139,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $medicalHistoryPayload,
                 $_POST['allergies'] ?? null,
                 $_POST['current_medications'] ?? null,
-                null,
-                null,
                 $_POST['dental_history'] ?? null,
-                null,
                 normalizePatientOptionalDate($_POST['last_visit_date'] ?? null),
                 $address !== '' ? $address : null,
-                null,
-                null,
-                null,
-                null,
-                'USA',
+                'LB',
                 $patientId
             ],
-            "ssssssssssiissssssssssssssi"
+            "ssssssssssiissssssi"
         );
 
         if ($result !== false) {
@@ -300,15 +293,15 @@ include '../layouts/header.php';
                             </div>
                             
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Email *</label>
+                                <label class="form-label">Email</label>
                                 <input type="email" class="form-control" name="email" 
-                                       value="<?php echo htmlspecialchars($patient['email']); ?>" required>
+                                       value="<?php echo htmlspecialchars($patient['email'] ?? ''); ?>">
                             </div>
                             
                             <div class="col-12 mb-3">
                                 <label class="form-label">Address</label>
                                 <input type="text" class="form-control" name="address"
-                                       value="<?php echo htmlspecialchars($patient['address_line1'] ?? ''); ?>">
+                                       value="<?php echo htmlspecialchars($patient['address'] ?? ''); ?>">
                             </div>
                             
                             <div class="col-12">

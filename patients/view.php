@@ -168,15 +168,10 @@ include '../layouts/header.php';
                             <p class="mb-1"><i class="fas fa-envelope"></i> <?php echo $patient['email']; ?></p>
                             <p class="mb-1"><i class="fas fa-map-marker-alt"></i> 
                                 <?php 
-                                $address = array_filter([
-                                    $patient['address_line1'],
-                                    $patient['address_line2'],
-                                    $patient['city'],
-                                    $patient['state'],
-                                    $patient['postal_code'],
-                                    !empty($patient['country']) ? $patient['country'] : 'LB',
-                                ]);
-                                echo implode(', ', $address) ?: 'LB';
+                                $address = trim((string) ($patient['address'] ?? ''));
+                                $country = !empty($patient['country']) ? (string) $patient['country'] : 'LB';
+                                $parts = array_filter([$address, $country]);
+                                echo implode(', ', $parts) ?: 'LB';
                                 ?>
                             </p>
                         </div>
@@ -381,21 +376,7 @@ include '../layouts/header.php';
                                         <p class="text-muted mb-0">None.</p>
                                     <?php endif; ?>
                                 </div>
-                                <?php
-                                $legacyPast = trim((string) ($patient['past_surgeries'] ?? ''));
-                                $legacyChronic = trim((string) ($patient['chronic_conditions'] ?? ''));
-                                if ($legacyPast !== '' || $legacyChronic !== ''): ?>
-                                    <div class="col-12">
-                                        <hr>
-                                        <h6 class="text-muted">Older records</h6>
-                                        <?php if ($legacyPast !== ''): ?>
-                                            <p class="mb-2"><strong>Past surgeries:</strong><br><?php echo nl2br(htmlspecialchars($legacyPast)); ?></p>
-                                        <?php endif; ?>
-                                        <?php if ($legacyChronic !== ''): ?>
-                                            <p class="mb-0"><strong>Chronic conditions:</strong><br><?php echo nl2br(htmlspecialchars($legacyChronic)); ?></p>
-                                        <?php endif; ?>
-                                    </div>
-                                <?php endif; ?>
+                                <!-- Older records removed: columns no longer exist in current schema -->
                             </div>
                         </div>
 

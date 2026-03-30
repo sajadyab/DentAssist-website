@@ -21,7 +21,12 @@ exit;
 
 /* check if username exists */
 
-$sql="SELECT * FROM patients WHERE username=? LIMIT 1";
+$sql="SELECT u.id AS user_id, u.username, u.role,
+             p.id AS patient_id, p.email AS patient_email, p.phone AS patient_phone
+      FROM users u
+      LEFT JOIN patients p ON p.user_id = u.id
+      WHERE u.username=? AND u.role='patient'
+      LIMIT 1";
 $stmt=$conn->prepare($sql);
 $stmt->bind_param("s",$username);
 $stmt->execute();
@@ -38,13 +43,13 @@ exit;
 
 }
 
-$patient=$result->fetch_assoc();
+$row=$result->fetch_assoc();
 
 /* verify email or phone match */
 
 if($email){
 
-if(strtolower($email)!=strtolower($patient['email'])){
+if(strtolower($email)!=strtolower(trim((string) ($row['patient_email'] ?? '')))){
 
 echo json_encode([
 "success"=>false,
@@ -58,7 +63,7 @@ exit;
 
 elseif($phone){
 
-if($phone!=$patient['phone']){
+if($phone!=trim((string) ($row['patient_phone'] ?? ''))){
 
 echo json_encode([
 "success"=>false,
@@ -92,7 +97,7 @@ $hashed=password_hash($newPass,PASSWORD_DEFAULT);
 
 /* update database */
 
-$update=$conn->prepare("UPDATE patients SET password=? WHERE username=?");
+$update=$conn->prepare("UPDATE users SET password_hash=? WHERE username=? AND role='patient' LIMIT 1");
 $update->bind_param("ss",$hashed,$username);
 $update->execute();
 
