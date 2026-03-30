@@ -56,7 +56,12 @@ class Database {
             throw new Exception("Prepare failed: " . $this->conn->error);
         }
         
+        // Only bind parameters if there are any
         if (!empty($params)) {
+            // If types is not provided, try to determine them automatically
+            if (empty($types)) {
+                $types = $this->determineTypes($params);
+            }
             $stmt->bind_param($types, ...$params);
         }
         
@@ -64,18 +69,41 @@ class Database {
         return $stmt;
     }
     
+    // Helper method to determine parameter types
+    private function determineTypes($params) {
+        $types = '';
+        foreach ($params as $param) {
+            if (is_int($param)) {
+                $types .= 'i';
+            } elseif (is_float($param)) {
+                $types .= 'd';
+            } elseif (is_string($param)) {
+                $types .= 's';
+            } else {
+                $types .= 'b'; // blob
+            }
+        }
+        return $types;
+    }
+    
     // Get single record
     public function fetchOne($sql, $params = [], $types = "") {
         $stmt = $this->query($sql, $params, $types);
         $result = $stmt->get_result();
-        return $result->fetch_assoc();
+        if ($result && $result->num_rows > 0) {
+            return $result->fetch_assoc();
+        }
+        return null;
     }
     
     // Get multiple records
     public function fetchAll($sql, $params = [], $types = "") {
         $stmt = $this->query($sql, $params, $types);
         $result = $stmt->get_result();
-        return $result->fetch_all(MYSQLI_ASSOC);
+        if ($result) {
+            return $result->fetch_all(MYSQLI_ASSOC);
+        }
+        return [];
     }
     
     // Insert record and return ID
@@ -93,6 +121,11 @@ class Database {
     // Escape string
     public function escape($string) {
         return $this->conn->real_escape_string($string);
+    }
+    
+    // Get last insert ID
+    public function lastInsertId() {
+        return $this->conn->insert_id;
     }
 }
 
