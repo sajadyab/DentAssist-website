@@ -70,6 +70,7 @@ include '../layouts/header.php';
 ?>
 
 <style>
+/* CSS as before (unchanged) */
 .dashboard-card {
     transition: transform 0.3s ease, box-shadow 0.3s ease;
     border-radius: 15px;
@@ -77,12 +78,10 @@ include '../layouts/header.php';
     cursor: pointer;
     height: 100%;
 }
-
 .dashboard-card:hover {
     transform: translateY(-5px);
     box-shadow: 0 10px 30px rgba(0,0,0,0.15);
 }
-
 .welcome-card {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border-radius: 20px;
@@ -90,7 +89,6 @@ include '../layouts/header.php';
     padding: 25px;
     margin-bottom: 30px;
 }
-
 .stats-card {
     background: white;
     border-radius: 15px;
@@ -99,25 +97,21 @@ include '../layouts/header.php';
     box-shadow: 0 2px 10px rgba(0,0,0,0.05);
     transition: all 0.3s ease;
 }
-
 .stats-card:hover {
     transform: translateY(-3px);
     box-shadow: 0 5px 20px rgba(0,0,0,0.1);
 }
-
 .stats-number {
     font-size: 36px;
     font-weight: bold;
     color: #667eea;
     margin-bottom: 5px;
 }
-
 .stats-label {
     font-size: 14px;
     color: #6c757d;
     margin-bottom: 0;
 }
-
 .quick-action-btn {
     background: white;
     border-radius: 12px;
@@ -128,43 +122,36 @@ include '../layouts/header.php';
     text-decoration: none;
     display: block;
 }
-
 .quick-action-btn:hover {
     background: #f8f9fa;
     transform: translateY(-2px);
     text-decoration: none;
 }
-
 .quick-action-icon {
     font-size: 32px;
     margin-bottom: 10px;
     display: inline-block;
 }
-
 .appointment-card {
     background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
     border-radius: 15px;
     padding: 20px;
 }
-
 .appointment-time {
     font-size: 24px;
     font-weight: bold;
     color: #2c3e50;
 }
-
 .status-badge {
     padding: 5px 12px;
     border-radius: 20px;
     font-size: 12px;
     font-weight: bold;
 }
-
 .status-scheduled { background: #17a2b8; color: white; }
 .status-completed { background: #28a745; color: white; }
 .status-cancelled { background: #dc3545; color: white; }
 .status-checked-in { background: #ffc107; color: #212529; }
-
 .referral-code-box {
     background: rgba(255,255,255,0.2);
     border-radius: 10px;
@@ -173,11 +160,9 @@ include '../layouts/header.php';
     cursor: pointer;
     transition: all 0.3s ease;
 }
-
 .referral-code-box:hover {
     background: rgba(255,255,255,0.3);
 }
-
 .points-circle {
     width: 80px;
     height: 80px;
@@ -188,13 +173,11 @@ include '../layouts/header.php';
     justify-content: center;
     margin: 0 auto 10px;
 }
-
 .points-circle h2 {
     font-size: 28px;
     margin: 0;
     font-weight: bold;
 }
-
 .subscription-plan-card {
     background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
     border-radius: 15px;
@@ -202,31 +185,25 @@ include '../layouts/header.php';
     text-align: center;
     transition: all 0.3s ease;
 }
-
 .subscription-plan-card:hover {
     transform: scale(1.02);
 }
-
 .plan-feature {
     padding: 5px 0;
     font-size: 13px;
 }
-
 .plan-price {
     font-size: 24px;
     font-weight: bold;
     color: #667eea;
 }
-
 .table-modern {
     border-radius: 15px;
     overflow: hidden;
 }
-
 .table-modern thead {
     background: #f8f9fa;
 }
-
 .table-modern tbody tr:hover {
     background: #f8f9fa;
     transition: background 0.3s ease;
@@ -255,6 +232,7 @@ include '../layouts/header.php';
                         </a>
                     </div>
                 </div>
+                <?php if (canViewReferrals()): ?>
                 <div class="mt-3">
                     <div class="referral-code-box" onclick="copyReferralCode()">
                         <i class="fas fa-share-alt"></i>
@@ -265,8 +243,10 @@ include '../layouts/header.php';
                         <i class="fas fa-gift"></i> Share this code with friends to earn 50 points each!
                     </p>
                 </div>
+                <?php endif; ?>
             </div>
             <div class="col-md-5 text-center text-md-end">
+                <?php if (canViewPoints()): ?>
                 <div class="points-circle">
                     <h2><?php echo $points; ?></h2>
                 </div>
@@ -277,6 +257,7 @@ include '../layouts/header.php';
                         <i class="fas fa-star"></i> View Points
                     </a>
                 </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -289,12 +270,14 @@ include '../layouts/header.php';
                 <div class="stats-label">Total Visits</div>
             </div>
         </div>
+        <?php if (canViewPoints()): ?>
         <div class="col-md-3 mb-3">
             <div class="stats-card">
                 <div class="stats-number"><?php echo $points; ?></div>
                 <div class="stats-label">Points Earned</div>
             </div>
         </div>
+        <?php endif; ?>
         <div class="col-md-3 mb-3">
             <div class="stats-card">
                 <div class="stats-number"><?php echo $referralCount; ?></div>
@@ -378,6 +361,28 @@ include '../layouts/header.php';
                         <small class="text-muted">View your teeth</small>
                     </a>
                 </div>
+                <?php if (canViewPoints()): ?>
+                <div class="col-6 mb-3">
+                    <a href="points.php" class="quick-action-btn">
+                        <div class="quick-action-icon">
+                            <i class="fas fa-star fa-2x text-warning"></i>
+                        </div>
+                        <h6 class="mb-0">View Points</h6>
+                        <small class="text-muted">Rewards & bonuses</small>
+                    </a>
+                </div>
+                <?php endif; ?>
+                <?php if (canViewReferrals()): ?>
+                <div class="col-6 mb-3">
+                    <a href="referrals.php" class="quick-action-btn">
+                        <div class="quick-action-icon">
+                            <i class="fas fa-share-alt fa-2x text-primary"></i>
+                        </div>
+                        <h6 class="mb-0">Referrals</h6>
+                        <small class="text-muted">Invite friends</small>
+                    </a>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -438,13 +443,15 @@ include '../layouts/header.php';
                         <div class="table-responsive">
                             <table class="table table-modern">
                                 <thead>
-                                    <tr>
+                                    32
                                         <th>Date</th>
                                         <th>Time</th>
                                         <th>Treatment</th>
                                         <th>Doctor</th>
                                         <th>Status</th>
+                                        <?php if (canViewPoints()): ?>
                                         <th>Points</th>
+                                        <?php endif; ?>
                                     </thead>
                                 <tbody>
                                     <?php foreach ($recentAppointments as $apt): ?>
@@ -468,6 +475,7 @@ include '../layouts/header.php';
                                                 <?php echo ucfirst($apt['status']); ?>
                                             </span>
                                         </td>
+                                        <?php if (canViewPoints()): ?>
                                         <td>
                                             <?php if ($apt['status'] == 'completed'): ?>
                                                 <span class="text-success">
@@ -477,6 +485,7 @@ include '../layouts/header.php';
                                                 <span class="text-muted">-</span>
                                             <?php endif; ?>
                                         </td>
+                                        <?php endif; ?>
                                     </tr>
                                     <?php endforeach; ?>
                                 </tbody>

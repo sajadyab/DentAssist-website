@@ -26,16 +26,34 @@ function getClinicSetting($key, $default = '') {
 }
 
 // Helper function to update clinic setting (admin only)
+// Helper function to update clinic setting (admin only)
 function updateClinicSetting($key, $value) {
     global $db;
-    $existing = $db->fetchOne("SELECT id FROM clinic_settings WHERE setting_key = ?", [$key]);
-    if ($existing) {
-        $db->execute("UPDATE clinic_settings SET setting_value = ? WHERE setting_key = ?", [$value, $key], "ss");
-    } else {
-        $db->execute("INSERT INTO clinic_settings (setting_key, setting_value) VALUES (?, ?)", [$key, $value], "ss");
+    try {
+        // First check if the setting exists
+        $existing = $db->fetchOne("SELECT id FROM clinic_settings WHERE setting_key = ?", [$key]);
+        if ($existing) {
+            // Update existing record
+            $result = $db->execute("UPDATE clinic_settings SET setting_value = ? WHERE setting_key = ?", [$value, $key], "ss");
+            if ($result === false) {
+                error_log("updateClinicSetting: UPDATE failed for $key");
+                return false;
+            }
+        } else {
+            // Insert new record
+            $result = $db->execute("INSERT INTO clinic_settings (setting_key, setting_value) VALUES (?, ?)", [$key, $value], "ss");
+            if ($result === false) {
+                error_log("updateClinicSetting: INSERT failed for $key");
+                return false;
+            }
+        }
+        error_log("updateClinicSetting: Successfully updated $key to $value");
+        return true;
+    } catch (Exception $e) {
+        error_log("updateClinicSetting: Exception - " . $e->getMessage());
+        return false;
     }
 }
-
 // Handle profile update (available to all users)
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_profile'])) {
     $userId = Auth::userId();
@@ -80,6 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['change_password'])) {
 }
 
 // Handle clinic info update (admin only)
+// Handle clinic info update (admin only)
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_clinic']) && $isAdmin) {
     $clinicName = $_POST['clinic_name'] ?? '';
     $clinicPhone = $_POST['clinic_phone'] ?? '';
@@ -94,7 +113,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_clinic']) && $i
     updateClinicSetting('clinic_address', $clinicAddress);
     updateClinicSetting('opening_hours', $openingHours);
     
-    $success = __('clinic_info_updated');
+    // Handle points and referrals toggles
+    $allowPoints = isset($_POST['allow_points']) ? 1 : 0;
+    $allowReferrals = isset($_POST['allow_referrals']) ? 1 : 0;
+    
+    $pointsUpdate = updateClinicSetting('allow_points_view', $allowPoints);
+    $referralsUpdate = updateClinicSetting('allow_referrals_view', $allowReferrals);
+    
+    if ($pointsUpdate && $referralsUpdate) {
+        $success = __('clinic_info_updated');
+        // Refresh the values for display
+        $allowPoints = $allowPoints;
+        $allowReferrals = $allowReferrals;
+    } else {
+        $error = 'Error updating points/referrals settings. Please try again.';
+    }
 }
 
 // Handle language change (available to all users)
@@ -181,12 +214,15 @@ $currentUser = $db->fetchOne("SELECT * FROM users WHERE id = ?", [Auth::userId()
 
 // Get clinic settings for display (admin only)
 $clinicName = $clinicPhone = $clinicEmail = $clinicAddress = $openingHours = '';
+$allowPoints = $allowReferrals = 1;
 if ($isAdmin) {
     $clinicName = getClinicSetting('clinic_name', 'Dental Clinic');
     $clinicPhone = getClinicSetting('clinic_phone', '(555) 123-4567');
     $clinicEmail = getClinicSetting('clinic_email', 'info@dentalclinic.com');
     $clinicAddress = getClinicSetting('clinic_address', '123 Main St, Anytown, USA');
     $openingHours = getClinicSetting('opening_hours', 'Monday-Friday: 9am - 5pm\nSaturday: 9am - 1pm\nSunday: Closed');
+    $allowPoints = getClinicSetting('allow_points_view', '1');
+    $allowReferrals = getClinicSetting('allow_referrals_view', '1');
 }
 
 include '../layouts/header.php';
@@ -399,7 +435,7 @@ include '../layouts/header.php';
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
-                            32<
+                            32
                                 <th>ID</th>
                                 <th><?php echo __('username'); ?></th>
                                 <th><?php echo __('full_name'); ?></th>
@@ -410,8 +446,7 @@ include '../layouts/header.php';
                                 <th><?php echo __('status'); ?></th>
                                 <th><?php echo __('last_login'); ?></th>
                                 <th><?php echo __('actions'); ?></th>
-                            </tr>
-                        </thead>
+                            </thead>
                         <tbody>
                             <?php foreach ($users as $user): ?>
                             <tr>
@@ -515,6 +550,23 @@ include '../layouts/header.php';
                         <textarea class="form-control" name="opening_hours" rows="4" required><?php echo htmlspecialchars($openingHours); ?></textarea>
                         <small class="text-muted">Enter each day on a new line (e.g., Monday-Friday: 9am - 5pm)</small>
                     </div>
+
+                    <!-- NEW: Checkboxes for points and referrals -->
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" name="allow_points" id="allow_points" value="1" <?php echo $allowPoints ? 'checked' : ''; ?>>
+                        <label class="form-check-label" for="allow_points">
+                            <i class="fas fa-star"></i> Allow patients to view points and rewards
+                        </label>
+                        <small class="d-block text-muted">When disabled, points page and all points displays will be hidden from patients.</small>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" name="allow_referrals" id="allow_referrals" value="1" <?php echo $allowReferrals ? 'checked' : ''; ?>>
+                        <label class="form-check-label" for="allow_referrals">
+                            <i class="fas fa-share-alt"></i> Allow patients to view referrals and referral code
+                        </label>
+                        <small class="d-block text-muted">When disabled, referrals page and referral code display will be hidden.</small>
+                    </div>
+
                     <button type="submit" name="update_clinic" class="btn btn-primary">
                         <i class="fas fa-save"></i> <?php echo __('save_changes'); ?>
                     </button>

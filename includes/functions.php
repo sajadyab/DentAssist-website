@@ -2,7 +2,33 @@
 require_once 'db.php';
 require_once 'auth.php';
 // Global helper functions
+/**
+ * Check if patients can view points
+ * 
+ */
+function canViewPoints() {
+    global $db;
+    static $cached = null;
+    if ($cached === null) {
+        $value = getClinicSetting('allow_points_view', '1');
+        $cached = ($value == '1');
+    }
+    return $cached;
+}
 
+/**
+ * Check if patients can view referrals
+ *
+ */
+function canViewReferrals() {
+    global $db;
+    static $cached = null;
+    if ($cached === null) {
+        $value = getClinicSetting('allow_referrals_view', '1');
+        $cached = ($value == '1');
+    }
+    return $cached;
+}
 // Generate absolute URL for internal paths (keeps views/pages consistent)
 function url($path = '')
 {

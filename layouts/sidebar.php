@@ -1,6 +1,22 @@
 <?php
+// IMPORTANT: Do NOT redeclare getClinicSetting() here!
+// The function is already declared in settings/index.php or should be available globally.
+// If it's not defined, we'll define it here only if it doesn't exist.
+
+if (!function_exists('getClinicSetting')) {
+    function getClinicSetting($key, $default = '') {
+        global $db;
+        $result = $db->fetchOne("SELECT setting_value FROM clinic_settings WHERE setting_key = ?", [$key]);
+        return $result ? $result['setting_value'] : $default;
+    }
+}
+
 $currentPage = basename($_SERVER['PHP_SELF']);
 $role = $_SESSION['role'] ?? '';
+
+// Get menu visibility settings
+$showPointsMenu = getClinicSetting('allow_points_view', '1');
+$showReferralsMenu = getClinicSetting('allow_referrals_view', '1');
 ?>
 <div class="sidebar">
     <div class="sidebar-header">
@@ -57,7 +73,7 @@ $role = $_SESSION['role'] ?? '';
                 </a>
             </li>
             
-            <li class="<?php echo strpos($currentPage, 'treatment') !== false ? 'active' : ''; ?>">
+            <li class="<?php echo $currentPage == 'treatment_plans/index.php' ? 'active' : ''; ?>">
                 <a href="<?php echo url('treatment_plans/index.php'); ?>">
                     <i class="fas fa-notes-medical"></i>
                     <span><?php echo __('treatment_plans', 'Treatment Plans'); ?></span>
@@ -77,8 +93,6 @@ $role = $_SESSION['role'] ?? '';
                     <span><?php echo __('financial_dashboard', 'Financial Dashboard'); ?></span>
                 </a>
             </li>
-
-    
 
             <li class="<?php echo strpos($currentPage, 'report') !== false && $currentPage != 'reports/financial.php' && $currentPage != 'reports/messages.php' ? 'active' : ''; ?>">
                 <a href="<?php echo url('reports/index.php'); ?>">
@@ -100,6 +114,15 @@ $role = $_SESSION['role'] ?? '';
                     <span><?php echo __('inventory', 'Inventory'); ?></span>
                 </a>
             </li>
+            
+            <!-- Treatments Management for Doctors and Admins -->
+            <li class="<?php echo $currentPage == 'treatments.php' ? 'active' : ''; ?>">
+                <a href="<?php echo url('treatments.php'); ?>">
+                    <i class="fas fa-tooth"></i>
+                    <span><?php echo __('treatments', 'Treatments'); ?></span>
+                </a>
+            </li>
+            
             <li>
                 <a href="<?php echo url('settings/index.php'); ?>">
                     <i class="fas fa-cog"></i> <span><?php echo __('settings', 'Settings'); ?></span>
@@ -113,7 +136,7 @@ $role = $_SESSION['role'] ?? '';
                     <span><?php echo __('my_portal', 'My Portal'); ?></span>
                 </a>
             </li>
-             <li>
+            <li>
                 <a href="<?php echo url('patient/profile.php'); ?>">
                     <i class="fas fa-user-edit"></i>
                     <span><?php echo __('profile', 'Profile'); ?></span>
@@ -143,30 +166,34 @@ $role = $_SESSION['role'] ?? '';
                     <span><?php echo __('my_teeth', 'My Teeth'); ?></span>
                 </a>
             </li>
+            <?php if ($showPointsMenu == '1'): ?>
             <li>
                 <a href="<?php echo url('patient/points.php'); ?>">
                     <i class="fas fa-star"></i>
                     <span><?php echo __('my_points', 'My Points'); ?></span>
                 </a>
             </li>
+            <?php endif; ?>
             <li>
                 <a href="<?php echo url('patient/subscription.php'); ?>">
                     <i class="fas fa-crown"></i>
                     <span><?php echo __('subscription', 'Subscription'); ?></span>
                 </a>
             </li>
+            
+            <?php if ($showReferralsMenu == '1'): ?>
             <li>
                 <a href="<?php echo url('patient/referrals.php'); ?>">
                     <i class="fas fa-user-friends"></i>
                     <span><?php echo __('referrals', 'Referrals'); ?></span>
                 </a>
             </li>
+            <?php endif; ?>
             <li>
                 <a href="<?php echo url('settings/index.php'); ?>">
                     <i class="fas fa-cog"></i> <span><?php echo __('settings', 'Settings'); ?></span>
                 </a>
             </li>
-           
         <?php endif; ?>
         
         <!-- Language Switcher -->

@@ -76,6 +76,7 @@ include '../layouts/header.php';
 ?>
 
 <style>
+/* CSS as before (unchanged) */
 .profile-header {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border-radius: 20px;
@@ -83,7 +84,6 @@ include '../layouts/header.php';
     margin-bottom: 30px;
     color: white;
 }
-
 .profile-avatar {
     width: 100px;
     height: 100px;
@@ -96,7 +96,6 @@ include '../layouts/header.php';
     font-weight: bold;
     margin: 0 auto 15px;
 }
-
 .profile-section {
     background: white;
     border-radius: 15px;
@@ -105,11 +104,9 @@ include '../layouts/header.php';
     box-shadow: 0 2px 10px rgba(0,0,0,0.05);
     transition: all 0.3s ease;
 }
-
 .profile-section:hover {
     box-shadow: 0 5px 20px rgba(0,0,0,0.1);
 }
-
 .section-title {
     font-size: 18px;
     font-weight: bold;
@@ -118,55 +115,46 @@ include '../layouts/header.php';
     border-bottom: 2px solid #667eea;
     display: inline-block;
 }
-
 .section-icon {
     color: #667eea;
     margin-right: 10px;
 }
-
 .form-control-modern {
     border-radius: 10px;
     border: 1px solid #e0e0e0;
     padding: 12px 15px;
     transition: all 0.3s ease;
 }
-
 .form-control-modern:focus {
     border-color: #667eea;
     box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
 }
-
 .form-label-modern {
     font-weight: 500;
     margin-bottom: 8px;
     color: #2c3e50;
 }
-
 .info-card {
     background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
     border-radius: 12px;
     padding: 15px;
     margin-bottom: 15px;
 }
-
 .info-card i {
     font-size: 24px;
     color: #667eea;
     margin-right: 15px;
 }
-
 .info-card .info-label {
     font-size: 12px;
     color: #6c757d;
     margin-bottom: 5px;
 }
-
 .info-card .info-value {
     font-size: 16px;
     font-weight: 500;
     color: #2c3e50;
 }
-
 .btn-save {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border: none;
@@ -175,12 +163,10 @@ include '../layouts/header.php';
     font-weight: bold;
     transition: all 0.3s ease;
 }
-
 .btn-save:hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(102,126,234,0.4);
 }
-
 .btn-cancel {
     background: #6c757d;
     border: none;
@@ -189,18 +175,15 @@ include '../layouts/header.php';
     font-weight: bold;
     transition: all 0.3s ease;
 }
-
 .btn-cancel:hover {
     background: #5a6268;
     transform: translateY(-2px);
 }
-
 .alert-custom {
     border-radius: 12px;
     border: none;
     padding: 15px 20px;
 }
-
 .profile-badge {
     background: rgba(255,255,255,0.2);
     padding: 5px 12px;
@@ -257,10 +240,12 @@ include '../layouts/header.php';
                 <?php endif; ?>
             </div>
             <div class="col-md-3 text-md-end mt-3 mt-md-0">
+                <?php if (canViewPoints()): ?>
                 <div class="info-card text-center">
                     <div class="stats-number"><?php echo $patient['points'] ?? 0; ?></div>
                     <div class="stats-label">Reward Points</div>
                 </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -386,6 +371,7 @@ include '../layouts/header.php';
                     </div>
                 </div>
 
+                <?php if (canViewPoints()): ?>
                 <div class="info-card">
                     <div class="d-flex align-items-center">
                         <i class="fas fa-star"></i>
@@ -396,6 +382,7 @@ include '../layouts/header.php';
                         </div>
                     </div>
                 </div>
+                <?php endif; ?>
 
                 <div class="info-card">
                     <div class="d-flex align-items-center">
@@ -447,6 +434,7 @@ include '../layouts/header.php';
             </div>
 
             <!-- Referral Info Card -->
+            <?php if (canViewReferrals()): ?>
             <div class="profile-section">
                 <h5 class="section-title">
                     <i class="fas fa-share-alt section-icon"></i> Referral Program
@@ -464,6 +452,7 @@ include '../layouts/header.php';
                     </small>
                 </div>
             </div>
+            <?php endif; ?>
 
             <!-- Support Card -->
             <div class="profile-section">
