@@ -26,49 +26,94 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Update patient record
-    $result = $db->execute(
-        "UPDATE patients SET 
+    $newUsername = trim((string) ($_POST['username'] ?? ''));
+
+    if ($newUsername === '') {
+        $error = 'Username is required.';
+    } else {
+        $newUsersEmail = $newUsername . '@patients.local';
+        $usernameTaken = $db->fetchOne(
+            'SELECT id FROM users WHERE username = ? AND id != ?',
+            [$newUsername, $userId],
+            'si'
+        );
+        if ($usernameTaken) {
+            $error = 'That username is already taken. Please choose another.';
+        } else {
+            $emailTaken = $db->fetchOne(
+                'SELECT id FROM users WHERE email = ? AND id != ?',
+                [$newUsersEmail, $userId],
+                'si'
+            );
+            if ($emailTaken) {
+                $error = 'That username is already taken. Please choose another.';
+            }
+        }
+    }
+
+    if ($error === '') {
+        $conn = $db->getConnection();
+        try {
+            $conn->begin_transaction();
+
+            $result = $db->execute(
+                "UPDATE patients SET 
             full_name = ?, date_of_birth = ?, gender = ?, phone = ?, email = ?,
             emergency_contact_name = ?, emergency_contact_phone = ?, emergency_contact_relation = ?,
             address = ?, country = ?
          WHERE id = ?",
-        [
-            $_POST['full_name'],
-            $_POST['date_of_birth'] ?? null,
-            $_POST['gender'] ?? null,
-            $_POST['phone'],
-            (trim((string) ($_POST['email'] ?? '')) !== '' ? trim((string) $_POST['email']) : null),
-            $_POST['emergency_contact_name'] ?? null,
-            $_POST['emergency_contact_phone'] ?? null,
-            $_POST['emergency_contact_relation'] ?? null,
-            $_POST['address'] ?? null,
-            $_POST['country'] ?? 'LB',
-            $patientId
-        ],
-        "sssssssssssi"
-    );
+                [
+                    $_POST['full_name'],
+                    $_POST['date_of_birth'] ?? null,
+                    $_POST['gender'] ?? null,
+                    $_POST['phone'],
+                    (trim((string) ($_POST['email'] ?? '')) !== '' ? trim((string) $_POST['email']) : null),
+                    $_POST['emergency_contact_name'] ?? null,
+                    $_POST['emergency_contact_phone'] ?? null,
+                    $_POST['emergency_contact_relation'] ?? null,
+                    $_POST['address'] ?? null,
+                    $_POST['country'] ?? 'LB',
+                    $patientId
+                ],
+                "ssssssssssi"
+            );
 
-    // Update user table if name/email/phone changed
-    $db->execute(
-        "UPDATE users SET full_name = ?, phone = ? WHERE id = ?",
-        [
-            $_POST['full_name'],
-            $_POST['phone'],
-            $userId
-        ],
-        "ssi"
-    );
+            if ($result === false) {
+                throw new Exception('Patient update failed.');
+            }
 
-    if ($result !== false) {
-        logAction('UPDATE', 'patients', $patientId, $patient, $_POST);
-        $success = 'Profile updated successfully.';
-        // refresh values
-        $patient = $db->fetchOne("SELECT * FROM patients WHERE id = ?", [$patientId], "i");
-        $user = $db->fetchOne("SELECT * FROM users WHERE id = ?", [$userId], "i");
-        $_SESSION['full_name'] = $user['full_name'];
-    } else {
-        $error = 'Error updating profile';
+            $userResult = $db->execute(
+                "UPDATE users SET username = ?, email = ?, full_name = ?, phone = ? WHERE id = ? AND role = 'patient'",
+                [
+                    $newUsername,
+                    $newUsersEmail,
+                    $_POST['full_name'],
+                    $_POST['phone'],
+                    $userId
+                ],
+                'ssssi'
+            );
+
+            if ($userResult === false) {
+                throw new Exception('User update failed.');
+            }
+
+            $conn->commit();
+
+            logAction('UPDATE', 'patients', $patientId, $patient, $_POST);
+            $success = 'Profile updated successfully.';
+            $patient = $db->fetchOne("SELECT * FROM patients WHERE id = ?", [$patientId], "i");
+            $user = $db->fetchOne("SELECT * FROM users WHERE id = ?", [$userId], "i");
+            $_SESSION['full_name'] = $user['full_name'];
+            $_SESSION['username'] = $user['username'];
+        } catch (Exception $e) {
+            try {
+                $conn->rollback();
+            } catch (Exception $rollbackEx) {
+                // ignore
+            }
+            $error = 'Error updating profile: ' . $e->getMessage();
+        }
     }
 }
 
@@ -76,7 +121,6 @@ include '../layouts/header.php';
 ?>
 
 <style>
-/* CSS as before (unchanged) */
 .profile-header {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border-radius: 20px;
@@ -84,6 +128,7 @@ include '../layouts/header.php';
     margin-bottom: 30px;
     color: white;
 }
+
 .profile-avatar {
     width: 100px;
     height: 100px;
@@ -96,6 +141,7 @@ include '../layouts/header.php';
     font-weight: bold;
     margin: 0 auto 15px;
 }
+
 .profile-section {
     background: white;
     border-radius: 15px;
@@ -104,9 +150,11 @@ include '../layouts/header.php';
     box-shadow: 0 2px 10px rgba(0,0,0,0.05);
     transition: all 0.3s ease;
 }
+
 .profile-section:hover {
     box-shadow: 0 5px 20px rgba(0,0,0,0.1);
 }
+
 .section-title {
     font-size: 18px;
     font-weight: bold;
@@ -115,46 +163,55 @@ include '../layouts/header.php';
     border-bottom: 2px solid #667eea;
     display: inline-block;
 }
+
 .section-icon {
     color: #667eea;
     margin-right: 10px;
 }
+
 .form-control-modern {
     border-radius: 10px;
     border: 1px solid #e0e0e0;
     padding: 12px 15px;
     transition: all 0.3s ease;
 }
+
 .form-control-modern:focus {
     border-color: #667eea;
     box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
 }
+
 .form-label-modern {
     font-weight: 500;
     margin-bottom: 8px;
     color: #2c3e50;
 }
+
 .info-card {
     background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
     border-radius: 12px;
     padding: 15px;
     margin-bottom: 15px;
 }
+
 .info-card i {
     font-size: 24px;
     color: #667eea;
     margin-right: 15px;
 }
+
 .info-card .info-label {
     font-size: 12px;
     color: #6c757d;
     margin-bottom: 5px;
 }
+
 .info-card .info-value {
     font-size: 16px;
     font-weight: 500;
     color: #2c3e50;
 }
+
 .btn-save {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border: none;
@@ -163,10 +220,12 @@ include '../layouts/header.php';
     font-weight: bold;
     transition: all 0.3s ease;
 }
+
 .btn-save:hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(102,126,234,0.4);
 }
+
 .btn-cancel {
     background: #6c757d;
     border: none;
@@ -175,15 +234,18 @@ include '../layouts/header.php';
     font-weight: bold;
     transition: all 0.3s ease;
 }
+
 .btn-cancel:hover {
     background: #5a6268;
     transform: translateY(-2px);
 }
+
 .alert-custom {
     border-radius: 12px;
     border: none;
     padding: 15px 20px;
 }
+
 .profile-badge {
     background: rgba(255,255,255,0.2);
     padding: 5px 12px;
@@ -240,12 +302,10 @@ include '../layouts/header.php';
                 <?php endif; ?>
             </div>
             <div class="col-md-3 text-md-end mt-3 mt-md-0">
-                <?php if (canViewPoints()): ?>
                 <div class="info-card text-center">
                     <div class="stats-number"><?php echo $patient['points'] ?? 0; ?></div>
                     <div class="stats-label">Reward Points</div>
                 </div>
-                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -263,6 +323,15 @@ include '../layouts/header.php';
                             <label class="form-label-modern">Full Name *</label>
                             <input type="text" class="form-control form-control-modern" name="full_name" 
                                    value="<?php echo htmlspecialchars($patient['full_name']); ?>" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label-modern">Username *</label>
+                            <input type="text" class="form-control form-control-modern" name="username"
+                                   value="<?php echo htmlspecialchars($user['username'] ?? ''); ?>"
+                                   required autocomplete="username"
+                                   pattern="[a-zA-Z0-9._-]{3,64}"
+                                   title="3–64 characters: letters, numbers, dot, underscore, hyphen">
+                            <small class="text-muted">Used to sign in. Must be unique.</small>
                         </div>
                         <div class="col-md-3 mb-3">
                             <label class="form-label-modern">Date of Birth</label>
@@ -363,15 +432,14 @@ include '../layouts/header.php';
                 
                 <div class="info-card">
                     <div class="d-flex align-items-center">
-                        <i class="fas fa-id-card"></i>
+                        <i class="fas fa-user"></i>
                         <div class="ms-3">
-                            <div class="info-label">Patient ID</div>
-                            <div class="info-value">#<?php echo str_pad($patientId, 6, '0', STR_PAD_LEFT); ?></div>
+                            <div class="info-label">Username</div>
+                            <div class="info-value"><?php echo htmlspecialchars($user['username'] ?? ''); ?></div>
                         </div>
                     </div>
                 </div>
 
-                <?php if (canViewPoints()): ?>
                 <div class="info-card">
                     <div class="d-flex align-items-center">
                         <i class="fas fa-star"></i>
@@ -382,7 +450,6 @@ include '../layouts/header.php';
                         </div>
                     </div>
                 </div>
-                <?php endif; ?>
 
                 <div class="info-card">
                     <div class="d-flex align-items-center">
@@ -434,7 +501,6 @@ include '../layouts/header.php';
             </div>
 
             <!-- Referral Info Card -->
-            <?php if (canViewReferrals()): ?>
             <div class="profile-section">
                 <h5 class="section-title">
                     <i class="fas fa-share-alt section-icon"></i> Referral Program
@@ -452,7 +518,6 @@ include '../layouts/header.php';
                     </small>
                 </div>
             </div>
-            <?php endif; ?>
 
             <!-- Support Card -->
             <div class="profile-section">
