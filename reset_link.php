@@ -27,59 +27,56 @@ require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/functions.php';
 
-$username = trim((string)($_POST['username'] ?? ''));
+$username = trim((string) ($_POST['username'] ?? ''));
 
-if (empty($username)) {
+if ($username === '') {
     respond(['success' => false, 'message' => 'Username is required']);
 }
 
-$patient = getPatientByUsername($username);
+$db = Database::getInstance();
 
-if (!$patient) {
+$row = $db->fetchOne(
+    "SELECT u.id AS user_id, u.username, u.role, u.phone AS user_phone,
+            p.id AS patient_id, p.phone AS patient_phone
+     FROM users u
+     INNER JOIN patients p ON p.user_id = u.id
+     WHERE u.username = ? AND u.role = 'patient' AND u.is_active = 1
+     LIMIT 1",
+    [$username],
+    's'
+);
+
+if (!$row) {
     respond(['success' => false, 'message' => 'User not found']);
 }
 
-$patientId = getPatientIdFromUserId((int) $patient['id']);
-if ($patientId === null) {
-    respond(['success' => false, 'message' => 'No patient profile linked to this user.'], 422);
-}
+$patientId = (int) $row['patient_id'];
+$userPhone = trim((string) ($row['user_phone'] ?? ''));
+$patientPhone = trim((string) ($row['patient_phone'] ?? ''));
+$destinationPhone = $patientPhone !== '' ? $patientPhone : $userPhone;
 
-/*
-|--------------------------------------------------------------------------
-| Generate Reset Token
-|--------------------------------------------------------------------------
-*/
+if ($destinationPhone === '') {
+    respond(['success' => false, 'message' => 'No phone number on file for this account. Add a phone in your profile or contact the clinic.'], 422);
+}
 
 $token = bin2hex(random_bytes(32));
 $expires = date('Y-m-d H:i:s', strtotime('+1 hour'));
 
-addResetToken((string) $patientId, $token, $expires);
-/*
-|--------------------------------------------------------------------------
-| Build Reset Link
-|--------------------------------------------------------------------------
-*/
+try {
+    ensurePasswordResetsTableExists();
+    $db->execute('DELETE FROM password_resets WHERE patient_id = ?', [$patientId], 'i');
+    addResetToken($patientId, $token, $expires);
+} catch (Throwable $e) {
+    error_log('password reset token failed: ' . $e->getMessage());
+    $hint = 'Could not create reset link.';
+    if (stripos($e->getMessage(), 'password_resets') !== false) {
+        $hint .= ' Check that the database user can CREATE TABLE, or import the password_resets definition from database.sql.';
+    }
+    respond(['success' => false, 'message' => $hint], 500);
+}
 
 $resetLink = buildPasswordResetLink($token);
-
-/*
-|--------------------------------------------------------------------------
-| WhatsApp Message
-|--------------------------------------------------------------------------
-*/
-
 $message = buildPasswordResetWhatsappMessage($resetLink);
-
-/*
-|--------------------------------------------------------------------------
-| Send WhatsApp
-|--------------------------------------------------------------------------
-*/
-
-$destinationPhone = getPatientWhatsappPhone($patient);
-if ($destinationPhone === '') {
-    respond(['success' => false, 'message' => 'No WhatsApp phone number found for this user.'], 422);
-}
 
 $sendResult = sendWhatsapp($destinationPhone, $message);
 if (!$sendResult['ok']) {
@@ -88,5 +85,5 @@ if (!$sendResult['ok']) {
 
 respond([
     'success' => true,
-    'message' => 'Password reset link sent to WhatsApp'
+    'message' => 'Password reset link sent to WhatsApp.',
 ]);
