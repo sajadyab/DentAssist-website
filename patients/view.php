@@ -9,9 +9,12 @@ Auth::requireLogin();
 $db = Database::getInstance();
 $patientId = $_GET['id'] ?? 0;
 
-// Get patient details
+// Get patient details (+ linked login username)
 $patient = $db->fetchOne(
-    "SELECT * FROM patients WHERE id = ?",
+    "SELECT p.*, u.username AS account_username
+     FROM patients p
+     LEFT JOIN users u ON p.user_id = u.id
+     WHERE p.id = ?",
     [$patientId],
     "i"
 );
@@ -20,6 +23,9 @@ if (!$patient) {
     header('Location: index.php');
     exit;
 }
+
+$whatsappNotice = $_SESSION['patient_add_whatsapp_notice'] ?? null;
+unset($_SESSION['patient_add_whatsapp_notice']);
 
 $pageTitle = 'Patient: ' . $patient['full_name'];
 
@@ -155,6 +161,18 @@ include '../layouts/header.php';
     <?php if ($removeMessage): ?>
         <div class="alert alert-info mb-3"><?php echo htmlspecialchars($removeMessage); ?></div>
     <?php endif; ?>
+
+    <?php if (is_array($whatsappNotice ?? null)): ?>
+        <?php if (!empty($whatsappNotice['ok'])): ?>
+            <div class="alert alert-success mb-3">Welcome message was sent to the patient's WhatsApp number.</div>
+        <?php else: ?>
+            <div class="alert alert-warning mb-3">
+                <strong>WhatsApp not sent.</strong>
+                <?php echo htmlspecialchars((string) ($whatsappNotice['error'] ?? 'Unknown error')); ?>
+                <br><small>Run <code>npm start</code> for the WhatsApp bridge, scan the QR, then try again if needed.</small>
+            </div>
+        <?php endif; ?>
+    <?php endif; ?>
     
     <!-- Patient Summary Card -->
     <div class="row mb-4">
@@ -165,13 +183,12 @@ include '../layouts/header.php';
                         <div class="col-md-3">
                             <h6>Contact Information</h6>
                             <p class="mb-1"><i class="fas fa-phone"></i> <?php echo $patient['phone']; ?></p>
-                            <p class="mb-1"><i class="fas fa-envelope"></i> <?php echo $patient['email']; ?></p>
-                            <p class="mb-1"><i class="fas fa-map-marker-alt"></i> 
-                                <?php 
-                                $address = trim((string) ($patient['address'] ?? ''));
-                                $country = !empty($patient['country']) ? (string) $patient['country'] : 'LB';
-                                $parts = array_filter([$address, $country]);
-                                echo implode(', ', $parts) ?: 'LB';
+                            <p class="mb-1"><i class="fas fa-envelope"></i> <?php echo htmlspecialchars((string) ($patient['email'] ?? '')); ?></p>
+                            <p class="mb-1"><i class="fas fa-user"></i>
+                                <strong>Username:</strong>
+                                <?php
+                                $uname = trim((string) ($patient['account_username'] ?? ''));
+                                echo $uname !== '' ? htmlspecialchars($uname) : '<span class="text-muted">—</span>';
                                 ?>
                             </p>
                         </div>
