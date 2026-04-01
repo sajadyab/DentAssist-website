@@ -86,7 +86,7 @@ $showReferralsMenu = getClinicSetting('allow_referrals_view', '1');
                     <span><?php echo __('billing', 'Billing'); ?></span>
                 </a>
             </li>
-
+<?php if ($role != 'assistant'): ?>
             <li class="<?php echo $currentPage == 'reports/financial.php' ? 'active' : ''; ?>">
                 <a href="<?php echo url('reports/financial.php'); ?>">
                     <i class="fas fa-chart-line"></i>
@@ -100,7 +100,7 @@ $showReferralsMenu = getClinicSetting('allow_referrals_view', '1');
                     <span><?php echo __('reports', 'Reports'); ?></span>
                 </a>
             </li>
-
+<?php endif; ?>
             <li class="<?php echo $currentPage == 'queue/index.php' ? 'active' : ''; ?>">
                 <a href="<?php echo url('queue/index.php'); ?>">
                     <i class="fas fa-clock"></i>
@@ -114,7 +114,7 @@ $showReferralsMenu = getClinicSetting('allow_referrals_view', '1');
                     <span><?php echo __('inventory', 'Inventory'); ?></span>
                 </a>
             </li>
-            
+            <?php if ($role != 'assistant'): ?>
             <!-- Treatments Management for Doctors and Admins -->
             <li class="<?php echo $currentPage == 'treatments.php' ? 'active' : ''; ?>">
                 <a href="<?php echo url('treatments.php'); ?>">
@@ -122,7 +122,7 @@ $showReferralsMenu = getClinicSetting('allow_referrals_view', '1');
                     <span><?php echo __('treatments', 'Treatments'); ?></span>
                 </a>
             </li>
-            
+            <?php endif; ?>
             <li>
                 <a href="<?php echo url('settings/index.php'); ?>">
                     <i class="fas fa-cog"></i> <span><?php echo __('settings', 'Settings'); ?></span>
