@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 31, 2026 at 08:25 AM
+-- Generation Time: Apr 01, 2026 at 12:00 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.0.30
 
@@ -198,7 +198,18 @@ INSERT INTO `audit_log` (`id`, `user_id`, `action`, `table_name`, `record_id`, `
 (83, 33, 'UPDATE', 'patients', 29, '{\"id\":29,\"user_id\":33,\"full_name\":\"Saja Dyab\",\"date_of_birth\":\"2005-11-12\",\"gender\":\"female\",\"phone\":\"+961 81 665 330\",\"email\":\"dyabsaja@gmail.com\",\"emergency_contact_name\":\"Fatima haydar\",\"emergency_contact_phone\":\"+961 71532470\",\"emergency_contact_relation\":\"mother\",\"insurance_provider\":null,\"insurance_id\":null,\"insurance_type\":\"None\",\"insurance_coverage\":0,\"medical_history\":null,\"allergies\":null,\"current_medications\":null,\"past_surgeries\":null,\"chronic_conditions\":null,\"dental_history\":null,\"previous_dentist\":null,\"last_visit_date\":null,\"address_line1\":\"\",\"address_line2\":\"\",\"city\":\"tyre\",\"state\":\"\",\"postal_code\":\"\",\"country\":\"USA\",\"points\":0,\"subscription_type\":\"none\",\"subscription_start_date\":null,\"subscription_end_date\":null,\"referral_code\":null,\"referred_by\":null,\"created_at\":\"2026-03-29 19:43:52\",\"updated_at\":\"2026-03-30 14:21:13\",\"created_by\":null}', '{\"full_name\":\"Saja Dyab\",\"date_of_birth\":\"2005-11-12\",\"gender\":\"other\",\"phone\":\"+961 81 665 330\",\"email\":\"dyabsaja@gmail.com\",\"emergency_contact_name\":\"Fatima haydar\",\"emergency_contact_phone\":\"+961 71532470\",\"emergency_contact_relation\":\"mother\",\"address_line1\":\"\",\"address_line2\":\"\",\"city\":\"tyre\",\"state\":\"\",\"postal_code\":\"\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2026-03-30 13:34:35'),
 (84, 33, 'UPDATE', 'patients', 29, '{\"id\":29,\"user_id\":33,\"full_name\":\"Saja Dyab\",\"date_of_birth\":\"2005-11-12\",\"gender\":\"other\",\"phone\":\"+961 81 665 330\",\"email\":\"dyabsaja@gmail.com\",\"emergency_contact_name\":\"Fatima haydar\",\"emergency_contact_phone\":\"+961 71532470\",\"emergency_contact_relation\":\"mother\",\"insurance_provider\":null,\"insurance_id\":null,\"insurance_type\":\"None\",\"insurance_coverage\":0,\"medical_history\":null,\"allergies\":null,\"current_medications\":null,\"past_surgeries\":null,\"chronic_conditions\":null,\"dental_history\":null,\"previous_dentist\":null,\"last_visit_date\":null,\"address_line1\":\"\",\"address_line2\":\"\",\"city\":\"tyre\",\"state\":\"\",\"postal_code\":\"\",\"country\":\"USA\",\"points\":0,\"subscription_type\":\"none\",\"subscription_start_date\":null,\"subscription_end_date\":null,\"referral_code\":null,\"referred_by\":null,\"created_at\":\"2026-03-29 19:43:52\",\"updated_at\":\"2026-03-30 16:34:35\",\"created_by\":null}', '{\"full_name\":\"Saja Dyab\",\"date_of_birth\":\"2005-11-12\",\"gender\":\"female\",\"phone\":\"+961 81 665 330\",\"email\":\"dyabsaja@gmail.com\",\"emergency_contact_name\":\"Fatima haydar\",\"emergency_contact_phone\":\"+961 71532470\",\"emergency_contact_relation\":\"mother\",\"address_line1\":\"\",\"address_line2\":\"\",\"city\":\"tyre\",\"state\":\"\",\"postal_code\":\"\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2026-03-30 13:34:41'),
 (85, 33, 'CREATE', 'appointments', 33, NULL, '{\"doctor_id\":\"32\",\"appointment_date\":\"2026-04-03\",\"appointment_time\":\"17:36\",\"duration\":\"30\",\"chair_number\":\"\",\"treatment_type\":\"\\ud83e\\uddb7 Extraction\",\"description\":\"\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2026-03-30 14:32:36'),
-(86, 33, 'CREATE', 'appointments', 34, NULL, '{\"doctor_id\":\"1\",\"appointment_date\":\"2026-04-09\",\"appointment_time\":\"17:40\",\"duration\":\"30\",\"chair_number\":\"\",\"treatment_type\":\"\\ud83e\\uddb7 Extraction\",\"description\":\"\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2026-03-30 14:36:52');
+(86, 33, 'CREATE', 'appointments', 34, NULL, '{\"doctor_id\":\"1\",\"appointment_date\":\"2026-04-09\",\"appointment_time\":\"17:40\",\"duration\":\"30\",\"chair_number\":\"\",\"treatment_type\":\"\\ud83e\\uddb7 Extraction\",\"description\":\"\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2026-03-30 14:36:52'),
+(87, 26, 'CREATE', 'treatments', 9, NULL, '{\"name\":\"Root Canal\",\"cost\":\"1000\",\"description\":\".\",\"add_treatment\":\"\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2026-03-31 13:53:36'),
+(88, 26, 'UPDATE', 'treatments', 1, NULL, '{\"name\":\"Dental Cleaning\",\"cost\":\"5.00\",\"description\":\"Professional teeth cleaning and polishing\",\"edit_treatment\":\"\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2026-03-31 13:57:55'),
+(89, 26, 'UPDATE', 'treatments', 1, NULL, '{\"name\":\"Dental Cleaning\",\"cost\":\"85.00\",\"description\":\"Professional teeth cleaning and polishing\",\"edit_treatment\":\"\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2026-03-31 14:16:11'),
+(90, 26, 'DELETE', 'treatments', 9, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2026-03-31 14:20:27'),
+(91, 26, 'CREATE', 'treatments', 10, NULL, '{\"name\":\"Argan Oil Hair Serum\",\"cost\":\"23\",\"description\":\"\",\"add_treatment\":\"\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2026-03-31 14:20:38'),
+(92, 26, 'DELETE', 'treatments', 10, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2026-03-31 14:20:43'),
+(93, 26, 'CREATE', 'treatments', 11, NULL, '{\"name\":\"Matte Lipstick - Crimson\",\"cost\":\"25\",\"description\":\"\",\"add_treatment\":\"\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2026-03-31 14:22:18'),
+(94, 26, 'UPDATE', 'treatments', 11, NULL, '{\"name\":\"Matte Lipstick - Crimson\",\"cost\":\"25.00\",\"description\":\"gtdh\",\"edit_treatment\":\"\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2026-03-31 14:22:26'),
+(95, 26, 'DELETE', 'treatments', 11, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2026-03-31 14:22:30'),
+(96, 26, 'CREATE', 'treatments', 12, NULL, '{\"name\":\"4y\",\"cost\":\"67\",\"description\":\"\",\"add_treatment\":\"\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2026-03-31 14:22:44'),
+(97, 26, 'DELETE', 'treatments', 12, NULL, NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2026-03-31 14:22:48');
 
 -- --------------------------------------------------------
 
@@ -222,7 +233,11 @@ INSERT INTO `clinic_settings` (`id`, `setting_key`, `setting_value`, `updated_at
 (2, 'clinic_phone', '+961 81665330', '2026-03-30 18:03:08'),
 (3, 'clinic_email', 'info@dentalclinic.com', '2026-03-30 17:46:50'),
 (4, 'clinic_address', '123 Main St, Anytown, USA', '2026-03-30 17:46:50'),
-(5, 'opening_hours', 'Monday-Friday: 9am - 5pm\r\nSaturday: 9am - 1pm\r\nSunday: Closed', '2026-03-30 17:50:14');
+(5, 'opening_hours', 'Monday-Friday: 9am - 5pm\r\nSaturday: 9am - 1pm\r\nSunday: Closed', '2026-03-30 17:50:14'),
+(11, 'allow_points_view', '0', '2026-03-31 15:25:45'),
+(12, 'allow_referrals_view', '0', '2026-03-31 15:26:11'),
+(13, 'patient_slot_minutes', '45', '2026-04-01 00:00:00'),
+(14, 'clinic_hours_json', '{\"weekday\":{\"open\":\"09:00\",\"close\":\"17:00\"},\"saturday\":{\"open\":\"09:00\",\"close\":\"13:00\"},\"sunday\":null}', '2026-04-01 00:00:00');
 
 -- --------------------------------------------------------
 
@@ -241,9 +256,14 @@ CREATE TABLE `inventory` (
   `reorder_quantity` int(11) DEFAULT 0,
   `supplier_name` varchar(100) DEFAULT NULL,
   `supplier_contact` varchar(100) DEFAULT NULL,
+  `supplier_phone` varchar(20) DEFAULT NULL,
+  `supplier_email` varchar(100) DEFAULT NULL,
   `cost_per_unit` decimal(10,2) DEFAULT NULL,
   `selling_price` decimal(10,2) DEFAULT NULL,
   `expiry_date` date DEFAULT NULL,
+  `lot_number` varchar(50) DEFAULT NULL,
+  `location` varchar(50) DEFAULT NULL,
+  `barcode` varchar(100) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `created_by` int(11) DEFAULT NULL
@@ -253,57 +273,57 @@ CREATE TABLE `inventory` (
 -- Dumping data for table `inventory`
 --
 
-INSERT INTO `inventory` (`id`, `item_name`, `category`, `description`, `quantity`, `unit`, `reorder_level`, `reorder_quantity`, `supplier_name`, `supplier_contact`, `cost_per_unit`, `selling_price`, `expiry_date`, `created_at`, `updated_at`, `created_by`) VALUES
-(1, 'Gloves', 'Consumable', NULL, 200, 'box', 20, 0, NULL, NULL, 5.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(2, 'Masks', 'Consumable', NULL, 300, 'box', 30, 0, NULL, NULL, 3.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(3, 'Syringes', 'Equipment', NULL, 150, 'pcs', 15, 0, NULL, NULL, 2.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(4, 'Anesthetic', 'Medicine', NULL, 50, 'ml', 10, 0, NULL, NULL, 15.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(5, 'Filling Material', 'Material', NULL, 100, 'pcs', 10, 0, NULL, NULL, 20.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(6, 'Crown Kit', 'Material', NULL, 40, 'pcs', 5, 0, NULL, NULL, 50.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(7, 'Whitening Gel', 'Material', NULL, 60, 'pcs', 10, 0, NULL, NULL, 25.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(8, 'Implant Screw', 'Material', NULL, 30, 'pcs', 5, 0, NULL, NULL, 100.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(9, 'Cotton Rolls', 'Consumable', NULL, 500, 'pcs', 50, 0, NULL, NULL, 1.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(10, 'Disinfectant', 'Consumable', NULL, 80, 'bottle', 10, 0, NULL, NULL, 8.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(11, 'Dental Mirror', 'Equipment', NULL, 20, 'pcs', 5, 0, NULL, NULL, 15.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(12, 'Scaler Tip', 'Equipment', NULL, 25, 'pcs', 5, 0, NULL, NULL, 30.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(13, 'Composite', 'Material', NULL, 70, 'pcs', 10, 0, NULL, NULL, 18.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(14, 'Etchant', 'Material', NULL, 40, 'pcs', 5, 0, NULL, NULL, 12.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(15, 'Bonding Agent', 'Material', NULL, 35, 'pcs', 5, 0, NULL, NULL, 14.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(16, 'X-ray Film', 'Material', NULL, 90, 'pcs', 10, 0, NULL, NULL, 4.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(17, 'Cement', 'Material', NULL, 60, 'pcs', 10, 0, NULL, NULL, 16.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(18, 'Orthodontic Wire', 'Material', NULL, 45, 'pcs', 5, 0, NULL, NULL, 22.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(19, 'Bracket Set', 'Material', NULL, 30, 'set', 5, 0, NULL, NULL, 60.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(20, 'Saliva Ejector', 'Consumable', NULL, 400, 'pcs', 40, 0, NULL, NULL, 0.50, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(21, 'Needles', 'Consumable', NULL, 250, 'pcs', 20, 0, NULL, NULL, 1.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(22, 'Tray Covers', 'Consumable', NULL, 150, 'pcs', 15, 0, NULL, NULL, 2.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(23, 'Impression Material', 'Material', NULL, 55, 'pcs', 5, 0, NULL, NULL, 20.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(24, 'Surgical Blade', 'Equipment', NULL, 75, 'pcs', 10, 0, NULL, NULL, 5.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(25, 'Gauze', 'Consumable', NULL, 600, 'pcs', 60, 0, NULL, NULL, 0.20, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(26, 'Gloves', 'Consumable', NULL, 200, 'box', 20, 0, NULL, NULL, 5.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(27, 'Masks', 'Consumable', NULL, 300, 'box', 30, 0, NULL, NULL, 3.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(28, 'Syringes', 'Equipment', NULL, 150, 'pcs', 15, 0, NULL, NULL, 2.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(29, 'Anesthetic', 'Medicine', NULL, 50, 'ml', 10, 0, NULL, NULL, 15.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(30, 'Filling Material', 'Material', NULL, 100, 'pcs', 10, 0, NULL, NULL, 20.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(31, 'Crown Kit', 'Material', NULL, 40, 'pcs', 5, 0, NULL, NULL, 50.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(32, 'Whitening Gel', 'Material', NULL, 60, 'pcs', 10, 0, NULL, NULL, 25.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(33, 'Implant Screw', 'Material', NULL, 30, 'pcs', 5, 0, NULL, NULL, 100.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(34, 'Cotton Rolls', 'Consumable', NULL, 500, 'pcs', 50, 0, NULL, NULL, 1.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(35, 'Disinfectant', 'Consumable', NULL, 80, 'bottle', 10, 0, NULL, NULL, 8.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(36, 'Dental Mirror', 'Equipment', NULL, 20, 'pcs', 5, 0, NULL, NULL, 15.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(37, 'Scaler Tip', 'Equipment', NULL, 25, 'pcs', 5, 0, NULL, NULL, 30.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(38, 'Composite', 'Material', NULL, 70, 'pcs', 10, 0, NULL, NULL, 18.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(39, 'Etchant', 'Material', NULL, 40, 'pcs', 5, 0, NULL, NULL, 12.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(40, 'Bonding Agent', 'Material', NULL, 35, 'pcs', 5, 0, NULL, NULL, 14.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(41, 'X-ray Film', 'Material', NULL, 90, 'pcs', 10, 0, NULL, NULL, 4.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(42, 'Cement', 'Material', NULL, 60, 'pcs', 10, 0, NULL, NULL, 16.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(43, 'Orthodontic Wire', 'Material', NULL, 45, 'pcs', 5, 0, NULL, NULL, 22.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(44, 'Bracket Set', 'Material', NULL, 30, 'set', 5, 0, NULL, NULL, 60.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(45, 'Saliva Ejector', 'Consumable', NULL, 400, 'pcs', 40, 0, NULL, NULL, 0.50, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(46, 'Needles', 'Consumable', NULL, 250, 'pcs', 20, 0, NULL, NULL, 1.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(47, 'Tray Covers', 'Consumable', NULL, 150, 'pcs', 15, 0, NULL, NULL, 2.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(48, 'Impression Material', 'Material', NULL, 55, 'pcs', 5, 0, NULL, NULL, 20.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(49, 'Surgical Blade', 'Equipment', NULL, 75, 'pcs', 10, 0, NULL, NULL, 5.00, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(50, 'Gauze', 'Consumable', NULL, 600, 'pcs', 60, 0, NULL, NULL, 0.20, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2));
+INSERT INTO `inventory` (`id`, `item_name`, `category`, `description`, `quantity`, `unit`, `reorder_level`, `reorder_quantity`, `supplier_name`, `supplier_contact`, `supplier_phone`, `supplier_email`, `cost_per_unit`, `selling_price`, `expiry_date`, `lot_number`, `location`, `barcode`, `created_at`, `updated_at`, `created_by`) VALUES
+(1, 'Gloves', 'Consumable', NULL, 200, 'box', 20, 0, NULL, NULL, NULL, NULL, 5.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(2, 'Masks', 'Consumable', NULL, 300, 'box', 30, 0, NULL, NULL, NULL, NULL, 3.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(3, 'Syringes', 'Equipment', NULL, 150, 'pcs', 15, 0, NULL, NULL, NULL, NULL, 2.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(4, 'Anesthetic', 'Medicine', NULL, 50, 'ml', 10, 0, NULL, NULL, NULL, NULL, 15.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(5, 'Filling Material', 'Material', NULL, 100, 'pcs', 10, 0, NULL, NULL, NULL, NULL, 20.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(6, 'Crown Kit', 'Material', NULL, 40, 'pcs', 5, 0, NULL, NULL, NULL, NULL, 50.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(7, 'Whitening Gel', 'Material', NULL, 60, 'pcs', 10, 0, NULL, NULL, NULL, NULL, 25.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(8, 'Implant Screw', 'Material', NULL, 30, 'pcs', 5, 0, NULL, NULL, NULL, NULL, 100.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(9, 'Cotton Rolls', 'Consumable', NULL, 500, 'pcs', 50, 0, NULL, NULL, NULL, NULL, 1.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(10, 'Disinfectant', 'Consumable', NULL, 80, 'bottle', 10, 0, NULL, NULL, NULL, NULL, 8.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(11, 'Dental Mirror', 'Equipment', NULL, 20, 'pcs', 5, 0, NULL, NULL, NULL, NULL, 15.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(12, 'Scaler Tip', 'Equipment', NULL, 25, 'pcs', 5, 0, NULL, NULL, NULL, NULL, 30.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(13, 'Composite', 'Material', NULL, 70, 'pcs', 10, 0, NULL, NULL, NULL, NULL, 18.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(14, 'Etchant', 'Material', NULL, 40, 'pcs', 5, 0, NULL, NULL, NULL, NULL, 12.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(15, 'Bonding Agent', 'Material', NULL, 35, 'pcs', 5, 0, NULL, NULL, NULL, NULL, 14.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(16, 'X-ray Film', 'Material', NULL, 90, 'pcs', 10, 0, NULL, NULL, NULL, NULL, 4.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(17, 'Cement', 'Material', NULL, 60, 'pcs', 10, 0, NULL, NULL, NULL, NULL, 16.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(18, 'Orthodontic Wire', 'Material', NULL, 45, 'pcs', 5, 0, NULL, NULL, NULL, NULL, 22.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(19, 'Bracket Set', 'Material', NULL, 30, 'set', 5, 0, NULL, NULL, NULL, NULL, 60.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(20, 'Saliva Ejector', 'Consumable', NULL, 400, 'pcs', 40, 0, NULL, NULL, NULL, NULL, 0.50, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(21, 'Needles', 'Consumable', NULL, 250, 'pcs', 20, 0, NULL, NULL, NULL, NULL, 1.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(22, 'Tray Covers', 'Consumable', NULL, 150, 'pcs', 15, 0, NULL, NULL, NULL, NULL, 2.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(23, 'Impression Material', 'Material', NULL, 55, 'pcs', 5, 0, NULL, NULL, NULL, NULL, 20.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(24, 'Surgical Blade', 'Equipment', NULL, 75, 'pcs', 10, 0, NULL, NULL, NULL, NULL, 5.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(25, 'Gauze', 'Consumable', NULL, 600, 'pcs', 60, 0, NULL, NULL, NULL, NULL, 0.20, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(26, 'Gloves', 'Consumable', NULL, 200, 'box', 20, 0, NULL, NULL, NULL, NULL, 5.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(27, 'Masks', 'Consumable', NULL, 300, 'box', 30, 0, NULL, NULL, NULL, NULL, 3.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(28, 'Syringes', 'Equipment', NULL, 150, 'pcs', 15, 0, NULL, NULL, NULL, NULL, 2.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(29, 'Anesthetic', 'Medicine', NULL, 50, 'ml', 10, 0, NULL, NULL, NULL, NULL, 15.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(30, 'Filling Material', 'Material', NULL, 100, 'pcs', 10, 0, NULL, NULL, NULL, NULL, 20.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(31, 'Crown Kit', 'Material', NULL, 40, 'pcs', 5, 0, NULL, NULL, NULL, NULL, 50.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(32, 'Whitening Gel', 'Material', NULL, 60, 'pcs', 10, 0, NULL, NULL, NULL, NULL, 25.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(33, 'Implant Screw', 'Material', NULL, 30, 'pcs', 5, 0, NULL, NULL, NULL, NULL, 100.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(34, 'Cotton Rolls', 'Consumable', NULL, 500, 'pcs', 50, 0, NULL, NULL, NULL, NULL, 1.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(35, 'Disinfectant', 'Consumable', NULL, 80, 'bottle', 10, 0, NULL, NULL, NULL, NULL, 8.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(36, 'Dental Mirror', 'Equipment', NULL, 20, 'pcs', 5, 0, NULL, NULL, NULL, NULL, 15.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(37, 'Scaler Tip', 'Equipment', NULL, 25, 'pcs', 5, 0, NULL, NULL, NULL, NULL, 30.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(38, 'Composite', 'Material', NULL, 70, 'pcs', 10, 0, NULL, NULL, NULL, NULL, 18.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(39, 'Etchant', 'Material', NULL, 40, 'pcs', 5, 0, NULL, NULL, NULL, NULL, 12.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(40, 'Bonding Agent', 'Material', NULL, 35, 'pcs', 5, 0, NULL, NULL, NULL, NULL, 14.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(41, 'X-ray Film', 'Material', NULL, 90, 'pcs', 10, 0, NULL, NULL, NULL, NULL, 4.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(42, 'Cement', 'Material', NULL, 60, 'pcs', 10, 0, NULL, NULL, NULL, NULL, 16.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(43, 'Orthodontic Wire', 'Material', NULL, 45, 'pcs', 5, 0, NULL, NULL, NULL, NULL, 22.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(44, 'Bracket Set', 'Material', NULL, 30, 'set', 5, 0, NULL, NULL, NULL, NULL, 60.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(45, 'Saliva Ejector', 'Consumable', NULL, 400, 'pcs', 40, 0, NULL, NULL, NULL, NULL, 0.50, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(46, 'Needles', 'Consumable', NULL, 250, 'pcs', 20, 0, NULL, NULL, NULL, NULL, 1.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(47, 'Tray Covers', 'Consumable', NULL, 150, 'pcs', 15, 0, NULL, NULL, NULL, NULL, 2.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(48, 'Impression Material', 'Material', NULL, 55, 'pcs', 5, 0, NULL, NULL, NULL, NULL, 20.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(49, 'Surgical Blade', 'Equipment', NULL, 75, 'pcs', 10, 0, NULL, NULL, NULL, NULL, 5.00, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
+(50, 'Gauze', 'Consumable', NULL, 600, 'pcs', 60, 0, NULL, NULL, NULL, NULL, 0.20, NULL, NULL, NULL, NULL, NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2);
 
 -- --------------------------------------------------------
 
@@ -598,55 +618,63 @@ CREATE TABLE `patients` (
   `medical_history` text DEFAULT NULL,
   `allergies` text DEFAULT NULL,
   `current_medications` text DEFAULT NULL,
+  `past_surgeries` text DEFAULT NULL,
+  `chronic_conditions` text DEFAULT NULL,
   `dental_history` text DEFAULT NULL,
+  `previous_dentist` varchar(100) DEFAULT NULL,
   `last_visit_date` date DEFAULT NULL,
-  `address` varchar(255) DEFAULT NULL,
-  `country` varchar(50) DEFAULT 'LB',
+  `address_line1` varchar(255) DEFAULT NULL,
+  `address_line2` varchar(255) DEFAULT NULL,
+  `address` varchar(500) DEFAULT NULL,
+  `city` varchar(100) DEFAULT NULL,
+  `state` varchar(50) DEFAULT NULL,
+  `postal_code` varchar(20) DEFAULT NULL,
+  `country` varchar(50) DEFAULT 'USA',
   `points` int(11) DEFAULT 0,
   `subscription_type` enum('none','basic','premium','family') DEFAULT 'none',
   `subscription_start_date` date DEFAULT NULL,
   `subscription_end_date` date DEFAULT NULL,
-  `subscription_status` enum('none','pending','active','expired') NOT NULL DEFAULT 'none',
   `referral_code` varchar(20) DEFAULT NULL,
   `referred_by` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `created_by` int(11) DEFAULT NULL
+  `created_by` int(11) DEFAULT NULL,
+  `subscription_status` enum('none','pending','active','expired') DEFAULT 'none'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `patients`
 --
 
-INSERT INTO `patients` (`id`, `user_id`, `full_name`, `date_of_birth`, `gender`, `phone`, `email`, `emergency_contact_name`, `emergency_contact_phone`, `emergency_contact_relation`, `insurance_provider`, `insurance_id`, `insurance_type`, `insurance_coverage`, `medical_history`, `allergies`, `current_medications`, `dental_history`, `last_visit_date`, `address`, `country`, `points`, `subscription_type`, `subscription_start_date`, `subscription_end_date`, `subscription_status`, `referral_code`, `referred_by`, `created_at`, `updated_at`, `created_by`) VALUES
-(2, 4, 'Patient 2', NULL, 'female', '3000000002', 'p2@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 20, 'none', NULL, NULL, 'none', 'REF2', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(3, 5, 'Patient 3', NULL, 'male', '3000000003', 'p3@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 15, 'none', NULL, NULL, 'none', 'REF3', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(4, NULL, 'Patient 4', NULL, 'female', '3000000004', 'p4@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 5, 'none', NULL, NULL, 'none', 'REF4', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(5, 7, 'Patient 5', NULL, 'male', '3000000005', 'p5@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 0, 'none', NULL, NULL, 'none', 'REF5', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(6, 8, 'Patient 6', NULL, 'female', '3000000006', 'p6@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 8, 'none', NULL, NULL, 'none', 'REF6', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(7, 9, 'Patient 7', NULL, 'male', '3000000007', 'p7@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 12, 'none', NULL, NULL, 'none', 'REF7', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(8, 10, 'Patient 8', NULL, 'female', '3000000008', 'p8@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 6, 'none', NULL, NULL, 'none', 'REF8', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(9, 11, 'Patient 9', NULL, 'male', '3000000009', 'p9@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 3, 'none', NULL, NULL, 'none', 'REF9', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(10, 12, 'Patient 10', NULL, 'female', '3000000010', 'p10@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 11, 'none', NULL, NULL, 'none', 'REF10', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(11, 13, 'Patient 11', NULL, 'male', '3000000011', 'p11@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 7, 'none', NULL, NULL, 'none', 'REF11', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(12, 14, 'Patient 12', NULL, 'female', '3000000012', 'p12@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 9, 'none', NULL, NULL, 'none', 'REF12', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(13, 15, 'Patient 13', NULL, 'male', '3000000013', 'p13@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 4, 'none', NULL, NULL, 'none', 'REF13', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(14, 16, 'Patient 14', NULL, 'female', '3000000014', 'p14@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 2, 'none', NULL, NULL, 'none', 'REF14', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(15, 17, 'Patient 15', NULL, 'male', '3000000015', 'p15@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 13, 'none', NULL, NULL, 'none', 'REF15', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(16, 18, 'Patient 16', NULL, 'female', '3000000016', 'p16@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 1, 'none', NULL, NULL, 'none', 'REF16', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(17, 19, 'Patient 17', NULL, 'male', '3000000017', 'p17@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 14, 'none', NULL, NULL, 'none', 'REF17', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(18, 20, 'Patient 18', NULL, 'female', '3000000018', 'p18@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 5, 'none', NULL, NULL, 'none', 'REF18', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(19, 21, 'Patient 19', NULL, 'male', '3000000019', 'p19@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 16, 'none', NULL, NULL, 'none', 'REF19', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(20, 22, 'Patient 20', NULL, 'female', '3000000020', 'p20@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 7, 'none', NULL, NULL, 'none', 'REF20', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(21, 23, 'Patient 21', NULL, 'male', '3000000021', 'p21@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 6, 'none', NULL, NULL, 'none', 'REF21', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(22, 24, 'Patient 22', NULL, 'female', '3000000022', 'p22@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 10, 'none', NULL, NULL, 'none', 'REF22', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(23, 25, 'Patient 23', NULL, 'male', '3000000023', 'p23@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 9, 'none', NULL, NULL, 'none', 'REF23', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(24, NULL, 'Walk-in 24', NULL, 'male', '4000000024', 'walk24@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 0, 'none', NULL, NULL, 'none', 'REF24', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(25, NULL, 'Walk-in 25', NULL, 'female', '4000000025', 'walk25@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 0, 'none', NULL, NULL, 'none', 'REF25', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2),
-(27, 29, 'Zeina Ayoub', NULL, NULL, '+961 70389543', '72230640@students.liu.edu.lb', '', '', '', NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 0, 'none', NULL, NULL, 'none', NULL, NULL, '2026-03-24 21:30:54', '2026-03-24 21:30:54', 26),
-(28, 30, 'jawad', NULL, 'male', '+961 71217984', '722306@students.liu.edu.lb', '', '', '', NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, 'Tyre', 'USA', 0, 'none', NULL, NULL, 'none', NULL, NULL, '2026-03-28 09:47:29', '2026-03-29 16:31:39', 26),
-(29, 33, 'Saja Dyab', '2005-11-12', 'female', '+961 81 665 330', 'dyabsaja@gmail.com', 'Fatima haydar', '+961 71532470', 'mother', NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, 'tyre', 'USA', 0, 'premium', '2026-03-30', '2027-03-30', 'active', 'F240A658', NULL, '2026-03-29 16:43:52', '2026-03-30 14:29:36', NULL),
-(30, 34, 'Ali Dyab', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 0, 'family', '2026-03-30', '2027-03-30', 'active', '49C86F50', NULL, '2026-03-30 14:45:00', '2026-03-30 14:50:25', NULL);
+INSERT INTO `patients` (`id`, `user_id`, `full_name`, `date_of_birth`, `gender`, `phone`, `email`, `emergency_contact_name`, `emergency_contact_phone`, `emergency_contact_relation`, `insurance_provider`, `insurance_id`, `insurance_type`, `insurance_coverage`, `medical_history`, `allergies`, `current_medications`, `past_surgeries`, `chronic_conditions`, `dental_history`, `previous_dentist`, `last_visit_date`, `address_line1`, `address_line2`, `address`, `city`, `state`, `postal_code`, `country`, `points`, `subscription_type`, `subscription_start_date`, `subscription_end_date`, `referral_code`, `referred_by`, `created_at`, `updated_at`, `created_by`, `subscription_status`) VALUES
+(2, 4, 'Patient 2', NULL, 'female', '3000000002', 'p2@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 20, 'none', NULL, NULL, 'REF2', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(3, 5, 'Patient 3', NULL, 'male', '3000000003', 'p3@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 15, 'none', NULL, NULL, 'REF3', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(4, NULL, 'Patient 4', NULL, 'female', '3000000004', 'p4@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 5, 'none', NULL, NULL, 'REF4', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(5, 7, 'Patient 5', NULL, 'male', '3000000005', 'p5@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 0, 'none', NULL, NULL, 'REF5', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(6, 8, 'Patient 6', NULL, 'female', '3000000006', 'p6@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 8, 'none', NULL, NULL, 'REF6', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(7, 9, 'Patient 7', NULL, 'male', '3000000007', 'p7@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 12, 'none', NULL, NULL, 'REF7', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(8, 10, 'Patient 8', NULL, 'female', '3000000008', 'p8@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 6, 'none', NULL, NULL, 'REF8', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(9, 11, 'Patient 9', NULL, 'male', '3000000009', 'p9@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 3, 'none', NULL, NULL, 'REF9', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(10, 12, 'Patient 10', NULL, 'female', '3000000010', 'p10@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 11, 'none', NULL, NULL, 'REF10', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(11, 13, 'Patient 11', NULL, 'male', '3000000011', 'p11@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 7, 'none', NULL, NULL, 'REF11', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(12, 14, 'Patient 12', NULL, 'female', '3000000012', 'p12@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 9, 'none', NULL, NULL, 'REF12', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(13, 15, 'Patient 13', NULL, 'male', '3000000013', 'p13@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 4, 'none', NULL, NULL, 'REF13', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(14, 16, 'Patient 14', NULL, 'female', '3000000014', 'p14@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 2, 'none', NULL, NULL, 'REF14', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(15, 17, 'Patient 15', NULL, 'male', '3000000015', 'p15@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 13, 'none', NULL, NULL, 'REF15', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(16, 18, 'Patient 16', NULL, 'female', '3000000016', 'p16@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 1, 'none', NULL, NULL, 'REF16', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(17, 19, 'Patient 17', NULL, 'male', '3000000017', 'p17@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 14, 'none', NULL, NULL, 'REF17', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(18, 20, 'Patient 18', NULL, 'female', '3000000018', 'p18@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 5, 'none', NULL, NULL, 'REF18', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(19, 21, 'Patient 19', NULL, 'male', '3000000019', 'p19@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 16, 'none', NULL, NULL, 'REF19', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(20, 22, 'Patient 20', NULL, 'female', '3000000020', 'p20@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 7, 'none', NULL, NULL, 'REF20', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(21, 23, 'Patient 21', NULL, 'male', '3000000021', 'p21@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 6, 'none', NULL, NULL, 'REF21', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(22, 24, 'Patient 22', NULL, 'female', '3000000022', 'p22@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 10, 'none', NULL, NULL, 'REF22', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(23, 25, 'Patient 23', NULL, 'male', '3000000023', 'p23@mail.com', NULL, NULL, NULL, NULL, NULL, 'Private', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 9, 'none', NULL, NULL, 'REF23', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(24, NULL, 'Walk-in 24', NULL, 'male', '4000000024', 'walk24@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 0, 'none', NULL, NULL, 'REF24', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(25, NULL, 'Walk-in 25', NULL, 'female', '4000000025', 'walk25@mail.com', NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 0, 'none', NULL, NULL, 'REF25', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 2, 'none'),
+(27, 29, 'Zeina Ayoub', '0000-00-00', '', '+961 70389543', '72230640@students.liu.edu.lb', '', '', '', '', '', '', 0, '', '', '', '', '', '', '', '0000-00-00', '', '', NULL, '', '', '', 'USA', 0, 'none', NULL, NULL, NULL, NULL, '2026-03-24 21:30:54', '2026-03-24 21:30:54', 26, 'none'),
+(28, 30, 'jawad', '0000-00-00', 'male', '+961 71217984', '722306@students.liu.edu.lb', '', '', '', '', '', '', 0, '', '', '', '', '', '', '', '0000-00-00', 'Tyre', '', NULL, '', '', '', 'USA', 0, 'none', NULL, NULL, NULL, NULL, '2026-03-28 09:47:29', '2026-03-29 16:31:39', 26, 'none'),
+(29, 33, 'Saja Dyab', '2005-11-12', 'female', '+961 81 665 330', 'dyabsaja@gmail.com', 'Fatima haydar', '+961 71532470', 'mother', NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '', '', NULL, 'tyre', '', '', 'USA', 0, 'premium', '2026-03-30', '2027-03-30', 'F240A658', NULL, '2026-03-29 16:43:52', '2026-03-30 14:29:36', NULL, 'active'),
+(30, 34, 'Ali Dyab', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'None', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'USA', 0, 'family', '2026-03-30', '2027-03-30', '49C86F50', NULL, '2026-03-30 14:45:00', '2026-03-30 14:50:25', NULL, 'active');
 
 -- --------------------------------------------------------
 
@@ -751,6 +779,35 @@ INSERT INTO `tooth_chart` (`id`, `patient_id`, `tooth_number`, `status`, `diagno
 (26, 28, 21, 'filled', '', '', '', '2026-03-28 17:45:39', 32),
 (27, 28, 24, 'cavity', '', '', '', '2026-03-28 17:45:44', 32),
 (28, 28, 28, 'missing', '', '', '', '2026-03-28 17:46:10', 32);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `treatments`
+--
+
+CREATE TABLE `treatments` (
+  `id` int(11) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `cost` decimal(10,2) NOT NULL,
+  `description` text DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `treatments`
+--
+
+INSERT INTO `treatments` (`id`, `name`, `cost`, `description`, `created_at`, `updated_at`) VALUES
+(1, 'Dental Cleaning', 85.00, 'Professional teeth cleaning and polishing', '2026-03-31 16:01:30', '2026-03-31 17:16:11'),
+(2, 'Dental Filling', 150.00, 'Tooth filling for cavities', '2026-03-31 16:01:30', '2026-03-31 16:01:30'),
+(3, 'Root Canal Treatment', 800.00, 'Treatment for infected tooth pulp', '2026-03-31 16:01:30', '2026-03-31 16:01:30'),
+(4, 'Tooth Extraction', 200.00, 'Removal of damaged tooth', '2026-03-31 16:01:30', '2026-03-31 16:01:30'),
+(5, 'Teeth Whitening', 300.00, 'Professional teeth whitening treatment', '2026-03-31 16:01:30', '2026-03-31 16:01:30'),
+(6, 'Dental Crown', 1200.00, 'Crown placement for damaged teeth', '2026-03-31 16:01:30', '2026-03-31 16:01:30'),
+(7, 'Dental Implant', 2500.00, 'Complete dental implant procedure', '2026-03-31 16:01:30', '2026-03-31 16:01:30'),
+(8, 'Orthodontic Consultation', 100.00, 'Initial braces consultation', '2026-03-31 16:01:30', '2026-03-31 16:01:30');
 
 -- --------------------------------------------------------
 
@@ -898,8 +955,8 @@ INSERT INTO `treatment_steps` (`id`, `plan_id`, `step_number`, `procedure_name`,
 
 CREATE TABLE `users` (
   `id` int(11) NOT NULL,
-  `username` varchar(50) NOT NULL,
-  `email` varchar(100) NOT NULL,
+  `username` varchar(191) NOT NULL,
+  `email` varchar(191) NOT NULL,
   `password_hash` varchar(255) NOT NULL,
   `full_name` varchar(100) NOT NULL,
   `role` enum('doctor','assistant','patient') NOT NULL,
@@ -940,11 +997,11 @@ INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `full_name`, `r
 (23, 'patient21', 'p21@mail.com', 'hash', 'Patient 21', 'patient', 0, '3000000021', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 1, NULL),
 (24, 'patient22', 'p22@mail.com', 'hash', 'Patient 22', 'patient', 0, '3000000022', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 1, NULL),
 (25, 'patient23', 'p23@mail.com', 'hash', 'Patient 23', 'patient', 0, '3000000023', NULL, '2026-03-24 21:04:18', '2026-03-24 21:04:18', 1, NULL),
-(26, 'admin', 'admin@clinic.com', '$2y$10$y4e0kIZn.g.jc7N7j6sGQuf8u9mAvCRoStNvYUB8CUEjOE0PaGMEa', 'Administrator', 'doctor', 1, '6666666666666666', NULL, '2026-03-24 21:04:18', '2026-03-30 18:21:59', 1, '2026-03-30 18:21:59'),
+(26, 'admin', 'admin@clinic.com', '$2y$10$y4e0kIZn.g.jc7N7j6sGQuf8u9mAvCRoStNvYUB8CUEjOE0PaGMEa', 'Administrator', 'doctor', 1, '6666666666666666', NULL, '2026-03-24 21:04:18', '2026-03-31 15:26:04', 1, '2026-03-31 15:26:04'),
 (29, '72230640', '72230640@students.liu.edu.lb', '$2y$10$eoWH3FcYwDSauj5hrCzSWeeFzMdbYDE.G4mZvoQA9oin2fD6DkQrW', 'Zeina Ayoub', 'patient', 0, '+96170389543', NULL, '2026-03-24 21:30:54', '2026-03-28 09:21:55', 1, '2026-03-28 09:21:55'),
 (30, '722306', '722306@students.liu.edu.lb', '$2y$10$Wmi5dKdKtV9bVqc9RebqMe1ULjJOFur6odoZe/wiXcM/o2j1pmlb6', 'jawad', 'patient', 0, '+961 71217984', NULL, '2026-03-28 09:47:30', '2026-03-30 18:02:49', 1, NULL),
 (32, 'DrAli', 'DrAli@clinic.com', '$2y$10$cZoXYeItBuSp8i6ZUiIDku/Z6JqvShtWb5ahifl4ohaDVrSfrhg7.', 'Dr. Ali', 'doctor', 0, '6835621556', NULL, '2026-03-28 16:34:41', '2026-03-30 18:08:44', 0, '2026-03-30 18:08:44'),
-(33, 'sajadyab', 'dyabsaja@gmail.com', '$2y$10$S9A2F4x6VspVaMiPVm8Tv.lqVtvAVu51L5Ju0CNajyuTRYMBoHdEu', 'Saja Dyab', 'patient', 0, '+961 81 665 330', NULL, '2026-03-30 11:06:19', '2026-03-30 18:22:25', 1, '2026-03-30 18:22:25'),
+(33, 'sajadyab', 'dyabsaja@gmail.com', '$2y$10$S9A2F4x6VspVaMiPVm8Tv.lqVtvAVu51L5Ju0CNajyuTRYMBoHdEu', 'Saja Dyab', 'patient', 0, '+961 81 665 330', NULL, '2026-03-30 11:06:19', '2026-03-31 15:26:25', 1, '2026-03-31 15:26:25'),
 (34, 'alidyab', 'dyabali@gmail.com', '$2y$10$RHFYIrMMLCc89qkqMEWOeuJ01k.vPsdo4tW22l6Ljv3Kv/ZgFkqvm', 'Ali Dyab', 'patient', 0, NULL, NULL, '2026-03-30 14:43:08', '2026-03-30 14:51:36', 1, '2026-03-30 14:51:36'),
 (35, 'Mohammad', 'mohammad@gmail.com', '$2y$10$GbOhEVD3zxeuLOKc3PLp9u7bPI3P1kd1moxD4i5bF/0lTIxQ74cB.', 'Mohammad no', 'doctor', 0, '+961 70 339 444', NULL, '2026-03-30 17:42:16', '2026-03-30 17:42:16', 1, NULL),
 (36, 'Rayan', 'rayan@gmail.com', '$2y$10$AWsuBpgikz1Plt4gVnHrougouaahR8YPK05Z29NXb31uK6U0FA7ey', 'Rayan nofamilyname', 'doctor', 0, '+961 70 333 440', NULL, '2026-03-30 18:01:11', '2026-03-30 18:01:11', 1, NULL);
@@ -971,6 +1028,25 @@ CREATE TABLE `waiting_queue` (
   `notified_at` timestamp NULL DEFAULT NULL,
   `checked_in_at` timestamp NULL DEFAULT NULL,
   `notes` text DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `appointment_requests`
+-- Pending online booking requests from patients (doctor approves/denies in Waiting Queue).
+--
+
+CREATE TABLE `appointment_requests` (
+  `id` int(11) NOT NULL,
+  `patient_id` int(11) NOT NULL,
+  `doctor_id` int(11) NOT NULL,
+  `requested_date` date NOT NULL,
+  `requested_time` time NOT NULL,
+  `duration_minutes` int(11) NOT NULL DEFAULT 30,
+  `treatment_type` varchar(100) NOT NULL,
+  `description` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -1205,7 +1281,8 @@ ALTER TABLE `patients`
   ADD KEY `created_by` (`created_by`),
   ADD KEY `idx_email` (`email`),
   ADD KEY `idx_phone` (`phone`),
-  ADD KEY `idx_insurance` (`insurance_type`);
+  ADD KEY `idx_insurance` (`insurance_type`),
+  ADD KEY `idx_patients_insurance` (`insurance_type`);
 
 --
 -- Indexes for table `payments`
@@ -1230,6 +1307,12 @@ ALTER TABLE `tooth_chart`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `unique_patient_tooth` (`patient_id`,`tooth_number`),
   ADD KEY `updated_by` (`updated_by`);
+
+--
+-- Indexes for table `treatments`
+--
+ALTER TABLE `treatments`
+  ADD PRIMARY KEY (`id`);
 
 --
 -- Indexes for table `treatment_instructions`
@@ -1268,6 +1351,14 @@ ALTER TABLE `waiting_queue`
   ADD KEY `patient_id` (`patient_id`);
 
 --
+-- Indexes for table `appointment_requests`
+--
+ALTER TABLE `appointment_requests`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_ar_doctor_date` (`doctor_id`,`requested_date`),
+  ADD KEY `patient_id` (`patient_id`);
+
+--
 -- Indexes for table `xrays`
 --
 ALTER TABLE `xrays`
@@ -1289,13 +1380,13 @@ ALTER TABLE `appointments`
 -- AUTO_INCREMENT for table `audit_log`
 --
 ALTER TABLE `audit_log`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=87;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=98;
 
 --
 -- AUTO_INCREMENT for table `clinic_settings`
 --
 ALTER TABLE `clinic_settings`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `inventory`
@@ -1358,6 +1449,12 @@ ALTER TABLE `tooth_chart`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
+-- AUTO_INCREMENT for table `treatments`
+--
+ALTER TABLE `treatments`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+
+--
 -- AUTO_INCREMENT for table `treatment_instructions`
 --
 ALTER TABLE `treatment_instructions`
@@ -1379,13 +1476,19 @@ ALTER TABLE `treatment_steps`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=40;
 
 --
 -- AUTO_INCREMENT for table `waiting_queue`
 --
 ALTER TABLE `waiting_queue`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=81;
+
+--
+-- AUTO_INCREMENT for table `appointment_requests`
+--
+ALTER TABLE `appointment_requests`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
 --
 -- AUTO_INCREMENT for table `xrays`
@@ -1489,6 +1592,13 @@ ALTER TABLE `treatment_steps`
   ADD CONSTRAINT `treatment_steps_ibfk_1` FOREIGN KEY (`plan_id`) REFERENCES `treatment_plans` (`id`) ON DELETE CASCADE;
 
 --
+-- Constraints for table `appointment_requests`
+--
+ALTER TABLE `appointment_requests`
+  ADD CONSTRAINT `appointment_requests_ibfk_1` FOREIGN KEY (`patient_id`) REFERENCES `patients` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `appointment_requests_ibfk_2` FOREIGN KEY (`doctor_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `waiting_queue`
 --
 ALTER TABLE `waiting_queue`
@@ -1500,33 +1610,8 @@ ALTER TABLE `waiting_queue`
 ALTER TABLE `xrays`
   ADD CONSTRAINT `xrays_ibfk_1` FOREIGN KEY (`patient_id`) REFERENCES `patients` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `xrays_ibfk_2` FOREIGN KEY (`uploaded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
-
---
--- Optional migrations (existing databases): align `patients` + `inventory` with structure above
--- Run manually if upgrading; skip columns that already exist.
---
--- patients: single address, drop legacy columns, reorder subscription_status
--- ALTER TABLE `patients`
---   ADD COLUMN `address` varchar(255) DEFAULT NULL AFTER `last_visit_date`,
---   ADD COLUMN `subscription_status` enum('none','pending','active','expired') NOT NULL DEFAULT 'none' AFTER `subscription_end_date`;
--- UPDATE `patients` SET `address` = TRIM(BOTH ', ' FROM CONCAT_WS(', ',
---   NULLIF(TRIM(`address_line1`), ''), NULLIF(TRIM(`address_line2`), ''),
---   NULLIF(TRIM(`city`), ''), NULLIF(TRIM(`state`), ''), NULLIF(TRIM(`postal_code`), '')
--- )) WHERE `address` IS NULL OR `address` = '';
--- ALTER TABLE `patients`
---   DROP COLUMN `address_line1`, DROP COLUMN `address_line2`, DROP COLUMN `city`,
---   DROP COLUMN `state`, DROP COLUMN `postal_code`,
---   DROP COLUMN `past_surgeries`, DROP COLUMN `chronic_conditions`, DROP COLUMN `previous_dentist`,
---   MODIFY COLUMN `country` varchar(50) DEFAULT 'LB';
-
--- inventory: remove extra supplier / tracking columns
--- ALTER TABLE `inventory`
---   DROP COLUMN `supplier_phone`, DROP COLUMN `supplier_email`,
---   DROP COLUMN `lot_number`, DROP COLUMN `location`, DROP COLUMN `barcode`;
-
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-

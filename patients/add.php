@@ -43,6 +43,46 @@ function normalizeE164Phone(?string $countryCode, ?string $localNumber): array
     return ['ok' => true, 'value' => '+' . $code . $number, 'error' => null];
 }
 
+/**
+ * Patient login username: sanitized full name + 4 random digits.
+ * Retries until no other patient (and no other user) already uses that username.
+ */
+function generateUniquePatientUsername(Database $db, string $fullName): string
+{
+    $slug = strtolower(preg_replace('/[^a-z0-9]+/', '', $fullName));
+    if ($slug === '') {
+        $slug = 'patient';
+    }
+    if (strlen($slug) > 24) {
+        $slug = substr($slug, 0, 24);
+    }
+
+    for ($attempt = 0; $attempt < 100; $attempt++) {
+        $digits = str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
+        $candidate = $slug . $digits;
+
+        $otherPatient = $db->fetchOne(
+            "SELECT p.id FROM patients p
+             INNER JOIN users u ON u.id = p.user_id
+             WHERE u.username = ?",
+            [$candidate],
+            's'
+        );
+        if ($otherPatient) {
+            continue;
+        }
+
+        $anyUser = $db->fetchOne('SELECT id FROM users WHERE username = ?', [$candidate], 's');
+        if ($anyUser) {
+            continue;
+        }
+
+        return $candidate;
+    }
+
+    throw new Exception('Could not generate a unique username. Please try again.');
+}
+
 Auth::requireLogin();
 $pageTitle = 'Add Patient';
 
@@ -56,12 +96,19 @@ $generatedUsername = $_SESSION['generated_username'] ?? null;
 $generatedPassword = $_SESSION['generated_password'] ?? null;
 unset($_SESSION['generated_username'], $_SESSION['generated_password']);
 
+$whatsappNotice = $_SESSION['patient_add_whatsapp_notice'] ?? null;
+unset($_SESSION['patient_add_whatsapp_notice']);
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Validate required fields
-    $required = ['full_name', 'date_of_birth', 'phone_country', 'phone_number'];
+    $required = ['full_name', 'date_of_birth', 'phone_country', 'phone_number', 'email'];
     $missing = [];
     foreach ($required as $field) {
-        if (empty($_POST[$field])) {
+        if ($field === 'email') {
+            if (trim((string) ($_POST['email'] ?? '')) === '') {
+                $missing[] = $field;
+            }
+        } elseif (empty($_POST[$field])) {
             $missing[] = $field;
         }
     }
@@ -71,6 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             'date_of_birth' => 'date of birth',
             'phone_country' => 'phone country code',
             'phone_number' => 'phone number',
+            'email' => 'email',
         ];
         $missingLabels = array_map(function ($f) use ($labels) {
             return $labels[$f] ?? $f;
@@ -84,7 +132,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $conn->begin_transaction();
 
             $emailInput = trim((string) ($_POST['email'] ?? ''));
-            $patientsEmail = $emailInput !== '' ? $emailInput : '';
+            if ($emailInput === '') {
+                throw new Exception('Email is required.');
+            }
+            $patientsEmail = $emailInput;
             $fullName = trim((string) ($_POST['full_name'] ?? ''));
             $phoneParsed = normalizeE164Phone($_POST['phone_country'] ?? null, $_POST['phone_number'] ?? null);
             if (!$phoneParsed['ok']) {
@@ -95,27 +146,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
             $dentalUploadPath = null;
 
-            // Always create user account for the patient
-            $baseUsername = 'patient';
-            if ($patientsEmail !== '') {
-                $emailParts = explode('@', $patientsEmail);
-                $baseUsername = strtolower(preg_replace('/[^a-z0-9]/i', '', $emailParts[0] ?? ''));
-                if ($baseUsername === '') {
-                    $baseUsername = 'patient';
-                }
-            } else {
-                $baseUsername = strtolower(preg_replace('/[^a-z0-9]/i', '', $fullName));
-                if ($baseUsername === '') {
-                    $baseUsername = 'patient';
-                }
-            }
-
-            $username = $baseUsername;
-            $counter = 1;
-            while ($db->fetchOne("SELECT id FROM users WHERE username = ?", [$username], "s")) {
-                $username = $baseUsername . $counter;
-                $counter++;
-            }
+            // Always create user account for the patient (unique username: name + 4 random digits)
+            $username = generateUniquePatientUsername($db, $fullName);
 
             // IMPORTANT: `users.email` is UNIQUE + NOT NULL in your DB schema.
             // To allow many patients to share the same email, we store the real (possibly shared) email in `patients.email`,
@@ -187,7 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $_POST['date_of_birth'] ?? null,
                     $_POST['gender'] ?? null,
                     $phone,
-                    $patientsEmail !== '' ? $patientsEmail : null,
+                    $patientsEmail,
                     $_POST['emergency_contact_name'] ?? null,
                     $_POST['emergency_contact_phone'] ?? null,
                     $_POST['emergency_contact_relation'] ?? null,
@@ -205,7 +237,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     (int) $userId,
                     Auth::userId()
                 ],
-                "sssssssssssissssssssii"
+                str_repeat('s', 11) . 'i' . str_repeat('s', 7) . 'ii'
             );
 
             if (!$patientId) {
@@ -237,7 +269,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
             $conn->commit();
 
-            $success = 'Patient added successfully.';
+            // Welcome WhatsApp (Node send.js on 127.0.0.1:3210); failure does not undo the patient record
+            $basePublic = (defined('PUBLIC_SITE_URL') && trim((string) PUBLIC_SITE_URL) !== '')
+                ? rtrim((string) PUBLIC_SITE_URL, '/')
+                : (defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : '');
+            $loginUrl = $basePublic !== '' ? $basePublic . '/login.php' : '';
+            $welcomeLines = [
+                'DentAssist',
+                '',
+                'Welcome ' . $fullName . ', your patient account is ready!',
+                'Username: ' . $username,
+
+                '',
+                'To access your patient account visit DentAssist.com',
+                'Use Forgot Password to set a password of your choice.',
+
+                
+            ];
+            
+            $welcomeLines[] = '';
+            
+            $welcomeMsg = implode("\n", $welcomeLines);
+            $wa = sendWhatsapp($phone, $welcomeMsg);
+
+            // Always redirect after save — flash WhatsApp result so staff actually see it
+            $_SESSION['patient_add_whatsapp_notice'] = [
+                'ok' => (bool) ($wa['ok'] ?? false),
+                'error' => $wa['ok'] ? null : (string) ($wa['error'] ?? 'Unknown error'),
+            ];
 
             // Store generated credentials for display after redirect
             $_SESSION['generated_username'] = $username;
@@ -285,6 +344,20 @@ include '../layouts/header.php';
     
     <?php if ($success): ?>
         <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
+    <?php endif; ?>
+
+    <?php if (is_array($whatsappNotice ?? null)): ?>
+        <?php if (!empty($whatsappNotice['ok'])): ?>
+            <div class="alert alert-success mb-3">
+                Welcome message was sent to the patient's WhatsApp number.
+            </div>
+        <?php else: ?>
+            <div class="alert alert-warning mb-3">
+                <strong>WhatsApp not sent.</strong>
+                <?php echo htmlspecialchars((string) ($whatsappNotice['error'] ?? 'Unknown error')); ?>
+                <br><small>Ensure the WhatsApp bridge is running (<code>npm start</code> in the project folder), the QR code has been scanned, and the client shows "ready". PHP must reach <code>127.0.0.1:3210</code>.</small>
+            </div>
+        <?php endif; ?>
     <?php endif; ?>
     
     <?php if ($generatedUsername && $generatedPassword): ?>
@@ -353,8 +426,8 @@ include '../layouts/header.php';
                             </div>
 
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Email</label>
-                                <input type="email" class="form-control" name="email">
+                                <label class="form-label">Email *</label>
+                                <input type="email" class="form-control" name="email" required autocomplete="email">
                             </div>
 
                             <div class="col-12 mb-3">
