@@ -18,7 +18,7 @@ if (!defined('MAIL_FROM_NAME')) {
 }
 
 // Correct SITE_URL to match project directory (case-sensitive on some setups)
-define('SITE_URL', 'http://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/Dentaltry');
+define('SITE_URL', 'http://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/Dental');
 // Public URL used in WhatsApp links (must be reachable from patient phone).
 // Example: https://your-domain.com/Dental or https://xxxx.ngrok-free.app/Dental
 if (!defined('PUBLIC_SITE_URL')) {
@@ -29,7 +29,7 @@ if (!defined('WHATSAPP_NODE_SEND_URL')) {
     define('WHATSAPP_NODE_SEND_URL', 'http://127.0.0.1:3210/send');
 }
 // Upload path and URL
-define('UPLOAD_PATH', $_SERVER['DOCUMENT_ROOT'] . '/Dentaltry/assets/uploads/');
+define('UPLOAD_PATH', $_SERVER['DOCUMENT_ROOT'] . '/Dental/assets/uploads/');
 define('UPLOAD_URL', SITE_URL . '/assets/uploads/');
 
 // Timezone

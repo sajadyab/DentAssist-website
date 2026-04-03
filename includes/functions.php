@@ -12,46 +12,7 @@ function url($path = '')
     }
     return $base . '/' . ltrim($path, '/');
 }
-/**
- * Get all active subscription plans
- * @return array
- */
-function getSubscriptionPlans() {
-    global $db;
-    return $db->fetchAll(
-        "SELECT * FROM subscription_plans WHERE is_active = 1 ORDER BY display_order, monthly_price"
-    );
-}
 
-/**
- * Get a single subscription plan by key
- * @param string $planKey
- * @return array|null
- */
-function getSubscriptionPlan($planKey) {
-    global $db;
-    return $db->fetchOne("SELECT * FROM subscription_plans WHERE plan_key = ? AND is_active = 1", [$planKey]);
-}
-
-/**
- * Update subscription plan (admin only)
- */
-function updateSubscriptionPlan($planKey, $data) {
-    global $db;
-    return $db->execute(
-        "UPDATE subscription_plans SET plan_name = ?, monthly_price = ?, annual_price = ?, features = ?, is_active = ?, display_order = ? WHERE plan_key = ?",
-        [
-            $data['plan_name'],
-            $data['monthly_price'],
-            $data['annual_price'],
-            $data['features'],
-            $data['is_active'],
-            $data['display_order'],
-            $planKey
-        ],
-        "sddssis"
-    );
-}
 // Convert a datetime string into a human readable "time ago" value
 function timeAgo($datetime)
 {
@@ -146,6 +107,31 @@ function formatTime($time, $format = 'g:i A')
     } catch (Exception $e) {
         return 'Not set';
     }
+}
+
+/**
+ * Preferred date range label for weekly queue (patient portal flexibility ±days).
+ */
+function formatWeeklyPreferredRange(array $row): string
+{
+    $pref = $row['preferred_date'] ?? null;
+    $flex = (int) ($row['date_flexibility_days'] ?? 0);
+    if (!empty($pref) && $flex > 0) {
+        try {
+            $c = new DateTimeImmutable($pref);
+            $from = $c->modify('-' . $flex . ' days');
+            $to = $c->modify('+' . $flex . ' days');
+
+            return formatDate($from->format('Y-m-d')) . '–' . formatDate($to->format('Y-m-d'));
+        } catch (Exception $e) {
+            return formatDate($pref);
+        }
+    }
+    if (!empty($pref)) {
+        return formatDate($pref);
+    }
+
+    return (string) ($row['preferred_day'] ?? '—');
 }
 
 // Format currency
@@ -320,6 +306,186 @@ function dbTableExists(string $table): bool
     $cache[$table] = !empty($row['c']);
 
     return $cache[$table];
+}
+
+/**
+ * Parse patients.medical_history (structured JSON from add.php / safety check).
+ *
+ * @return array{conditions: string[], notes: string}
+ */
+function parsePatientMedicalHistoryStructured($medicalHistory): array
+{
+    $raw = $medicalHistory === null ? '' : (string) $medicalHistory;
+    $raw = trim($raw);
+    if ($raw === '') {
+        return ['conditions' => [], 'notes' => ''];
+    }
+
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        return ['conditions' => [], 'notes' => $raw];
+    }
+
+    $conds = $decoded['conditions'] ?? [];
+    if (!is_array($conds)) {
+        $conds = [];
+    }
+    $conds = array_values(array_unique(array_filter(array_map('strval', $conds))));
+    $notes = trim((string) ($decoded['notes'] ?? ''));
+
+    return ['conditions' => $conds, 'notes' => $notes];
+}
+
+/**
+ * Parse patients.current_medications: new format is JSON array, legacy is free text.
+ *
+ * @return string[]
+ */
+function parsePatientMedicationsList($currentMedications): array
+{
+    $raw = $currentMedications === null ? '' : (string) $currentMedications;
+    $raw = trim($raw);
+    if ($raw === '') {
+        return [];
+    }
+
+    $decoded = json_decode($raw, true);
+    if (is_array($decoded)) {
+        return array_values(array_unique(array_filter(array_map('strval', $decoded))));
+    }
+
+    // Legacy free text: split by newlines / commas
+    $parts = preg_split('/[\r\n,]+/', $raw) ?: [];
+    $parts = array_map('trim', $parts);
+    return array_values(array_unique(array_filter($parts, fn ($p) => $p !== '')));
+}
+
+/** True if the patient has allergies recorded (yes/no/legacy). */
+function normalizePatientAllergiesFlag($allergies): bool
+{
+    $raw = strtolower(trim((string) ($allergies ?? '')));
+    if ($raw === '' || $raw === 'no' || $raw === 'none' || $raw === '0') {
+        return false;
+    }
+    if ($raw === 'yes' || $raw === '1' || $raw === 'true') {
+        return true;
+    }
+    // Legacy text entry -> treat as "has allergies"
+    return true;
+}
+
+/**
+ * Build caution summary lines:
+ * - Patient on [MedicationName]
+ * - Patient has [DiseaseName].
+ * - Patient has Allergies
+ */
+function buildPatientCautionSummary(array $patientRow): string
+{
+    $mh = parsePatientMedicalHistoryStructured($patientRow['medical_history'] ?? null);
+    $meds = parsePatientMedicationsList($patientRow['current_medications'] ?? null);
+    $hasAllergies = normalizePatientAllergiesFlag($patientRow['allergies'] ?? null);
+
+    $parts = [];
+    foreach ($meds as $m) {
+        $parts[] = 'Patient on ' . $m;
+    }
+    foreach ($mh['conditions'] as $c) {
+        $parts[] = 'Patient has ' . $c . '.';
+    }
+    if ($hasAllergies) {
+        $parts[] = 'Patient has Allergies';
+    }
+
+    return implode(' ', $parts);
+}
+
+/** High-risk disease labels → red badge (matches patients/add + safety check wording variants). */
+function cautionDiseaseIsHighRisk(string $label): bool
+{
+    $n = mb_strtolower(trim($label), 'UTF-8');
+    $high = [
+        'cardiovascular diseases',
+        'cardiovascular disease',
+        'immunosuppression',
+        'autoimmune diseases',
+        'autoimmune disease',
+    ];
+
+    return in_array($n, $high, true);
+}
+
+/** Medication badge: Anticoagulants & Chemotherapy → danger; Steroids → warning. */
+function cautionMedicationBadgeVariant(string $med): string
+{
+    $n = mb_strtolower(trim($med), 'UTF-8');
+    if (in_array($n, ['anticoagulants', 'chemotherapy'], true)) {
+        return 'danger';
+    }
+
+    return 'warning';
+}
+
+/** Disease badge: high-risk → danger; other known conditions → warning. */
+function cautionDiseaseBadgeVariant(string $disease): string
+{
+    return cautionDiseaseIsHighRisk($disease) ? 'danger' : 'warning';
+}
+
+/**
+ * Renders multiple caution badges (medications, conditions, allergies). Empty → green "none".
+ *
+ * @param array{medical_history?: mixed, current_medications?: mixed, allergies?: mixed} $patientRow
+ */
+function renderCautionBadgesHtml(array $patientRow): string
+{
+    $mh = parsePatientMedicalHistoryStructured($patientRow['medical_history'] ?? null);
+    $meds = parsePatientMedicationsList($patientRow['current_medications'] ?? null);
+    $hasAllergies = normalizePatientAllergiesFlag($patientRow['allergies'] ?? null);
+
+    $items = [];
+    foreach ($meds as $m) {
+        $items[] = [
+            'text' => 'Patient on ' . $m,
+            'variant' => cautionMedicationBadgeVariant($m),
+        ];
+    }
+    foreach ($mh['conditions'] as $c) {
+        $items[] = [
+            'text' => 'Patient has ' . $c . '.',
+            'variant' => cautionDiseaseBadgeVariant($c),
+        ];
+    }
+    if ($hasAllergies) {
+        $items[] = ['text' => 'Patient has Allergies', 'variant' => 'warning'];
+    }
+
+    if ($items === []) {
+        return '<span class="badge bg-success">none</span>';
+    }
+
+    $html = '<div class="d-flex flex-wrap gap-1 align-items-start caution-badges-wrap">';
+    foreach ($items as $it) {
+        $safe = htmlspecialchars($it['text'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $v = $it['variant'];
+        $cls = $v === 'danger' ? 'bg-danger' : 'bg-warning text-dark';
+        $html .= "<span class=\"badge {$cls} text-wrap\" style=\"max-width:100%;white-space:normal;font-weight:500;\">{$safe}</span>";
+    }
+    $html .= '</div>';
+
+    return $html;
+}
+
+/** @deprecated Use renderCautionBadgesHtml with a patient row; kept for one-off plain-text lines. */
+function renderCautionBadgeHtml(string $caution): string
+{
+    $t = trim($caution);
+    if ($t === '') {
+        return '<span class="badge bg-success">none</span>';
+    }
+    $safe = htmlspecialchars($t, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+    return '<span class="badge bg-warning text-dark text-wrap" style="max-width: 260px; white-space: normal;">' . $safe . '</span>';
 }
 
 /** True if the current database has the given column (cached per request). */
@@ -682,10 +848,49 @@ function getTreatmentInstructionsForAppointment(string $treatmentType): ?string
 }
 
 /**
+ * Instructions text for post-treatment WhatsApp only when the appointment's treatment matches
+ * a row in treatment_instructions (exact case-insensitive match, then longest substring match).
+ * No generic or default-row fallback — used so we do not send WhatsApp without a real template.
+ */
+function getTreatmentInstructionsForPostTreatmentWhatsapp(string $treatmentType): ?string
+{
+    $t = trim($treatmentType);
+    if ($t === '') {
+        return null;
+    }
+
+    $db = Database::getInstance();
+    $row = $db->fetchOne(
+        'SELECT instructions FROM treatment_instructions
+         WHERE LOWER(TRIM(treatment_type)) = LOWER(?)
+         LIMIT 1',
+        [$t],
+        's'
+    );
+    if ($row && trim((string) ($row['instructions'] ?? '')) !== '') {
+        return (string) $row['instructions'];
+    }
+
+    $row = $db->fetchOne(
+        'SELECT instructions FROM treatment_instructions
+         WHERE ? LIKE CONCAT(\'%\', treatment_type, \'%\')
+         ORDER BY CHAR_LENGTH(treatment_type) DESC
+         LIMIT 1',
+        [$t],
+        's'
+    );
+    if ($row && trim((string) ($row['instructions'] ?? '')) !== '') {
+        return (string) $row['instructions'];
+    }
+
+    return null;
+}
+
+/**
  * Send WhatsApp with post-treatment instructions when an appointment is marked completed.
  * Uses the local Node WhatsApp server only (send.js on port 3210).
  *
- * @return array{ok:bool,reason:string,message?:string,error?:string,channel?:string}
+ * @return array{ok:bool,reason:string,message?:string,error?:string,channel?:string,skipped_whatsapp?:bool}
  */
 function notifyPatientPostTreatmentInstructionsOnCompleted(int $appointmentId): array
 {
@@ -721,12 +926,16 @@ function notifyPatientPostTreatmentInstructionsOnCompleted(int $appointmentId): 
     }
 
     $treatmentType = (string) ($apt['treatment_type'] ?? '');
-    $instructions = getTreatmentInstructionsForAppointment($treatmentType);
-    if ($instructions === null || $instructions === '') {
-        error_log('Post-treatment WhatsApp: no instructions for treatment "' . $treatmentType . '", using generic text.');
+    $instructions = getTreatmentInstructionsForPostTreatmentWhatsapp($treatmentType);
+    if ($instructions === null || trim($instructions) === '') {
+        error_log('Post-treatment WhatsApp skipped: no treatment_instructions row for "' . $treatmentType . '" (appointment ' . $appointmentId . ').');
 
-        $instructions = 'Please follow any directions given by your dentist at the visit. '
-            . 'If you have pain, swelling, or questions, contact the clinic.';
+        return [
+            'ok' => true,
+            'reason' => 'no_matching_treatment_instructions',
+            'skipped_whatsapp' => true,
+            'message' => 'No matching treatment instructions in the database — WhatsApp not sent.',
+        ];
     }
 
     $patientName = (string) ($apt['full_name'] ?? 'Patient');
