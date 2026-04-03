@@ -4,6 +4,8 @@ require_once 'db.php';
 
 class Auth
 {
+    private static $lastError = '';
+
     // Check if user is logged in
     public static function isLoggedIn()
     {
@@ -89,6 +91,12 @@ class Auth
         );
 
         if ($user && password_verify($password, $user['password_hash'])) {
+            // Check if account is active
+            if (isset($user['is_active']) && (int)$user['is_active'] === 0) {
+                self::$lastError = 'inactive';
+                return false;
+            }
+
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['role'] = $user['role'];
@@ -110,7 +118,14 @@ class Auth
             return true;
         }
 
+        self::$lastError = 'invalid';
         return false;
+    }
+
+    // Get the last login error reason
+    public static function getLastError()
+    {
+        return self::$lastError;
     }
 
     // Logout user

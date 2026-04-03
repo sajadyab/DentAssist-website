@@ -4,7 +4,18 @@ require_once 'includes/db.php';
 require_once 'includes/auth.php';
 require_once 'includes/functions.php';
 
+// Helper function to get clinic phone from settings
+function getClinicPhone() {
+    $db = Database::getInstance();
+    // Adjust column names if your table uses different keys
+    $result = $db->fetchOne(
+        "SELECT setting_value FROM clinic_settings WHERE setting_key = 'clinic_phone' LIMIT 1"
+    );
+    return $result ? $result['setting_value'] : 'the clinic';
+}
+
 $error = '';
+$errorType = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = $_POST['username'] ?? '';
@@ -12,13 +23,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     if (Auth::login($username, $password)) {
         if ($_SESSION['role'] == 'patient') {
-        header('Location: patient/index.php');
+            header('Location: patient/index.php');
+        } else {
+            header('Location: dashboard.php');
+        }
+        exit;
     } else {
-        header('Location: dashboard.php');
-    }
-    exit;
-    } else {
-        $error = 'Invalid username or password!';
+        $errorType = Auth::getLastError();
+        if ($errorType === 'inactive') {
+            $clinicPhone = getClinicPhone();
+            $error = "Your account is inactive. Please contact the clinic at {$clinicPhone} to reactivate your account.";
+        } else {
+            $error = 'Invalid username or password!';
+        }
     }
 }
 ?>
@@ -172,7 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
 
     <?php if ($error): ?>
-        <div class="error-message"><?php echo $error; ?></div>
+        <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
     <?php endif; ?>
 
     <form method="POST" action="">
