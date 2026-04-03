@@ -129,12 +129,15 @@ class Database {
             $stmt->bind_param($types, ...$params);
 
         }
+        if (!$stmt->execute()) {
+    $err = $stmt->error ?: $this->conn->error;
+    throw new Exception('Query failed: ' . $err);
+}
+return $stmt;
+
 
         
 
-        $stmt->execute();
-
-        return $stmt;
 
     }
 
