@@ -3,6 +3,40 @@ require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
+// Temporary fix – move to config.php later
+
+if (!defined('SUPABASE_URL')) {
+    define('SUPABASE_URL', 'https://zfzrviojwinrascpdoyc.supabase.co');
+    define('SUPABASE_KEY', 'sb_publishable_a0kU3h5n4ytw5N8hTY1PQg_1Cz7ZKoD');
+}
+// Helper: call Supabase API
+if (!function_exists('callSupabaseAPI')) {
+    function callSupabaseAPI($endpoint, $data, $method = 'POST') {
+        $ch = curl_init(SUPABASE_URL . $endpoint);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'apikey: ' . SUPABASE_KEY,
+            'Authorization: Bearer ' . SUPABASE_KEY,
+            'Content-Type: application/json',
+            'Prefer: return=representation'
+        ]);
+        if ($method == 'POST') {
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        } elseif ($method == 'PATCH') {
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        }
+        $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($http_code == 201 || $http_code == 200) {
+            $result = json_decode($response, true);
+            return $result[0]['id'] ?? null;
+        }
+        return null;
+    }
+}
 
 Auth::requireLogin();
 if ($_SESSION['role'] != 'patient') {
@@ -25,7 +59,7 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Check availability
+    // Check availability (local DB only – cloud will also validate later)
     $existing = $db->fetchOne(
         "SELECT id FROM appointments 
          WHERE appointment_date = ? AND appointment_time = ? AND chair_number = ? AND status != 'cancelled'",
@@ -36,28 +70,52 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if ($existing) {
         $error = 'This time slot is already booked';
     } else {
-        $appointmentId = $db->insert(
-            "INSERT INTO appointments (patient_id, doctor_id, appointment_date, appointment_time, duration, treatment_type, description, chair_number, status, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?)",
-            [
-                $patientId,
-                $_POST['doctor_id'],
-                $_POST['appointment_date'],
-                $_POST['appointment_time'],
-                $_POST['duration'] ?? 30,
-                $_POST['treatment_type'],
-                $_POST['description'] ?? null,
-                $_POST['chair_number'] ?? null,
-                Auth::userId()
-            ],
-            "iississsi"
-        );
+        // Prepare data for cloud
+        $cloudData = [
+            'patient_id'      => $patientId,
+            'doctor_id'       => $_POST['doctor_id'],
+            'appointment_date'=> $_POST['appointment_date'],
+            'appointment_time'=> $_POST['appointment_time'],
+            'duration'        => $_POST['duration'] ?? 30,
+            'treatment_type'  => $_POST['treatment_type'],
+            'description'     => $_POST['description'] ?? null,
+            'chair_number'    => $_POST['chair_number'] ?? null,
+            'status'          => 'scheduled',
+            'source'          => 'cloud',
+            'created_by'      => Auth::userId()
+        ];
 
-        if ($appointmentId) {
-            logAction('CREATE', 'appointments', $appointmentId, null, $_POST);
-            $success = 'Appointment booked successfully';
+        // Save to cloud first
+        $cloudId = callSupabaseAPI('/rest/v1/appointments', $cloudData, 'POST');
+
+        if (!$cloudId) {
+            $error = 'Unable to reach the cloud server. Please try again later.';
         } else {
-            $error = 'Error booking appointment';
+            // Save to local DB with cloud_id and source='cloud'
+            $appointmentId = $db->insert(
+                "INSERT INTO appointments (patient_id, doctor_id, appointment_date, appointment_time, duration, treatment_type, description, chair_number, status, created_by, cloud_id, source, sync_status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?, 'cloud', 'synced')",
+                [
+                    $patientId,
+                    $_POST['doctor_id'],
+                    $_POST['appointment_date'],
+                    $_POST['appointment_time'],
+                    $_POST['duration'] ?? 30,
+                    $_POST['treatment_type'],
+                    $_POST['description'] ?? null,
+                    $_POST['chair_number'] ?? null,
+                    Auth::userId(),
+                    $cloudId
+                ],
+                "iississssii"
+            );
+
+            if ($appointmentId) {
+                logAction('CREATE', 'appointments', $appointmentId, null, $_POST);
+                $success = 'Appointment booked successfully';
+            } else {
+                $error = 'Error booking appointment (local save failed). Please contact support.';
+            }
         }
     }
 }
