@@ -1,6 +1,23 @@
 <?php
+// IMPORTANT: Do NOT redeclare getClinicSetting() here!
+// The function is already declared in settings/index.php or should be available globally.
+// If it's not defined, we'll define it here only if it doesn't exist.
+
+if (!function_exists('getClinicSetting')) {
+    function getClinicSetting($key, $default = '') {
+        global $db;
+        $result = $db->fetchOne("SELECT setting_value FROM clinic_settings WHERE setting_key = ?", [$key]);
+        return $result ? $result['setting_value'] : $default;
+    }
+}
+
 $currentPage = basename($_SERVER['PHP_SELF']);
 $role = $_SESSION['role'] ?? '';
+
+// Get menu visibility settings
+$showPointsMenu = getClinicSetting('allow_points_view', '1');
+$showReferralsMenu = getClinicSetting('allow_referrals_view', '1');
+$showSubscriptionMenu = getClinicSetting('allow_subscription_view', '1');
 ?>
 <div class="sidebar">
     <div class="sidebar-header">
@@ -57,7 +74,7 @@ $role = $_SESSION['role'] ?? '';
                 </a>
             </li>
             
-            <li class="<?php echo strpos($currentPage, 'treatment') !== false ? 'active' : ''; ?>">
+            <li class="<?php echo $currentPage == 'treatment_plans/index.php' ? 'active' : ''; ?>">
                 <a href="<?php echo url('treatment_plans/index.php'); ?>">
                     <i class="fas fa-notes-medical"></i>
                     <span><?php echo __('treatment_plans', 'Treatment Plans'); ?></span>
@@ -70,7 +87,7 @@ $role = $_SESSION['role'] ?? '';
                     <span><?php echo __('billing', 'Billing'); ?></span>
                 </a>
             </li>
-
+<?php if ($role != 'assistant'): ?>
             <li class="<?php echo $currentPage == 'reports/financial.php' ? 'active' : ''; ?>">
                 <a href="<?php echo url('reports/financial.php'); ?>">
                     <i class="fas fa-chart-line"></i>
@@ -84,15 +101,11 @@ $role = $_SESSION['role'] ?? '';
                     <span><?php echo __('reports', 'Reports'); ?></span>
                 </a>
             </li>
-
-            <?php
-            $queueSelf = $_SERVER['PHP_SELF'] ?? '';
-            $activeQueueRequests = strpos($queueSelf, '/queue/index.php') !== false;
-            ?>
-            <li class="<?php echo $activeQueueRequests ? 'active' : ''; ?>">
+<?php endif; ?>
+            <li class="<?php echo $currentPage == 'queue/index.php' ? 'active' : ''; ?>">
                 <a href="<?php echo url('queue/index.php'); ?>">
-                    <i class="fas fa-inbox"></i>
-                    <span>Requests & Queue</span>
+                    <i class="fas fa-clock"></i>
+                    <span><?php echo __('queue', 'Waiting Queue'); ?></span>
                 </a>
             </li>
             
@@ -102,6 +115,15 @@ $role = $_SESSION['role'] ?? '';
                     <span><?php echo __('inventory', 'Inventory'); ?></span>
                 </a>
             </li>
+            <?php if ($role != 'assistant'): ?>
+            <!-- Treatments Management for Doctors and Admins -->
+            <li class="<?php echo $currentPage == 'treatments.php' ? 'active' : ''; ?>">
+                <a href="<?php echo url('treatments.php'); ?>">
+                    <i class="fas fa-tooth"></i>
+                    <span><?php echo __('treatments', 'Treatments'); ?></span>
+                </a>
+            </li>
+            <?php endif; ?>
             <li>
                 <a href="<?php echo url('settings/index.php'); ?>">
                     <i class="fas fa-cog"></i> <span><?php echo __('settings', 'Settings'); ?></span>
@@ -109,58 +131,69 @@ $role = $_SESSION['role'] ?? '';
             </li>
         <?php else: ?>
             <!-- Patient Menu -->
-            <li class="<?php echo $currentPage == 'index.php' ? 'active' : ''; ?>">
+            <li>
                 <a href="<?php echo url('patient/index.php'); ?>">
                     <i class="fas fa-home"></i>
                     <span><?php echo __('my_portal', 'My Portal'); ?></span>
                 </a>
             </li>
-            <li class="<?php echo $currentPage == 'book.php' ? 'active' : ''; ?>">
+            <li>
+                <a href="<?php echo url('patient/profile.php'); ?>">
+                    <i class="fas fa-user-edit"></i>
+                    <span><?php echo __('profile', 'Profile'); ?></span>
+                </a>
+            </li>
+            <li>
                 <a href="<?php echo url('patient/book.php'); ?>">
                     <i class="fas fa-calendar-plus"></i>
                     <span><?php echo __('book_appointment', 'Book Appointment'); ?></span>
                 </a>
             </li>
-            <li class="<?php echo $currentPage == 'queue.php' ? 'active' : ''; ?>">
+            <li>
                 <a href="<?php echo url('patient/queue.php'); ?>">
                     <i class="fas fa-clock"></i>
                     <span><?php echo __('join_queue', 'Join Queue'); ?></span>
                 </a>
             </li>
-            <li class="<?php echo $currentPage == 'bills.php' ? 'active' : ''; ?>">
+            <li>
                 <a href="<?php echo url('patient/bills.php'); ?>">
                     <i class="fas fa-file-invoice"></i>
                     <span><?php echo __('my_bills', 'My Bills'); ?></span>
                 </a>
             </li>
-            <li class="<?php echo $currentPage == 'teeth.php' ? 'active' : ''; ?>">
+            <li>
                 <a href="<?php echo url('patient/teeth.php'); ?>">
                     <i class="fas fa-tooth"></i>
                     <span><?php echo __('my_teeth', 'My Teeth'); ?></span>
                 </a>
             </li>
-            <li class="<?php echo $currentPage == 'points.php' ? 'active' : ''; ?>">
+            <?php if ($showPointsMenu == '1'): ?>
+            <li>
                 <a href="<?php echo url('patient/points.php'); ?>">
                     <i class="fas fa-star"></i>
                     <span><?php echo __('my_points', 'My Points'); ?></span>
                 </a>
             </li>
-            <li class="<?php echo $currentPage == 'subscription.php' ? 'active' : ''; ?>">
+            <?php endif; ?>
+             <?php if ($showSubscriptionMenu== '1'): ?>
+            <li>
                 <a href="<?php echo url('patient/subscription.php'); ?>">
                     <i class="fas fa-crown"></i>
                     <span><?php echo __('subscription', 'Subscription'); ?></span>
                 </a>
             </li>
-            <li class="<?php echo $currentPage == 'referrals.php' ? 'active' : ''; ?>">
+            <?php endif; ?>
+            <?php if ($showReferralsMenu == '1'): ?>
+            <li>
                 <a href="<?php echo url('patient/referrals.php'); ?>">
                     <i class="fas fa-user-friends"></i>
                     <span><?php echo __('referrals', 'Referrals'); ?></span>
                 </a>
             </li>
-            <li class="<?php echo $currentPage == 'profile.php' ? 'active' : ''; ?>">
-                <a href="<?php echo url('patient/profile.php'); ?>">
-                    <i class="fas fa-user-edit"></i>
-                    <span><?php echo __('profile', 'Profile'); ?></span>
+            <?php endif; ?>
+            <li>
+                <a href="<?php echo url('settings/index.php'); ?>">
+                    <i class="fas fa-cog"></i> <span><?php echo __('settings', 'Settings'); ?></span>
                 </a>
             </li>
         <?php endif; ?>
