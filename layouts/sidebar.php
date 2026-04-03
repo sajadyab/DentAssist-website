@@ -17,6 +17,7 @@ $role = $_SESSION['role'] ?? '';
 // Get menu visibility settings
 $showPointsMenu = getClinicSetting('allow_points_view', '1');
 $showReferralsMenu = getClinicSetting('allow_referrals_view', '1');
+$showSubscriptionMenu = getClinicSetting('allow_subscription_view', '1');
 ?>
 <div class="sidebar">
     <div class="sidebar-header">
@@ -174,13 +175,14 @@ $showReferralsMenu = getClinicSetting('allow_referrals_view', '1');
                 </a>
             </li>
             <?php endif; ?>
+             <?php if ($showSubscriptionMenu== '1'): ?>
             <li>
                 <a href="<?php echo url('patient/subscription.php'); ?>">
                     <i class="fas fa-crown"></i>
                     <span><?php echo __('subscription', 'Subscription'); ?></span>
                 </a>
             </li>
-            
+            <?php endif; ?>
             <?php if ($showReferralsMenu == '1'): ?>
             <li>
                 <a href="<?php echo url('patient/referrals.php'); ?>">
