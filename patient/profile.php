@@ -4,10 +4,74 @@ require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
 
+// Helper: call Supabase API (if not already defined)
+if (!function_exists('callSupabaseAPI')) {
+    function callSupabaseAPI($endpoint, $data, $method = 'POST') {
+        $ch = curl_init(SUPABASE_URL . $endpoint);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'apikey: ' . SUPABASE_KEY,
+            'Authorization: Bearer ' . SUPABASE_KEY,
+            'Content-Type: application/json',
+            'Prefer: return=representation'
+        ]);
+        if ($method == 'POST') {
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        } elseif ($method == 'PATCH') {
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        }
+        $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($http_code == 201 || $http_code == 200) {
+            $result = json_decode($response, true);
+            return $result[0]['id'] ?? null;
+        }
+        return null;
+    }
+}
+
 Auth::requireLogin();
 if ($_SESSION['role'] !== 'patient') {
     header('Location: ../dashboard.php');
     exit;
+}
+
+// Ensure helper functions exist (in case they are not yet in functions.php)
+if (!function_exists('canViewPoints')) {
+    function canViewPoints() {
+        global $db;
+        static $cached = null;
+        if ($cached === null) {
+            $result = $db->fetchOne("SELECT setting_value FROM clinic_settings WHERE setting_key = 'allow_points_view'");
+            $cached = ($result && $result['setting_value'] == '1');
+        }
+        return $cached;
+    }
+}
+if (!function_exists('canViewReferrals')) {
+    function canViewReferrals() {
+        global $db;
+        static $cached = null;
+        if ($cached === null) {
+            $result = $db->fetchOne("SELECT setting_value FROM clinic_settings WHERE setting_key = 'allow_referrals_view'");
+            $cached = ($result && $result['setting_value'] == '1');
+        }
+        return $cached;
+    }
+}
+if (!function_exists('canViewSubscription')) {
+    function canViewSubscription() {
+        global $db;
+        static $cached = null;
+        if ($cached === null) {
+            $result = $db->fetchOne("SELECT setting_value FROM clinic_settings WHERE setting_key = 'allow_subscription_view'");
+            $cached = ($result && $result['setting_value'] == '1');
+        }
+        return $cached;
+    }
 }
 
 $db = Database::getInstance();
@@ -58,10 +122,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
             $result = $db->execute(
                 "UPDATE patients SET 
-            full_name = ?, date_of_birth = ?, gender = ?, phone = ?, email = ?,
-            emergency_contact_name = ?, emergency_contact_phone = ?, emergency_contact_relation = ?,
-            address = ?, country = ?
-         WHERE id = ?",
+                    full_name = ?, date_of_birth = ?, gender = ?, phone = ?, email = ?,
+                    emergency_contact_name = ?, emergency_contact_phone = ?, emergency_contact_relation = ?,
+                    address = ?, country = ?
+                 WHERE id = ?",
                 [
                     $_POST['full_name'],
                     $_POST['date_of_birth'] ?? null,
@@ -102,10 +166,61 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
             logAction('UPDATE', 'patients', $patientId, $patient, $_POST);
             $success = 'Profile updated successfully.';
+
+            // Refresh patient and user data
             $patient = $db->fetchOne("SELECT * FROM patients WHERE id = ?", [$patientId], "i");
             $user = $db->fetchOne("SELECT * FROM users WHERE id = ?", [$userId], "i");
             $_SESSION['full_name'] = $user['full_name'];
             $_SESSION['username'] = $user['username'];
+
+            // ---------- SYNC TO CLOUD ----------
+            // Patient data
+            $cloudPatientId = $patient['cloud_id'] ?? null;
+            $cloudPatientData = [
+                'full_name'                 => $_POST['full_name'],
+                'date_of_birth'             => $_POST['date_of_birth'] ?? null,
+                'gender'                    => $_POST['gender'] ?? null,
+                'phone'                     => $_POST['phone'],
+                'email'                     => $_POST['email'],
+                'emergency_contact_name'    => $_POST['emergency_contact_name'] ?? null,
+                'emergency_contact_phone'   => $_POST['emergency_contact_phone'] ?? null,
+                'emergency_contact_relation'=> $_POST['emergency_contact_relation'] ?? null,
+                'address'                   => $_POST['address'] ?? null,
+                'country'                   => $_POST['country'] ?? 'LB',
+                'source'                    => 'cloud'
+            ];
+
+            if ($cloudPatientId) {
+                // Update existing cloud record
+                callSupabaseAPI("/rest/v1/patients?id=eq.$cloudPatientId", $cloudPatientData, 'PATCH');
+            } else {
+                // Insert new cloud record and store its ID locally
+                $newCloudId = callSupabaseAPI('/rest/v1/patients', $cloudPatientData, 'POST');
+                if ($newCloudId) {
+                    $db->execute("UPDATE patients SET cloud_id = ? WHERE id = ?", [$newCloudId, $patientId], "ii");
+                }
+            }
+
+            // User data (username, email, full_name, phone)
+            $cloudUserId = $user['cloud_id'] ?? null;
+            $cloudUserData = [
+                'username'  => $newUsername,
+                'email'     => $newUsersEmail,
+                'full_name' => $_POST['full_name'],
+                'phone'     => $_POST['phone'],
+                'source'    => 'cloud'
+            ];
+
+            if ($cloudUserId) {
+                callSupabaseAPI("/rest/v1/users?id=eq.$cloudUserId", $cloudUserData, 'PATCH');
+            } else {
+                $newCloudUserId = callSupabaseAPI('/rest/v1/users', $cloudUserData, 'POST');
+                if ($newCloudUserId) {
+                    $db->execute("UPDATE users SET cloud_id = ? WHERE id = ?", [$newCloudUserId, $userId], "ii");
+                }
+            }
+            // ---------- END SYNC ----------
+
         } catch (Exception $e) {
             try {
                 $conn->rollback();
@@ -295,18 +410,20 @@ include '../layouts/header.php';
                 <p class="mb-0">
                     <i class="fas fa-calendar-alt"></i> Member since <?php echo formatDate($patient['created_at'], 'M d, Y'); ?>
                 </p>
-                <?php if ($patient['subscription_type'] != 'none'): ?>
+                <?php if (canViewSubscription() && $patient['subscription_type'] != 'none'): ?>
                     <div class="profile-badge">
                         <i class="fas fa-crown"></i> <?php echo ucfirst($patient['subscription_type']); ?> Member
                     </div>
                 <?php endif; ?>
             </div>
+            <?php if (canViewPoints()): ?>
             <div class="col-md-3 text-md-end mt-3 mt-md-0">
                 <div class="info-card text-center">
                     <div class="stats-number"><?php echo $patient['points'] ?? 0; ?></div>
                     <div class="stats-label">Reward Points</div>
                 </div>
             </div>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -440,6 +557,7 @@ include '../layouts/header.php';
                     </div>
                 </div>
 
+                <?php if (canViewPoints()): ?>
                 <div class="info-card">
                     <div class="d-flex align-items-center">
                         <i class="fas fa-star"></i>
@@ -450,6 +568,7 @@ include '../layouts/header.php';
                         </div>
                     </div>
                 </div>
+                <?php endif; ?>
 
                 <div class="info-card">
                     <div class="d-flex align-items-center">
@@ -474,7 +593,8 @@ include '../layouts/header.php';
                 <?php endif; ?>
             </div>
 
-            <!-- Subscription Info Card -->
+            <!-- Subscription Info Card (visible only if subscription feature is enabled) -->
+            <?php if (canViewSubscription()): ?>
             <div class="profile-section">
                 <h5 class="section-title">
                     <i class="fas fa-crown section-icon"></i> Subscription
@@ -499,8 +619,10 @@ include '../layouts/header.php';
                     </a>
                 <?php endif; ?>
             </div>
+            <?php endif; ?>
 
-            <!-- Referral Info Card -->
+            <!-- Referral Info Card (visible only if referrals feature is enabled) -->
+            <?php if (canViewReferrals()): ?>
             <div class="profile-section">
                 <h5 class="section-title">
                     <i class="fas fa-share-alt section-icon"></i> Referral Program
@@ -518,6 +640,7 @@ include '../layouts/header.php';
                     </small>
                 </div>
             </div>
+            <?php endif; ?>
 
             <!-- Support Card -->
             <div class="profile-section">

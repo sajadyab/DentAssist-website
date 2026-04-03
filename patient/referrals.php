@@ -3,12 +3,12 @@ require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
+
 Auth::requireLogin();
 if ($_SESSION['role'] != 'patient') {
     header('Location: ../dashboard.php');
     exit;
 }
-
 
 $db = Database::getInstance();
 $userId = Auth::userId();

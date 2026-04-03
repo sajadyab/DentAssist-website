@@ -21,8 +21,8 @@ if (!$patientId) {
 // Get patient current subscription
 $patient = $db->fetchOne("SELECT subscription_type, subscription_start_date, subscription_end_date, subscription_status, referral_code FROM patients WHERE id = ?", [$patientId], "i");
 
-// Generate referral code if not exists
-if (empty($patient['referral_code'])) {
+// Generate referral code if not exists (only if referrals are enabled globally)
+if (empty($patient['referral_code']) && function_exists('canViewReferrals') && canViewReferrals()) {
     $newCode = strtoupper(substr(md5($patientId . uniqid()), 0, 8));
     $db->execute("UPDATE patients SET referral_code = ? WHERE id = ?", [$newCode, $patientId], "si");
     $patient = $db->fetchOne("SELECT subscription_type, subscription_start_date, subscription_end_date, subscription_status, referral_code FROM patients WHERE id = ?", [$patientId], "i");
@@ -35,75 +35,86 @@ $success = '';
 $showPaymentForm = false;
 $selectedPlan = $_GET['plan'] ?? '';
 
-// If plan selected from index page
-if ($selectedPlan && in_array($selectedPlan, ['basic', 'premium', 'family']) && $currentPlan == 'none') {
-    $showPaymentForm = true;
+// Get available plans from database
+$availablePlans = getSubscriptionPlans();
+
+// If plan selected from index page and matches an active plan, and no current subscription
+if ($selectedPlan && $currentPlan == 'none') {
+    $planData = getSubscriptionPlan($selectedPlan);
+    if ($planData) {
+        $showPaymentForm = true;
+    } else {
+        $error = 'Selected plan is not available.';
+        $selectedPlan = '';
+    }
 }
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $action = $_POST['action'] ?? '';
     
     if ($action == 'clinic_payment') {
-        // Clinic payment - create pending subscription
         $newPlan = $_POST['plan'];
-        $prices = ['basic' => 29, 'premium' => 49, 'family' => 79];
-        $amount = $prices[$newPlan];
-        $annualAmount = $amount * 12;
-        $startDate = date('Y-m-d');
-        $endDate = date('Y-m-d', strtotime('+1 year'));
-        
-        try {
-            // Update patient subscription as pending
-            $db->execute(
-                "UPDATE patients SET subscription_type = ?, subscription_start_date = ?, subscription_end_date = ?, subscription_status = 'pending' WHERE id = ?",
-                [$newPlan, $startDate, $endDate, $patientId],
-                "sssi"
-            );
+        $planData = getSubscriptionPlan($newPlan);
+        if (!$planData) {
+            $error = 'Invalid plan selected.';
+        } else {
+            $annualAmount = $planData['annual_price'];
+            $startDate = date('Y-m-d');
+            $endDate = date('Y-m-d', strtotime('+1 year'));
             
-            // Create invoice for subscription
-            $invoiceNumber = generateInvoiceNumber();
-            $invoiceId = $db->insert(
-                "INSERT INTO invoices (patient_id, invoice_number, subtotal, total_amount, payment_status, invoice_date, due_date, notes, created_by) 
-                 VALUES (?, ?, ?, ?, 'pending', ?, DATE_ADD(?, INTERVAL 7 DAY), ?, ?)",
-                [$patientId, $invoiceNumber, $annualAmount, $annualAmount, $startDate, $startDate, "Subscription: {$newPlan} plan (Annual) - Pending Payment", $userId],
-                "isddsssi"
-            );
-            
-            // Record subscription payment request
-            $db->insert(
-                "INSERT INTO subscription_payments (patient_id, subscription_type, amount, payment_method, payment_date, status, processed_by, notes) 
-                 VALUES (?, ?, ?, 'clinic', NOW(), 'pending', ?, 'Pending payment at clinic - Please visit assistant')",
-                [$patientId, $newPlan, $annualAmount, $userId],
-                "isdi"
-            );
-            
-            $success = "Subscription request created! Please visit the clinic assistant to complete payment. Your subscription will activate after payment confirmation.";
-            $showPaymentForm = false;
-            $currentPlan = $newPlan;
-            $subscriptionStatus = 'pending';
-            
-        } catch (Exception $e) {
-            $error = 'Error processing subscription: ' . $e->getMessage();
+            try {
+                // Update patient subscription as pending
+                $db->execute(
+                    "UPDATE patients SET subscription_type = ?, subscription_start_date = ?, subscription_end_date = ?, subscription_status = 'pending' WHERE id = ?",
+                    [$newPlan, $startDate, $endDate, $patientId],
+                    "sssi"
+                );
+                
+                // Create invoice for subscription
+                $invoiceNumber = generateInvoiceNumber();
+                $db->insert(
+                    "INSERT INTO invoices (patient_id, invoice_number, subtotal, total_amount, payment_status, invoice_date, due_date, notes, created_by) 
+                     VALUES (?, ?, ?, ?, 'pending', ?, DATE_ADD(?, INTERVAL 7 DAY), ?, ?)",
+                    [$patientId, $invoiceNumber, $annualAmount, $annualAmount, $startDate, $startDate, "Subscription: {$planData['plan_name']} (Annual) - Pending Payment", $userId],
+                    "isddsssi"
+                );
+                
+                // Record subscription payment request
+                $db->insert(
+                    "INSERT INTO subscription_payments (patient_id, subscription_type, amount, payment_method, payment_date, status, processed_by, notes) 
+                     VALUES (?, ?, ?, 'clinic', NOW(), 'pending', ?, 'Pending payment at clinic - Please visit assistant')",
+                    [$patientId, $newPlan, $annualAmount, $userId],
+                    "isdi"
+                );
+                
+                $success = "Subscription request created! Please visit the clinic assistant to complete payment. Your subscription will activate after payment confirmation.";
+                $showPaymentForm = false;
+                $currentPlan = $newPlan;
+                $subscriptionStatus = 'pending';
+                
+            } catch (Exception $e) {
+                $error = 'Error processing subscription: ' . $e->getMessage();
+            }
         }
         
     } elseif ($action == 'online_payment') {
-        // Online payment via OWO/Wish
         $newPlan = $_POST['plan'];
-        $prices = ['basic' => 29, 'premium' => 49, 'family' => 79];
-        $amount = $prices[$newPlan];
-        $annualAmount = $amount * 12;
-        
-        // Store payment details in session for OWO/Wish
-        $_SESSION['pending_subscription'] = [
-            'plan' => $newPlan,
-            'amount' => $annualAmount,
-            'patient_id' => $patientId,
-            'user_id' => $userId
-        ];
-        
-        // Redirect to OWO/Wish payment page
-        header('Location: owo_payment.php');
-        exit;
+        $planData = getSubscriptionPlan($newPlan);
+        if (!$planData) {
+            $error = 'Invalid plan selected.';
+        } else {
+            $annualAmount = $planData['annual_price'];
+            // Store payment details in session for OWO/Wish
+            $_SESSION['pending_subscription'] = [
+                'plan' => $newPlan,
+                'amount' => $annualAmount,
+                'patient_id' => $patientId,
+                'user_id' => $userId
+            ];
+            // Redirect to OWO/Wish payment page
+            header('Location: owo_payment.php');
+            exit;
+        }
     }
 }
 
@@ -193,11 +204,11 @@ include '../layouts/header.php';
     </div>
 
     <?php if ($error): ?>
-        <div class="alert alert-danger"><?php echo $error; ?></div>
+        <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
     <?php endif; ?>
     
     <?php if ($success): ?>
-        <div class="alert alert-success"><?php echo $success; ?></div>
+        <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
     <?php endif; ?>
 
     <?php if ($currentPlan != 'none' && $subscriptionStatus == 'pending'): ?>
@@ -213,28 +224,25 @@ include '../layouts/header.php';
 
     <?php if ($currentPlan != 'none' && $subscriptionStatus == 'active'): ?>
         <!-- Active Subscription -->
+        <?php $activePlanData = getSubscriptionPlan($currentPlan); ?>
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-body">
                 <div class="row align-items-center">
                     <div class="col-md-8">
-                        <h3><?php echo ucfirst($currentPlan); ?> Plan - Active</h3>
+                        <h3><?php echo htmlspecialchars($activePlanData['plan_name'] ?? ucfirst($currentPlan)); ?> - Active</h3>
                         <p>Valid from <?php echo formatDate($patient['subscription_start_date']); ?> to <?php echo formatDate($patient['subscription_end_date']); ?></p>
                         <ul>
-                            <?php if ($currentPlan == 'basic'): ?>
-                                <li>2 free cleanings per year</li>
-                                <li>10% off all treatments</li>
-                                <li>Annual cost: $348</li>
-                            <?php elseif ($currentPlan == 'premium'): ?>
-                                <li>4 free cleanings per year</li>
-                                <li>20% off all treatments</li>
-                                <li>Priority scheduling</li>
-                                <li>Annual cost: $588</li>
-                            <?php elseif ($currentPlan == 'family'): ?>
-                                <li>Covers up to 4 family members</li>
-                                <li>3 cleanings per member per year</li>
-                                <li>15% off all treatments</li>
-                                <li>Annual cost: $948</li>
-                            <?php endif; ?>
+                            <?php 
+                            $features = explode("\n", $activePlanData['features'] ?? '');
+                            foreach ($features as $feature):
+                                if (trim($feature) != ''):
+                            ?>
+                                <li><?php echo htmlspecialchars(trim($feature)); ?></li>
+                            <?php 
+                                endif;
+                            endforeach; 
+                            ?>
+                            <li>Annual cost: $<?php echo number_format($activePlanData['annual_price'] ?? 0, 2); ?></li>
                         </ul>
                     </div>
                     <div class="col-md-4 text-center">
@@ -249,69 +257,48 @@ include '../layouts/header.php';
     <?php if ($currentPlan == 'none' && !$showPaymentForm): ?>
         <!-- Plan Selection -->
         <div class="row">
+            <?php foreach ($availablePlans as $plan): ?>
             <div class="col-md-4 mb-4">
-                <div class="card payment-card h-100">
+                <div class="card payment-card h-100 <?php echo $plan['plan_key'] == 'premium' ? 'border-warning' : ''; ?>">
                     <div class="card-body text-center p-4">
                         <div class="payment-icon">
-                            <i class="fas fa-tooth"></i>
+                            <?php if ($plan['plan_key'] == 'basic'): ?>
+                                <i class="fas fa-tooth"></i>
+                            <?php elseif ($plan['plan_key'] == 'premium'): ?>
+                                <i class="fas fa-crown text-warning"></i>
+                            <?php else: ?>
+                                <i class="fas fa-users"></i>
+                            <?php endif; ?>
                         </div>
-                        <h3>Basic Plan</h3>
-                        <h2 class="text-primary">$29<span class="small">/month</span></h2>
-                        <p class="text-muted">$348/year</p>
+                        <h3><?php echo htmlspecialchars($plan['plan_name']); ?></h3>
+                        <h2 class="text-primary">$<?php echo number_format($plan['monthly_price'], 2); ?><span class="small">/month</span></h2>
+                        <p class="text-muted">$<?php echo number_format($plan['annual_price'], 2); ?>/year</p>
                         <ul class="list-unstyled text-start mt-3">
-                            <li><i class="fas fa-check text-success"></i> 2 free cleanings/year</li>
-                            <li><i class="fas fa-check text-success"></i> 10% off treatments</li>
-                            <li><i class="fas fa-check text-success"></i> Free consultation</li>
+                            <?php 
+                            $features = explode("\n", $plan['features']);
+                            foreach ($features as $feature):
+                                if (trim($feature) != ''):
+                            ?>
+                                <li><i class="fas fa-check text-success"></i> <?php echo htmlspecialchars(trim($feature)); ?></li>
+                            <?php 
+                                endif;
+                            endforeach; 
+                            ?>
                         </ul>
-                        <button class="btn btn-primary w-100 mt-3" onclick="selectPlan('basic')">Select Plan</button>
+                        <button class="btn <?php echo $plan['plan_key'] == 'premium' ? 'btn-warning' : 'btn-primary'; ?> w-100 mt-3" onclick="selectPlan('<?php echo $plan['plan_key']; ?>')">Select Plan</button>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4 mb-4">
-                <div class="card payment-card h-100 border-warning">
-                    <div class="card-body text-center p-4">
-                        <div class="payment-icon">
-                            <i class="fas fa-crown text-warning"></i>
-                        </div>
-                        <h3>Premium Plan</h3>
-                        <h2 class="text-primary">$49<span class="small">/month</span></h2>
-                        <p class="text-muted">$588/year</p>
-                        <ul class="list-unstyled text-start mt-3">
-                            <li><i class="fas fa-check text-success"></i> 4 free cleanings/year</li>
-                            <li><i class="fas fa-check text-success"></i> 20% off treatments</li>
-                            <li><i class="fas fa-check text-success"></i> Priority scheduling</li>
-                            <li><i class="fas fa-check text-success"></i> Emergency access</li>
-                        </ul>
-                        <button class="btn btn-warning w-100 mt-3" onclick="selectPlan('premium')">Select Plan</button>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4 mb-4">
-                <div class="card payment-card h-100">
-                    <div class="card-body text-center p-4">
-                        <div class="payment-icon">
-                            <i class="fas fa-users"></i>
-                        </div>
-                        <h3>Family Plan</h3>
-                        <h2 class="text-primary">$79<span class="small">/month</span></h2>
-                        <p class="text-muted">$948/year</p>
-                        <ul class="list-unstyled text-start mt-3">
-                            <li><i class="fas fa-check text-success"></i> Covers up to 4 members</li>
-                            <li><i class="fas fa-check text-success"></i> 3 cleanings each/year</li>
-                            <li><i class="fas fa-check text-success"></i> 15% off treatments</li>
-                        </ul>
-                        <button class="btn btn-primary w-100 mt-3" onclick="selectPlan('family')">Select Plan</button>
-                    </div>
-                </div>
-            </div>
+            <?php endforeach; ?>
         </div>
     <?php endif; ?>
 
     <?php if ($showPaymentForm && $selectedPlan): ?>
         <!-- Payment Selection -->
+        <?php $selectedPlanData = getSubscriptionPlan($selectedPlan); ?>
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-white border-0 py-3">
-                <h4>Complete Payment for <?php echo ucfirst($selectedPlan); ?> Plan</h4>
+                <h4>Complete Payment for <?php echo htmlspecialchars($selectedPlanData['plan_name']); ?></h4>
                 <p class="text-muted">Choose your payment method</p>
             </div>
             <div class="card-body">
