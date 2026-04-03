@@ -30,6 +30,17 @@ $doctors = $db->fetchAll(
     "SELECT id, full_name FROM users WHERE role = 'doctor' AND COALESCE(is_active, 1) = 1 ORDER BY full_name"
 );
 
+$visitTypeOptions = [
+    'Check-up / cleaning',
+    'Consultation',
+    'Filling',
+    'Crown',
+    'Extraction',
+    'Whitening',
+    'Emergency / pain',
+    'Other',
+];
+
 $doctorId = isset($_GET['doctor_id']) ? (int) $_GET['doctor_id'] : 0;
 $weekOffset = isset($_GET['week']) ? (int) $_GET['week'] : 0;
 if ($weekOffset < -104 || $weekOffset > 104) {
@@ -146,21 +157,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['book_appointment'])) 
                     } elseif (patientQueueSlotConflict($db, $postDoctor, $postDate, $slotStart->format('H:i:s'), $slotEnd->format('H:i:s'))) {
                         $error = 'That slot is no longer available. Please pick another time.';
                     } else {
-                        $dup = $db->fetchOne(
-                            "SELECT id FROM appointment_requests 
-                             WHERE patient_id = ? AND doctor_id = ? AND requested_date = ? AND requested_time = ? 
-                             LIMIT 1",
-                            [$patientId, $postDoctor, $postDate, $postTime],
-                            'iiss'
-                        );
-                        if ($dup) {
-                            $error = 'You already have a pending request for this slot.';
-                        } else {
-                            $reqNotes = 'Patient self-booked via portal.';
-                            if ($description !== '') {
-                                $reqNotes .= ' ' . $description;
+                        $slotStartHis = $slotStart->format('H:i:s');
+                        $slotEndHis = $slotEnd->format('H:i:s');
+                        $bookError = '';
+                        $requestId = 0;
+                        $db->beginTransaction();
+                        try {
+                            if (patientQueueSlotConflict($db, $postDoctor, $postDate, $slotStartHis, $slotEndHis)) {
+                                throw new RuntimeException('That slot is no longer available. Please pick another time.');
                             }
-                            $requestId = $db->insert(
+                            $dup = $db->fetchOne(
+                                "SELECT id FROM appointment_requests 
+                                 WHERE patient_id = ? AND doctor_id = ? AND requested_date = ? AND requested_time = ? 
+                                 LIMIT 1",
+                                [$patientId, $postDoctor, $postDate, $postTime],
+                                'iiss'
+                            );
+                            if ($dup) {
+                                throw new RuntimeException('You already have a pending request for this slot.');
+                            }
+                            $requestId = (int) $db->insert(
                                 "INSERT INTO appointment_requests (
                                     patient_id, doctor_id, requested_date, requested_time, duration_minutes,
                                     treatment_type, description
@@ -174,40 +190,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['book_appointment'])) 
                                     $treatmentType,
                                     $description !== '' ? $description : null,
                                 ],
-                                'iisisss'
+                                'iississ'
                             );
 
-                            if (!$requestId) {
-                                $error = 'Could not submit your request. Please try again.';
-                            } else {
-                                logAction('CREATE', 'appointment_requests', (int) $requestId, null, [
-                                    'patient_id' => $patientId,
-                                    'doctor_id' => $postDoctor,
-                                    'requested_date' => $postDate,
-                                    'requested_time' => $postTime,
-                                    'treatment_type' => $treatmentType,
-                                    'source' => 'patient_queue',
-                                ]);
-                                sendNotification(
-                                    $userId,
-                                    'appointment_reminder',
-                                    'Appointment request sent',
-                                    'Your dentist will review your request for ' . formatDate($postDate) . ' at ' . formatTime($postTime) . '. You will be notified when they respond.',
-                                    'in-app',
-                                    null,
-                                    null
-                                );
-                                $docLabel = '';
-                                foreach ($doctors as $d) {
-                                    if ((int) $d['id'] === $postDoctor) {
-                                        $docLabel = (string) $d['full_name'];
-                                        break;
-                                    }
-                                }
-                                $success = 'Your request was sent to Dr. ' . $docLabel
-                                    . '. You will receive a WhatsApp message when they accept or decline.';
-                                $_POST = [];
+                            if ($requestId <= 0) {
+                                throw new RuntimeException('Could not submit your request. Please try again.');
                             }
+                            $db->commit();
+                        } catch (RuntimeException $e) {
+                            $db->rollback();
+                            $bookError = $e->getMessage();
+                        } catch (Throwable $e) {
+                            $db->rollback();
+                            $bookError = 'Could not submit your request. Please try again.';
+                        }
+
+                        if ($bookError !== '') {
+                            $error = $bookError;
+                        } else {
+                            logAction('CREATE', 'appointment_requests', $requestId, null, [
+                                'patient_id' => $patientId,
+                                'doctor_id' => $postDoctor,
+                                'requested_date' => $postDate,
+                                'requested_time' => $postTime,
+                                'treatment_type' => $treatmentType,
+                                'source' => 'patient_queue',
+                            ]);
+                            sendNotification(
+                                $userId,
+                                'appointment_reminder',
+                                'Appointment request sent',
+                                'Your dentist will review your request for ' . formatDate($postDate) . ' at ' . formatTime($postTime) . '. You will be notified when they respond.',
+                                'in-app',
+                                null,
+                                null
+                            );
+                            $docLabel = '';
+                            foreach ($doctors as $d) {
+                                if ((int) $d['id'] === $postDoctor) {
+                                    $docLabel = (string) $d['full_name'];
+                                    break;
+                                }
+                            }
+                            $success = 'Your request was sent to Dr. ' . $docLabel
+                                . '. You will receive a WhatsApp message when they accept or decline.';
+                            $_POST = [];
                         }
                     }
                 }
@@ -216,21 +243,134 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['book_appointment'])) 
     }
 }
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['queue_type']) && !isset($_POST['book_appointment'])) {
-    $queueType = $_POST['queue_type'];
-    $priority = $_POST['priority'];
-    $reason = $_POST['reason'];
-    $preferredTreatment = $_POST['preferred_treatment'];
-    $preferredDay = $_POST['preferred_day'] ?? null;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['weekly_queue_request']) && !isset($_POST['book_appointment'])) {
+    $postDoctor = (int) ($_POST['doctor_id'] ?? 0);
+    $preferredDate = trim((string) ($_POST['preferred_date'] ?? ''));
+    $priority = (string) ($_POST['priority'] ?? 'medium');
+    $treatmentType = trim((string) ($_POST['treatment_type'] ?? ''));
+    $queueNotes = trim((string) ($_POST['queue_notes'] ?? ''));
 
-    $db->insert(
-        "INSERT INTO waiting_queue (patient_id, patient_name, queue_type, priority, reason, preferred_treatment, preferred_day, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'waiting')",
-        [$patientId, $patient['full_name'], $queueType, $priority, $reason, $preferredTreatment, $preferredDay],
-        'issssss'
-    );
+    $validDoctor = false;
+    foreach ($doctors as $d) {
+        if ((int) $d['id'] === $postDoctor) {
+            $validDoctor = true;
+            break;
+        }
+    }
 
-    $success = 'You have been added to the queue.';
+    $allowedPriority = ['low', 'medium', 'high', 'emergency'];
+    if (!in_array($priority, $allowedPriority, true)) {
+        $priority = 'medium';
+    }
+
+    if (!$validDoctor) {
+        $error = 'Please choose a dentist.';
+    } elseif (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $preferredDate)) {
+        $error = 'Please choose a valid date.';
+    } elseif ($treatmentType === '' || !in_array($treatmentType, $visitTypeOptions, true)) {
+        $error = 'Please select a visit type.';
+    } else {
+        $todayYmd = (new DateTimeImmutable('today'))->format('Y-m-d');
+        if ($preferredDate < $todayYmd) {
+            $error = 'Date must be today or in the future.';
+        }
+    }
+
+    if ($error === '') {
+        try {
+            $preferredDayName = (new DateTimeImmutable($preferredDate))->format('l');
+        } catch (Exception $e) {
+            $error = 'Invalid date.';
+            $preferredDayName = '';
+        }
+    }
+
+    if ($error === '') {
+        $reason = substr($treatmentType, 0, 100);
+        $notesVal = $queueNotes !== '' ? $queueNotes : '';
+        $flexDays = isset($_POST['date_flexibility_days']) && $_POST['date_flexibility_days'] !== ''
+            ? max(0, min(30, (int) $_POST['date_flexibility_days']))
+            : 0;
+
+        if (dbColumnExists('waiting_queue', 'date_flexibility_days')) {
+            $db->insert(
+                "INSERT INTO waiting_queue (
+                    patient_id, patient_name, doctor_id, queue_type, priority, reason,
+                    preferred_treatment, preferred_day, preferred_date, notes, date_flexibility_days, status
+                ) VALUES (?, ?, ?, 'weekly', ?, ?, NULL, ?, ?, ?, ?, 'waiting')",
+                [
+                    $patientId,
+                    $patient['full_name'],
+                    $postDoctor,
+                    $priority,
+                    $reason,
+                    $preferredDayName,
+                    $preferredDate,
+                    $notesVal,
+                    $flexDays,
+                ],
+                'isisssssi'
+            );
+        } else {
+            $db->insert(
+                "INSERT INTO waiting_queue (
+                    patient_id, patient_name, doctor_id, queue_type, priority, reason,
+                    preferred_treatment, preferred_day, preferred_date, notes, status
+                ) VALUES (?, ?, ?, 'weekly', ?, ?, NULL, ?, ?, ?, 'waiting')",
+                [
+                    $patientId,
+                    $patient['full_name'],
+                    $postDoctor,
+                    $priority,
+                    $reason,
+                    $preferredDayName,
+                    $preferredDate,
+                    $notesVal,
+                ],
+                'isisssss'
+            );
+        }
+
+        $docLabel = '';
+        foreach ($doctors as $d) {
+            if ((int) $d['id'] === $postDoctor) {
+                $docLabel = (string) $d['full_name'];
+                break;
+            }
+        }
+        $success = 'Your request was added to the weekly queue for Dr. ' . $docLabel
+            . ' on ' . formatDate($preferredDate) . '. The clinic will follow up with you.';
+        $_POST = [];
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_appointment_request'])) {
+    $cancelId = (int) ($_POST['request_id'] ?? 0);
+    if ($cancelId <= 0) {
+        $error = 'Invalid request.';
+    } else {
+        $cancelRow = $db->fetchOne(
+            'SELECT * FROM appointment_requests WHERE id = ? AND patient_id = ? LIMIT 1',
+            [$cancelId, $patientId],
+            'ii'
+        );
+        if (!$cancelRow) {
+            $error = 'That request was not found or may have already been processed.';
+        } else {
+            $db->execute('DELETE FROM appointment_requests WHERE id = ? AND patient_id = ?', [$cancelId, $patientId], 'ii');
+            logAction('DELETE', 'appointment_requests', $cancelId, $cancelRow, null);
+            sendNotification(
+                $userId,
+                'appointment_reminder',
+                'Request cancelled',
+                'You cancelled your online booking request for ' . formatDate($cancelRow['requested_date']) . ' at ' . formatTime($cancelRow['requested_time']) . '.',
+                'in-app',
+                null,
+                null
+            );
+            $success = 'Your pending request was cancelled.';
+        }
+    }
 }
 
 $busyByDate = [];
@@ -356,20 +496,63 @@ foreach ($weekDays as $col) {
 $calendarTimeRows = array_keys($calendarTimeKeySet);
 sort($calendarTimeRows, SORT_STRING);
 
+$myPendingAppointmentRequests = $db->fetchAll(
+    'SELECT ar.*, u.full_name AS doctor_name
+     FROM appointment_requests ar
+     INNER JOIN users u ON u.id = ar.doctor_id
+     WHERE ar.patient_id = ?
+     ORDER BY ar.requested_date ASC, ar.requested_time ASC, ar.id ASC',
+    [$patientId],
+    'i'
+);
+$pendingRequestsCount = count($myPendingAppointmentRequests);
+
 $pageTitle = 'Join Queue';
 include '../layouts/header.php';
 ?>
 
 <style>
+/* Desktop: sidebar spans both rows so “Before Your Visit” sits under the calendar (no flex-wrap gap) */
+@media (min-width: 992px) {
+    .queue-main-layout.row {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        column-gap: var(--bs-gutter-x, 1.5rem);
+        row-gap: var(--bs-gutter-x, 1.5rem);
+        align-items: start;
+    }
+    .queue-main-layout.row > .queue-cell-calendar {
+        grid-column: 1 / span 7;
+        grid-row: 1;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    .queue-main-layout.row > .queue-cell-sidebar {
+        grid-column: 8 / span 5;
+        grid-row: 1 / span 2;
+        width: 100% !important;
+        max-width: 100% !important;
+        align-self: start;
+    }
+    .queue-main-layout.row > .queue-cell-before {
+        grid-column: 1 / span 7;
+        grid-row: 2;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+}
+
 .queue-page {
     --cal-accent: #667eea;
     --cal-accent-soft: rgba(102, 126, 234, 0.12);
     --cal-slate: #334155;
     --cal-muted: #64748b;
     --cal-line: #e2e8f0;
+    /* Panel title icons (all card headers): Book a visit, Weekly queue, Queue Information, Before your visit */
+    --queue-card-header-icon: rgb(244, 247, 110);
 }
 .queue-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg,rgb(108, 204, 245) 0%,rgb(108, 163, 245)100%);
     border-radius: 20px;
     padding: 30px;
     margin-bottom: 30px;
@@ -410,6 +593,130 @@ include '../layouts/header.php';
 
 .form-header h4 {
     margin-bottom: 5px;
+}
+
+.queue-registration-card {
+    border-radius: 20px;
+    border: none;
+    box-shadow: 0 8px 28px rgba(31, 105, 216, 0.12);
+    overflow: hidden;
+    /* Weekly queue form only (Dentist, Date, Visit type, …) — does NOT affect the “Weekly queue request” title icon */
+    --queue-registration-field-icon: rgb(121, 168, 240);
+    --queue-registration-label-color: rgb(8, 9, 10);
+}
+.queue-registration-card .card-body .form-label-modern {
+    color: var(--queue-registration-label-color);
+}
+.queue-registration-card .card-body .form-label-modern > i {
+    color: var(--queue-registration-field-icon) !important;
+}
+.queue-registration-card .queue-notes-field {
+    min-height: 2.75rem;
+    max-height: 5rem;
+    resize: vertical;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    padding-top: 0.4rem;
+    padding-bottom: 0.4rem;
+}
+/* Shared header style: matches Queue Information card */
+.queue-panel-card-header {
+    background: #fff !important;
+    border-bottom: none !important;
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+}
+.queue-panel-card-header .card-title {
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: #212529;
+    line-height: 1.2;
+}
+.queue-panel-card-header .card-title i {
+    color: var(--queue-card-header-icon) !important;
+}
+.queue-registration-card .queue-panel-card-header {
+    border-radius: 20px 20px 0 0;
+}
+.queue-registration-card .form-control-modern:focus,
+.queue-registration-card .form-select:focus {
+    border-color: rgb(108, 163, 245);
+    box-shadow: 0 0 0 3px rgba(108, 163, 245, 0.2);
+}
+.queue-registration-card .btn-queue-reg {
+    background: linear-gradient(135deg, rgb(108, 163, 245) 0%, rgb(31, 105, 216) 100%);
+    border: none;
+    padding: 11px 26px;
+    border-radius: 25px;
+    color: #fff !important;
+    font-weight: 600;
+    transition: opacity 0.2s ease;
+}
+.queue-registration-card .btn-queue-reg:hover {
+    color: #fff !important;
+    opacity: 0.92;
+}
+.queue-registration-card .btn-cancel-reg {
+    background: rgba(31, 105, 216, 0.1);
+    border: 1px solid rgba(31, 105, 216, 0.25);
+    padding: 11px 22px;
+    border-radius: 25px;
+    color: rgb(31, 105, 216) !important;
+    font-weight: 600;
+    text-decoration: none;
+}
+.queue-registration-card .btn-cancel-reg:hover {
+    background: rgba(31, 105, 216, 0.16);
+    color: rgb(24, 80, 165) !important;
+}
+
+.queue-pending-requests-card .queue-pending-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    flex-wrap: nowrap;
+    border: 1px solid rgba(31, 105, 216, 0.15);
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #fafbff;
+    margin-bottom: 8px;
+    font-size: 0.8125rem;
+}
+.queue-pending-requests-card .queue-pending-row:last-child {
+    margin-bottom: 0;
+}
+.queue-pending-requests-card .queue-pending-row-main {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #475569;
+}
+.queue-pending-requests-card .queue-pending-row-main strong {
+    color: #1e293b;
+    font-weight: 600;
+}
+@media (max-width: 640px) {
+    .queue-pending-requests-card .queue-pending-row {
+        flex-wrap: wrap;
+    }
+    .queue-pending-requests-card .queue-pending-row-main {
+        white-space: normal;
+    }
+}
+.queue-pending-requests-card .btn-cancel-pending {
+    background: rgba(220, 53, 69, 0.08);
+    border: 1px solid rgba(220, 53, 69, 0.35);
+    color: #b02a37 !important;
+    font-weight: 600;
+    border-radius: 25px;
+    padding: 8px 16px;
+    font-size: 0.8125rem;
+}
+.queue-pending-requests-card .btn-cancel-pending:hover {
+    background: rgba(220, 53, 69, 0.15);
+    color: #842029 !important;
 }
 
 .form-control-modern {
@@ -494,18 +801,38 @@ include '../layouts/header.php';
 .priority-high { background: #f8d7da; color: #721c24; }
 .priority-emergency { background: #dc3545; color: white; }
 
-.queue-timer {
+.queue-pending-stat {
     background: rgba(255,255,255,0.2);
     border-radius: 15px;
     padding: 15px;
     text-align: center;
     backdrop-filter: blur(10px);
+    max-width: 200px;
+    margin-left: auto;
 }
 
-.timer-number {
-    font-size: 32px;
-    font-weight: bold;
-    font-family: monospace;
+.queue-pending-stat-label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.9;
+    margin-bottom: 0.25rem;
+}
+
+.queue-pending-stat-number {
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+
+.queue-pending-stat-hint {
+    display: block;
+    font-size: 0.7rem;
+    opacity: 0.85;
+    margin-top: 0.2rem;
 }
 
 select.form-control-modern {
@@ -516,16 +843,7 @@ select.form-control-modern option {
     padding: 10px;
 }
 
-/* Booking calendar (sidebar) */
-.queue-calendar-card .card-header {
-    background: linear-gradient(180deg, rgba(102, 126, 234, 0.12) 0%, #fff 100%);
-    border-bottom: 1px solid var(--cal-line);
-    padding: 0.75rem 1rem;
-}
-.queue-calendar-card .card-header h5 {
-    font-size: 0.95rem;
-    color: #2c3e50;
-}
+/* Booking calendar card body only; header uses .queue-panel-card-header */
 .cal-nav .btn-cal {
     border-radius: 8px;
     font-weight: 600;
@@ -813,7 +1131,7 @@ select.form-control-modern option {
 </style>
 
 <div class="container-fluid queue-page">
-    <div class="mb-3">
+    <div class="mb-3 d-flex justify-content-end">
         <a href="index.php" class="btn btn-secondary">
             <i class="fas fa-arrow-left"></i> Back to Dashboard
         </a>
@@ -826,20 +1144,12 @@ select.form-control-modern option {
                     <i class="fas fa-hourglass-half"></i> Join Waiting Queue
                 </h2>
                 <p class="mb-0">Book a time below or join the walk-in queue — same-day care or a future slot</p>
-                <div class="mt-3">
-                    <span class="badge bg-light text-dark me-2">
-                        <i class="fas fa-clock"></i> Open: Mon-Fri 9AM-6PM
-                    </span>
-                    <span class="badge bg-light text-dark">
-                        <i class="fas fa-phone"></i> Emergency: Call (555) 123-4567
-                    </span>
-                </div>
             </div>
             <div class="col-md-5 text-md-end mt-3 mt-md-0">
-                <div class="queue-timer">
-                    <small>Estimated Wait Time</small>
-                    <div class="timer-number">~<?php echo rand(15, 45); ?> min</div>
-                    <small>Based on current queue</small>
+                <div class="queue-pending-stat" role="status" aria-live="polite">
+                    <span class="queue-pending-stat-label">Requests awaiting confirmation</span>
+                    <div class="queue-pending-stat-number"><?php echo (int) $pendingRequestsCount; ?></div>
+                    <span class="queue-pending-stat-hint"><?php echo $pendingRequestsCount === 1 ? 'online booking request' : 'online booking requests'; ?></span>
                 </div>
             </div>
         </div>
@@ -859,14 +1169,14 @@ select.form-control-modern option {
         </div>
     <?php endif; ?>
 
-    <div class="row">
-        <div class="col-lg-7">
+    <div class="row queue-main-layout">
+        <div class="col-12 queue-cell-calendar order-1">
             <div class="card border-0 shadow-sm mb-4 queue-calendar-card">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0 fw-bold">
-                        <i class="fas fa-calendar-check me-2" style="color:#667eea;"></i>Book a visit
+                <div class="card-header bg-white border-0 py-3 queue-panel-card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-calendar-check me-2" aria-hidden="true"></i>Book a visit
                     </h5>
-                    <p class="small text-muted mb-0 mt-1">Rows are times; columns are days. Tap <strong>+</strong> to request a slot — your dentist will confirm by WhatsApp.</p>
+                    <p class="small text-muted mb-0 mt-1">Tap <strong>+</strong> to request an appointment, you will be notified of your dentist's response via WhatsApp.</p>
                 </div>
                 <div class="card-body p-3 queue-main-calendar">
                     <form method="get" class="row g-2 align-items-end mb-2" id="doctorWeekForm">
@@ -978,33 +1288,142 @@ select.form-control-modern option {
                                 </table>
                             <?php endif; ?>
                         </div>
-                        <p class="text-muted small mt-2 mb-0" style="font-size:0.7rem;">
-                            <?php echo (int) $slotMinutes; ?>-minute visits · closed days are hidden
-                        </p>
+                       
                     <?php endif; ?>
                 </div>
             </div>
+
+            <?php if (!empty($myPendingAppointmentRequests)): ?>
+            <div class="form-card mb-4 queue-compact-form queue-registration-card queue-pending-requests-card">
+                <div class="card-header bg-white border-0 py-3 queue-panel-card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-hourglass-half me-2" aria-hidden="true"></i>Pending requests
+                    </h5>
+                    
+                </div>
+                <div class="card-body p-3 p-md-4">
+                    <?php foreach ($myPendingAppointmentRequests as $pr): ?>
+                        <?php
+                        $descShort = trim((string) ($pr['description'] ?? ''));
+                        if (strlen($descShort) > 80) {
+                            $descShort = substr($descShort, 0, 77) . '…';
+                        }
+                        $line = '<strong>' . htmlspecialchars((string) $pr['doctor_name']) . '</strong>'
+                            . ' · ' . htmlspecialchars(formatDate($pr['requested_date']) . ' · ' . formatTime($pr['requested_time']))
+                            . ' · ' . htmlspecialchars((string) $pr['treatment_type']);
+                        if ($descShort !== '') {
+                            $line .= ' · <span class="text-muted">' . htmlspecialchars($descShort) . '</span>';
+                        }
+                        if (!empty($pr['created_at'])) {
+                            $line .= ' · <span class="text-muted">Submitted ' . htmlspecialchars((string) $pr['created_at']) . '</span>';
+                        }
+                        ?>
+                        <div class="queue-pending-row">
+                            <div class="queue-pending-row-main"><?php echo $line; ?></div>
+                            <form method="post" class="flex-shrink-0" onsubmit="return confirm('Cancel this booking request?');">
+                                <input type="hidden" name="cancel_appointment_request" value="1">
+                                <input type="hidden" name="request_id" value="<?php echo (int) $pr['id']; ?>">
+                                <button type="submit" class="btn btn-cancel-pending btn-sm py-1 px-3">
+                                    <i class="fas fa-times me-1"></i> Cancel
+                                </button>
+                            </form>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
 
-        <div class="col-lg-5">
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-white border-0 py-3">
+        <div class="col-12 queue-cell-sidebar order-2">
+            <div class="form-card mb-4 queue-compact-form queue-registration-card" id="queue-walkin">
+                <div class="card-header bg-white border-0 py-3 queue-panel-card-header">
                     <h5 class="card-title mb-0">
-                        <i class="fas fa-info-circle text-info"></i> Queue Information
+                        <i class="fas fa-calendar-week me-2" aria-hidden="true"></i>Queue request
+                    </h5>
+                    <p class="small text-muted mb-0 mt-1"> No free slots? Join the queue to be prioritized if an opening appears within your chosen timeframe.</p>
+                </div>
+                <div class="card-body p-4">
+                    <?php if (empty($doctors)): ?>
+                        <p class="text-muted small mb-0">No dentists are available for requests right now. Please call the clinic.</p>
+                    <?php else: ?>
+                    <form method="POST">
+                        <input type="hidden" name="weekly_queue_request" value="1">
+                        <div class="mb-3">
+                            <label class="form-label-modern">
+                                <i class="fas fa-user-md me-2" aria-hidden="true"></i>Dentist *
+                            </label>
+                            <select class="form-select form-control-modern" name="doctor_id" required>
+                                <option value="">Select a dentist</option>
+                                <?php foreach ($doctors as $d): ?>
+                                    <option value="<?php echo (int) $d['id']; ?>"><?php echo htmlspecialchars($d['full_name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label-modern">
+                                <i class="fas fa-calendar-day me-2" aria-hidden="true"></i>Preferred date *
+                            </label>
+                            <input type="date" class="form-control form-control-modern" name="preferred_date" required
+                                min="<?php echo htmlspecialchars(date('Y-m-d')); ?>"
+                                value="<?php echo htmlspecialchars(date('Y-m-d')); ?>">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label-modern">
+                                <i class="fas fa-arrows-alt-h me-2" aria-hidden="true"></i>Date flexibility (optional)
+                            </label>
+                            <input type="number" class="form-control form-control-modern" name="date_flexibility_days" min="0" max="30" step="1" value="0"
+                                placeholder="0" aria-describedby="flexHelp">
+                            <div id="flexHelp" class="form-text small">± days before or after preferred date </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label-modern">
+                                <i class="fas fa-tooth me-2" aria-hidden="true"></i>Visit type *
+                            </label>
+                            <select class="form-select form-control-modern" name="treatment_type" required>
+                                <option value="">Select…</option>
+                                <?php foreach ($visitTypeOptions as $opt): ?>
+                                    <option value="<?php echo htmlspecialchars($opt); ?>"><?php echo htmlspecialchars($opt); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label-modern">
+                                <i class="fas fa-chart-line me-2" aria-hidden="true"></i>Priority *
+                            </label>
+                            <select class="form-select form-control-modern" name="priority" required>
+                                <option value="low">Low</option>
+                                <option value="medium" selected>Medium</option>
+                                <option value="high">High</option>
+                                <option value="emergency">Emergency</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label-modern">
+                                <i class="fas fa-comment-alt me-2" aria-hidden="true"></i>Notes (optional)
+                            </label>
+                            <textarea class="form-control form-control-modern queue-notes-field" name="queue_notes" rows="2" maxlength="2000"
+                                placeholder="Anything the clinic should know"></textarea>
+                        </div>
+                        <div class="d-flex gap-3 flex-wrap">
+                            <button type="submit" class="btn btn-queue-reg">
+                               Submit Request
+                            </button>
+                            <a href="index.php" class="btn btn-cancel-reg">
+                                <i class="fas fa-times me-1"></i>Cancel
+                            </a>
+                        </div>
+                    </form>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 py-3 queue-panel-card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-info-circle me-2" aria-hidden="true"></i>Queue Information
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div class="info-card">
-                        <div class="d-flex align-items-start">
-                            <i class="fas fa-chart-line text-primary fa-lg me-3 mt-1"></i>
-                            <div>
-                                <strong>Current Queue Status</strong>
-                                <p class="small mb-0 mt-1">Queue system is active and accepting patients</p>
-                                <small class="text-muted">Last updated: <?php echo date('h:i A'); ?></small>
-                            </div>
-                        </div>
-                    </div>
-
                     <div class="info-card">
                         <div class="d-flex align-items-start">
                             <i class="fas fa-clock text-warning fa-lg me-3 mt-1"></i>
@@ -1031,85 +1450,13 @@ select.form-control-modern option {
                     </div>
                 </div>
             </div>
+        </div>
 
-            <div class="form-card mb-4 queue-compact-form">
-                <div class="form-header">
-                    <h4 class="mb-0">
-                        <i class="fas fa-sign-in-alt"></i> Queue Registration
-                    </h4>
-                    <p class="mb-0 mt-2 small opacity-75">Join the walk-in waiting list</p>
-                </div>
-                <div class="card-body p-4">
-                    <form method="POST">
-                        <div class="mb-4">
-                            <label class="form-label-modern">
-                                <i class="fas fa-calendar-alt text-primary me-2"></i> Queue Type *
-                            </label>
-                            <select class="form-select form-control-modern" name="queue_type" id="queueType" onchange="togglePreferredDay()" required>
-                                <option value="daily">Daily Queue - Today (Immediate Attention)</option>
-                                <option value="weekly">Weekly Queue - Future Appointment</option>
-                            </select>
-                            <small class="text-muted">Choose daily for same-day service or weekly to schedule for next week</small>
-                        </div>
-
-                        <div class="mb-4" id="preferredDayDiv" style="display: none;">
-                            <label class="form-label-modern">
-                                <i class="fas fa-calendar-week text-primary me-2"></i> Preferred Day
-                            </label>
-                            <select class="form-select form-control-modern" name="preferred_day">
-                                <option value="Monday">📅 Monday</option>
-                                <option value="Tuesday">📅 Tuesday</option>
-                                <option value="Wednesday">📅 Wednesday</option>
-                                <option value="Thursday">📅 Thursday</option>
-                                <option value="Friday">📅 Friday</option>
-                            </select>
-                            <small class="text-muted">Select your preferred day for the appointment</small>
-                        </div>
-
-                        <div class="mb-4">
-                            <label class="form-label-modern">
-                                <i class="fas fa-chart-line text-primary me-2"></i> Priority Level *
-                            </label>
-                            <select class="form-select form-control-modern" name="priority" required>
-                                <option value="low">🟢 Low - Routine checkup / Cleaning (30-45 min wait)</option>
-                                <option value="medium" selected>🟡 Medium - Non-urgent dental issue (20-30 min wait)</option>
-                                <option value="high">🟠 High - Pain or discomfort (10-20 min wait)</option>
-                                <option value="emergency">🔴 Emergency - Severe pain or injury (Immediate)</option>
-                            </select>
-                        </div>
-
-                        <div class="mb-4">
-                            <label class="form-label-modern">
-                                <i class="fas fa-stethoscope text-primary me-2"></i> Reason for Visit *
-                            </label>
-                            <textarea class="form-control form-control-modern" name="reason" rows="4" required
-                                placeholder="Please describe your dental concern in detail..."></textarea>
-                        </div>
-
-                        <div class="mb-4">
-                            <label class="form-label-modern">
-                                <i class="fas fa-tooth text-primary me-2"></i> Preferred Treatment (Optional)
-                            </label>
-                            <input type="text" class="form-control form-control-modern" name="preferred_treatment"
-                                placeholder="e.g., Cleaning, Filling, Extraction, Root Canal, Whitening">
-                        </div>
-
-                        <div class="d-flex gap-3 flex-wrap">
-                            <button type="submit" class="btn-queue">
-                                <i class="fas fa-hourglass-start"></i> Join Queue
-                            </button>
-                            <a href="index.php" class="btn-cancel">
-                                <i class="fas fa-times"></i> Cancel
-                            </a>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-0 py-3">
+        <div class="col-12 queue-cell-before order-3">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 py-3 queue-panel-card-header">
                     <h5 class="card-title mb-0">
-                        <i class="fas fa-clinic-medical text-success"></i> Before Your Visit
+                        <i class="fas fa-clinic-medical me-2" aria-hidden="true"></i>Before Your Visit
                     </h5>
                 </div>
                 <div class="card-body">
@@ -1173,14 +1520,9 @@ select.form-control-modern option {
                         <label class="form-label fw-semibold">Visit type *</label>
                         <select class="form-select" name="treatment_type" required>
                             <option value="">Select…</option>
-                            <option value="Check-up / cleaning">Check-up / cleaning</option>
-                            <option value="Consultation">Consultation</option>
-                            <option value="Filling">Filling</option>
-                            <option value="Crown">Crown</option>
-                            <option value="Extraction">Extraction</option>
-                            <option value="Whitening">Whitening</option>
-                            <option value="Emergency / pain">Emergency / pain</option>
-                            <option value="Other">Other</option>
+                            <?php foreach ($visitTypeOptions as $opt): ?>
+                                <option value="<?php echo htmlspecialchars($opt); ?>"><?php echo htmlspecialchars($opt); ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="mb-0">
@@ -1198,11 +1540,6 @@ select.form-control-modern option {
 </div>
 
 <script>
-function togglePreferredDay() {
-    const queueType = document.getElementById('queueType').value;
-    const div = document.getElementById('preferredDayDiv');
-    div.style.display = queueType === 'weekly' ? 'block' : 'none';
-}
 var slotModal;
 document.addEventListener('DOMContentLoaded', function() {
     var el = document.getElementById('slotModal');

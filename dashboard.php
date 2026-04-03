@@ -50,30 +50,83 @@ $upcomingAppointments = $db->fetchAll(
     "ss"
 );
 
-// Get subscription statistics
-$pendingSubscriptions = $db->fetchOne(
-    "SELECT COUNT(*) as count FROM patients WHERE subscription_status = 'pending'",
-    [],
-    ""
-)['count'];
+// Get subscription statistics (works with or without patients.subscription_status)
+if (dbColumnExists('patients', 'subscription_status')) {
+    $pendingSubscriptions = (int) ($db->fetchOne(
+        "SELECT COUNT(*) as count FROM patients WHERE subscription_status = 'pending'",
+        [],
+        ""
+    )['count'] ?? 0);
 
-$activeSubscriptions = $db->fetchOne(
-    "SELECT COUNT(*) as count FROM patients WHERE subscription_status = 'active'",
-    [],
-    ""
-)['count'];
+    $activeSubscriptions = (int) ($db->fetchOne(
+        "SELECT COUNT(*) as count FROM patients WHERE subscription_status = 'active'
+           AND subscription_end_date IS NOT NULL AND subscription_end_date >= CURDATE()",
+        [],
+        ""
+    )['count'] ?? 0);
 
-$expiringSubscriptions = $db->fetchOne(
-    "SELECT COUNT(*) as count FROM patients WHERE subscription_status = 'active' AND subscription_end_date <= DATE_ADD(NOW(), INTERVAL 30 DAY)",
-    [],
-    ""
-)['count'];
+    $expiringSubscriptions = (int) ($db->fetchOne(
+        "SELECT COUNT(*) as count FROM patients WHERE subscription_status = 'active'
+           AND subscription_end_date IS NOT NULL AND subscription_end_date >= CURDATE()
+           AND subscription_end_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)",
+        [],
+        ""
+    )['count'] ?? 0);
+} else {
+    if (dbTableExists('subscription_payments')) {
+        $pendingSubscriptions = (int) ($db->fetchOne(
+            "SELECT COUNT(DISTINCT patient_id) as count FROM subscription_payments WHERE status = 'pending'",
+            [],
+            ""
+        )['count'] ?? 0);
+    } else {
+        $pendingSubscriptions = 0;
+    }
 
-$subscriptionRevenue = $db->fetchOne(
-    "SELECT SUM(amount) as total FROM subscription_payments WHERE status = 'completed'",
-    [],
-    ""
-)['total'] ?? 0;
+    $noPendingSub = dbTableExists('subscription_payments')
+        ? 'AND NOT EXISTS (
+            SELECT 1 FROM subscription_payments sp
+            WHERE sp.patient_id = p.id AND sp.status = \'pending\'
+        )'
+        : '';
+
+    $activeSubscriptions = (int) ($db->fetchOne(
+        "SELECT COUNT(*) as count FROM patients p
+         WHERE p.subscription_type != 'none'
+           AND p.subscription_end_date IS NOT NULL
+           AND p.subscription_end_date >= CURDATE()
+           $noPendingSub",
+        [],
+        ""
+    )['count'] ?? 0);
+
+    $expiringSubscriptions = (int) ($db->fetchOne(
+        "SELECT COUNT(*) as count FROM patients p
+         WHERE p.subscription_type != 'none'
+           AND p.subscription_end_date IS NOT NULL
+           AND p.subscription_end_date >= CURDATE()
+           AND p.subscription_end_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)
+           $noPendingSub",
+        [],
+        ""
+    )['count'] ?? 0);
+}
+
+$subscriptionRevenue = 0.0;
+if (dbTableExists('subscription_payments')) {
+    $subscriptionRevenue = (float) ($db->fetchOne(
+        "SELECT SUM(amount) as total FROM subscription_payments WHERE status = 'completed'",
+        [],
+        ""
+    )['total'] ?? 0);
+} else {
+    $subscriptionRevenue = (float) ($db->fetchOne(
+        "SELECT COALESCE(SUM(paid_amount), 0) AS total FROM invoices
+         WHERE payment_status = 'paid' AND notes IS NOT NULL AND notes LIKE '%Subscription%'",
+        [],
+        ""
+    )['total'] ?? 0);
+}
 
 // Get doctor statistics
 $doctorStats = $db->fetchAll(
@@ -101,6 +154,30 @@ $stats = [
     'active_subscriptions' => $activeSubscriptions,
     'subscription_revenue' => $subscriptionRevenue
 ];
+
+$dashboardRole = $_SESSION['role'] ?? '';
+$dashboardUserId = (int) Auth::userId();
+if (dbTableExists('appointment_requests')) {
+    $dashOnlineRequestsBaseSql = "SELECT ar.*, p.full_name AS patient_name, p.phone AS patient_phone, u.full_name AS doctor_name
+         FROM appointment_requests ar
+         INNER JOIN patients p ON p.id = ar.patient_id
+         INNER JOIN users u ON u.id = ar.doctor_id";
+    if ($dashboardRole === 'doctor') {
+        $dashOnlineRequests = $db->fetchAll(
+            $dashOnlineRequestsBaseSql . ' WHERE ar.doctor_id = ? ORDER BY ar.requested_date ASC, ar.requested_time ASC, ar.id ASC',
+            [$dashboardUserId],
+            'i'
+        );
+    } else {
+        $dashOnlineRequests = $db->fetchAll(
+            $dashOnlineRequestsBaseSql . ' ORDER BY ar.requested_date ASC, ar.requested_time ASC, ar.id ASC',
+            []
+        );
+    }
+} else {
+    $dashOnlineRequests = [];
+}
+$dashOnlineRequestCount = count($dashOnlineRequests);
 
 include 'layouts/header.php';
 ?>
@@ -554,6 +631,51 @@ include 'layouts/header.php';
 .upcoming-list::-webkit-scrollbar-thumb:hover {
     background: var(--primary-dark);
 }
+
+/* Dashboard — online booking requests (collapsed under Quick Actions) */
+.dashboard-online-requests-panel {
+    border-radius: 16px;
+    border: 1px solid rgba(102, 126, 234, 0.22);
+    background: #fff;
+    overflow: hidden;
+}
+.dashboard-online-requests-panel .panel-inner-head {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.12) 0%, rgba(118, 75, 162, 0.06) 100%);
+    border-bottom: 1px solid rgba(102, 126, 234, 0.15);
+    padding: 0.65rem 1rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #1e293b;
+}
+.dashboard-online-requests-table {
+    margin-bottom: 0;
+    font-size: 0.8125rem;
+}
+.dashboard-online-requests-table thead th {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-weight: 600;
+    background: #e7f1ff;
+    color: #084298;
+    border-bottom: 2px solid #0d6efd;
+    white-space: nowrap;
+    padding: 0.5rem 0.45rem;
+}
+.dashboard-online-requests-table tbody td {
+    padding: 0.5rem 0.45rem;
+    vertical-align: middle;
+}
+.dashboard-online-requests-table .dor-notes {
+    max-width: 12rem;
+    max-height: 3.2rem;
+    overflow-y: auto;
+    font-size: 0.78rem;
+    line-height: 1.35;
+}
+@media (max-width: 991px) {
+    .dashboard-online-requests-table .dor-notes { max-width: none; }
+}
 </style>
 
 <div class="container-fluid">
@@ -586,6 +708,84 @@ include 'layouts/header.php';
                         <a href="billing/invoices.php" class="btn btn-info quick-action-btn text-white">
                             <i class="fas fa-file-invoice-dollar me-2"></i> View Invoices
                         </a>
+                        <button type="button"
+                            class="btn btn-secondary quick-action-btn text-white"
+                            style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#dashboardOnlineRequests"
+                            aria-expanded="false"
+                            aria-controls="dashboardOnlineRequests">
+                            <i class="fas fa-globe me-2"></i> Online requests
+                            <?php if ($dashOnlineRequestCount > 0): ?>
+                                <span class="badge bg-warning text-dark ms-1"><?php echo $dashOnlineRequestCount; ?></span>
+                            <?php endif; ?>
+                        </button>
+                    </div>
+                    <div class="collapse mt-3" id="dashboardOnlineRequests">
+                        <div class="dashboard-online-requests-panel">
+                            <div class="panel-inner-head d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                <span><i class="fas fa-calendar-plus me-2 text-primary"></i>Patient portal — requested slots</span>
+                                <a href="queue/index.php" class="btn btn-sm btn-outline-primary">Open full queue</a>
+                            </div>
+                            <div class="p-2 p-md-3">
+                                <?php if (empty($dashOnlineRequests)): ?>
+                                    <p class="text-muted small mb-0">No pending online booking requests.</p>
+                                <?php else: ?>
+                                    <div class="table-responsive">
+                                        <table class="table table-hover table-sm align-middle dashboard-online-requests-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Patient</th>
+                                                    <?php if ($dashboardRole !== 'doctor'): ?>
+                                                        <th>Dentist</th>
+                                                    <?php endif; ?>
+                                                    <th>Date</th>
+                                                    <th>Time</th>
+                                                    <th>Visit type</th>
+                                                    <th>Notes</th>
+                                                    <th class="text-end">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($dashOnlineRequests as $ar): ?>
+                                                    <tr>
+                                                        <td>
+                                                            <a href="patients/view.php?id=<?php echo (int) $ar['patient_id']; ?>" class="fw-semibold"><?php echo htmlspecialchars($ar['patient_name'] ?? ''); ?></a>
+                                                            <?php if (!empty($ar['patient_phone'])): ?>
+                                                                <div class="text-muted small text-break"><?php echo htmlspecialchars((string) $ar['patient_phone']); ?></div>
+                                                            <?php endif; ?>
+                                                        </td>
+                                                        <?php if ($dashboardRole !== 'doctor'): ?>
+                                                            <td class="small"><?php echo htmlspecialchars($ar['doctor_name'] ?? ''); ?></td>
+                                                        <?php endif; ?>
+                                                        <td class="small"><?php echo htmlspecialchars(formatDate($ar['requested_date'])); ?></td>
+                                                        <td class="small"><?php echo htmlspecialchars(formatTime($ar['requested_time'])); ?></td>
+                                                        <td class="small"><?php echo htmlspecialchars((string) $ar['treatment_type']); ?></td>
+                                                        <td class="text-muted small dor-notes"><?php echo htmlspecialchars((string) ($ar['description'] ?? '')); ?></td>
+                                                        <td class="text-end">
+                                                            <div class="d-inline-flex flex-wrap gap-1 justify-content-end">
+                                                                <form method="post" action="queue/index.php" class="d-inline" onsubmit="return confirm('Confirm this appointment and notify the patient?');">
+                                                                    <input type="hidden" name="request_id" value="<?php echo (int) $ar['id']; ?>">
+                                                                    <button type="submit" name="approve_appointment_request" class="btn btn-sm btn-success">
+                                                                        <i class="fas fa-check"></i> Accept
+                                                                    </button>
+                                                                </form>
+                                                                <form method="post" action="queue/index.php" class="d-inline" onsubmit="return confirm('Decline this request and notify the patient?');">
+                                                                    <input type="hidden" name="request_id" value="<?php echo (int) $ar['id']; ?>">
+                                                                    <button type="submit" name="deny_appointment_request" class="btn btn-sm btn-outline-danger">
+                                                                        <i class="fas fa-times"></i> Decline
+                                                                    </button>
+                                                                </form>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -841,11 +1041,11 @@ include 'layouts/header.php';
         </div>
     </div>
 </div>
-<?php if ($role != 'assistant'): ?>
+
 <script>
 (function(){if(!window.chatbase||window.chatbase("getState")!=="initialized"){window.chatbase=(...arguments)=>{if(!window.chatbase.q){window.chatbase.q=[]}window.chatbase.q.push(arguments)};window.chatbase=new Proxy(window.chatbase,{get(target,prop){if(prop==="q"){return target.q}return(...args)=>target(prop,...args)}})}const onLoad=function(){const script=document.createElement("script");script.src="https://www.chatbase.co/embed.min.js";script.id="J9p5V3puetElIpM5CL1jK";script.domain="www.chatbase.co";document.body.appendChild(script)};if(document.readyState==="complete"){onLoad()}else{window.addEventListener("load",onLoad)}})();
 </script>
-<?php endif; ?>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var calendarEl = document.getElementById('calendar');
