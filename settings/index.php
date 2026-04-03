@@ -4,6 +4,40 @@ require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
 
+// Ensure subscription plan helper functions exist (in case they are not in functions.php)
+if (!function_exists('getSubscriptionPlans')) {
+    function getSubscriptionPlans() {
+        global $db;
+        return $db->fetchAll(
+            "SELECT * FROM subscription_plans WHERE is_active = 1 ORDER BY display_order, monthly_price"
+        );
+    }
+}
+if (!function_exists('getSubscriptionPlan')) {
+    function getSubscriptionPlan($planKey) {
+        global $db;
+        return $db->fetchOne("SELECT * FROM subscription_plans WHERE plan_key = ?", [$planKey]);
+    }
+}
+if (!function_exists('updateSubscriptionPlan')) {
+    function updateSubscriptionPlan($planKey, $data) {
+        global $db;
+        return $db->execute(
+            "UPDATE subscription_plans SET plan_name = ?, monthly_price = ?, annual_price = ?, features = ?, is_active = ?, display_order = ? WHERE plan_key = ?",
+            [
+                $data['plan_name'],
+                $data['monthly_price'],
+                $data['annual_price'],
+                $data['features'],
+                $data['is_active'],
+                $data['display_order'],
+                $planKey
+            ],
+            "sddssis"
+        );
+    }
+}
+
 Auth::requireLogin();
 $isAdmin = Auth::isAdmin(); // Check if user is admin (not just doctor)
 $userRole = $_SESSION['role'] ?? '';
@@ -13,7 +47,7 @@ $db = Database::getInstance();
 $activeTab = $_GET['tab'] ?? 'profile'; // default to profile
 
 // If non-admin tries to access admin tabs, redirect to profile
-if (!$isAdmin && in_array($activeTab, ['users', 'clinic'])) {
+if (!$isAdmin && in_array($activeTab, ['users', 'clinic', 'subscription_plans'])) {
     header('Location: ' . url('settings/index.php?tab=profile'));
     exit;
 }
@@ -26,21 +60,17 @@ function getClinicSetting($key, $default = '') {
 }
 
 // Helper function to update clinic setting (admin only)
-// Helper function to update clinic setting (admin only)
 function updateClinicSetting($key, $value) {
     global $db;
     try {
-        // First check if the setting exists
         $existing = $db->fetchOne("SELECT id FROM clinic_settings WHERE setting_key = ?", [$key]);
         if ($existing) {
-            // Update existing record
             $result = $db->execute("UPDATE clinic_settings SET setting_value = ? WHERE setting_key = ?", [$value, $key], "ss");
             if ($result === false) {
                 error_log("updateClinicSetting: UPDATE failed for $key");
                 return false;
             }
         } else {
-            // Insert new record
             $result = $db->execute("INSERT INTO clinic_settings (setting_key, setting_value) VALUES (?, ?)", [$key, $value], "ss");
             if ($result === false) {
                 error_log("updateClinicSetting: INSERT failed for $key");
@@ -54,6 +84,7 @@ function updateClinicSetting($key, $value) {
         return false;
     }
 }
+
 // Handle profile update (available to all users)
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_profile'])) {
     $userId = Auth::userId();
@@ -61,7 +92,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_profile'])) {
     $phone = $_POST['phone'] ?? '';
     $email = $_POST['email'] ?? '';
     
-    // Check if email exists for other users
     $existing = $db->fetchOne("SELECT id FROM users WHERE email = ? AND id != ?", [$email, $userId]);
     if ($existing) {
         $error = __('email_exists');
@@ -69,7 +99,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_profile'])) {
         $db->execute("UPDATE users SET full_name = ?, phone = ?, email = ? WHERE id = ?", 
                      [$fullName, $phone, $email, $userId], "sssi");
         $success = __('profile_updated');
-        // Update session if needed
         $_SESSION['full_name'] = $fullName;
     }
 }
@@ -81,7 +110,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['change_password'])) {
     $newPassword = $_POST['new_password'] ?? '';
     $confirmPassword = $_POST['confirm_password'] ?? '';
     
-    // Get current user
     $user = $db->fetchOne("SELECT password_hash FROM users WHERE id = ?", [$userId]);
     
     if (!password_verify($currentPassword, $user['password_hash'])) {
@@ -98,7 +126,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['change_password'])) {
 }
 
 // Handle clinic info update (admin only)
-// Handle clinic info update (admin only)
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_clinic']) && $isAdmin) {
     $clinicName = $_POST['clinic_name'] ?? '';
     $clinicPhone = $_POST['clinic_phone'] ?? '';
@@ -106,27 +133,45 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_clinic']) && $i
     $clinicAddress = $_POST['clinic_address'] ?? '';
     $openingHours = $_POST['opening_hours'] ?? '';
     
-    // Update all clinic settings
     updateClinicSetting('clinic_name', $clinicName);
     updateClinicSetting('clinic_phone', $clinicPhone);
     updateClinicSetting('clinic_email', $clinicEmail);
     updateClinicSetting('clinic_address', $clinicAddress);
     updateClinicSetting('opening_hours', $openingHours);
     
-    // Handle points and referrals toggles
     $allowPoints = isset($_POST['allow_points']) ? 1 : 0;
     $allowReferrals = isset($_POST['allow_referrals']) ? 1 : 0;
-    
+    $allowSubscription = isset($_POST['allow_subscription']) ? 1 : 0;
+
     $pointsUpdate = updateClinicSetting('allow_points_view', $allowPoints);
     $referralsUpdate = updateClinicSetting('allow_referrals_view', $allowReferrals);
-    
-    if ($pointsUpdate && $referralsUpdate) {
+    $subscriptionUpdate = updateClinicSetting('allow_subscription_view', $allowSubscription);
+
+    if ($pointsUpdate && $referralsUpdate && $subscriptionUpdate) {
         $success = __('clinic_info_updated');
-        // Refresh the values for display
         $allowPoints = $allowPoints;
         $allowReferrals = $allowReferrals;
+        $allowSubscription = $allowSubscription;
     } else {
-        $error = 'Error updating points/referrals settings. Please try again.';
+        $error = 'Error updating settings. Please try again.';
+    }
+}
+
+// Handle subscription plan updates (admin only)
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_plan']) && $isAdmin) {
+    $planKey = $_POST['plan_key'];
+    $data = [
+        'plan_name' => $_POST['plan_name'],
+        'monthly_price' => $_POST['monthly_price'],
+        'annual_price' => $_POST['annual_price'],
+        'features' => $_POST['features'],
+        'is_active' => isset($_POST['is_active']) ? 1 : 0,
+        'display_order' => $_POST['display_order']
+    ];
+    if (updateSubscriptionPlan($planKey, $data)) {
+        $planSuccess = "Plan updated successfully.";
+    } else {
+        $planError = "Error updating plan.";
     }
 }
 
@@ -151,7 +196,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $isAdmin) {
         $isAdminUser = isset($_POST['is_admin']) ? 1 : 0;
         $password = $_POST['password'] ?? generateRandomPassword();
         
-        // Check if username exists
         $existing = $db->fetchOne("SELECT id FROM users WHERE username = ? OR email = ?", [$username, $email]);
         if ($existing) {
             $error = __('username_email_exists');
@@ -175,7 +219,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $isAdmin) {
         $userId = $_POST['user_id'];
         $currentAdmin = $_POST['current_admin'];
         $newAdmin = $currentAdmin == 1 ? 0 : 1;
-        // Don't allow removing admin from yourself
         if ($userId == Auth::userId() && $newAdmin == 0) {
             $error = __('cannot_remove_own_admin');
         } else {
@@ -184,7 +227,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $isAdmin) {
         }
     } elseif (isset($_POST['delete_user'])) {
         $userId = $_POST['user_id'];
-        // Don't allow deleting own account
         if ($userId != Auth::userId()) {
             $db->execute("DELETE FROM users WHERE id = ?", [$userId], "i");
             $success = __('user_deleted');
@@ -214,7 +256,10 @@ $currentUser = $db->fetchOne("SELECT * FROM users WHERE id = ?", [Auth::userId()
 
 // Get clinic settings for display (admin only)
 $clinicName = $clinicPhone = $clinicEmail = $clinicAddress = $openingHours = '';
-$allowPoints = $allowReferrals = 1;
+$allowPoints = 1;
+$allowReferrals = 1;
+$allowSubscription = 1;
+
 if ($isAdmin) {
     $clinicName = getClinicSetting('clinic_name', 'Dental Clinic');
     $clinicPhone = getClinicSetting('clinic_phone', '(555) 123-4567');
@@ -223,6 +268,7 @@ if ($isAdmin) {
     $openingHours = getClinicSetting('opening_hours', 'Monday-Friday: 9am - 5pm\nSaturday: 9am - 1pm\nSunday: Closed');
     $allowPoints = getClinicSetting('allow_points_view', '1');
     $allowReferrals = getClinicSetting('allow_referrals_view', '1');
+    $allowSubscription = getClinicSetting('allow_subscription_view', '1');
 }
 
 include '../layouts/header.php';
@@ -254,7 +300,7 @@ include '../layouts/header.php';
         </div>
     <?php endif; ?>
 
-    <!-- Tabs - Different tabs based on role -->
+    <!-- Tabs -->
     <ul class="nav nav-tabs mb-4">
         <li class="nav-item">
             <a class="nav-link <?php echo $activeTab == 'profile' ? 'active' : ''; ?>" 
@@ -279,6 +325,12 @@ include '../layouts/header.php';
             <a class="nav-link <?php echo $activeTab == 'clinic' ? 'active' : ''; ?>" 
                href="<?php echo url('settings/index.php?tab=clinic'); ?>">
                 <i class="fas fa-hospital"></i> <?php echo __('clinic_info'); ?>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?php echo $activeTab == 'subscription_plans' ? 'active' : ''; ?>" 
+               href="<?php echo url('settings/index.php?tab=subscription_plans'); ?>">
+                <i class="fas fa-crown"></i> Subscription Plans
             </a>
         </li>
         <?php endif; ?>
@@ -551,7 +603,7 @@ include '../layouts/header.php';
                         <small class="text-muted">Enter each day on a new line (e.g., Monday-Friday: 9am - 5pm)</small>
                     </div>
 
-                    <!-- NEW: Checkboxes for points and referrals -->
+                    <!-- Checkboxes for points, subscription, and referrals -->
                     <div class="mb-3 form-check">
                         <input type="checkbox" class="form-check-input" name="allow_points" id="allow_points" value="1" <?php echo $allowPoints ? 'checked' : ''; ?>>
                         <label class="form-check-label" for="allow_points">
@@ -559,6 +611,15 @@ include '../layouts/header.php';
                         </label>
                         <small class="d-block text-muted">When disabled, points page and all points displays will be hidden from patients.</small>
                     </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" name="allow_subscription" id="allow_subscription" value="1" <?php echo $allowSubscription ? 'checked' : ''; ?>>
+                        <label class="form-check-label" for="allow_subscription">
+                            <i class="fas fa-crown"></i> Allow patients to view subscription plans
+                        </label>
+                        <small class="d-block text-muted">When disabled, subscription page and related displays will be hidden from patients.</small>
+                    </div>
+
                     <div class="mb-3 form-check">
                         <input type="checkbox" class="form-check-input" name="allow_referrals" id="allow_referrals" value="1" <?php echo $allowReferrals ? 'checked' : ''; ?>>
                         <label class="form-check-label" for="allow_referrals">
@@ -571,6 +632,62 @@ include '../layouts/header.php';
                         <i class="fas fa-save"></i> <?php echo __('save_changes'); ?>
                     </button>
                 </form>
+            </div>
+        </div>
+
+    <?php elseif ($activeTab == 'subscription_plans' && $isAdmin): ?>
+        <!-- Subscription Plans Management (Admin Only) -->
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-crown"></i> Manage Subscription Plans</h5>
+                <small>Configure prices, features, and availability of subscription plans</small>
+            </div>
+            <div class="card-body">
+                <?php if (isset($planSuccess)): ?>
+                    <div class="alert alert-success"><?php echo $planSuccess; ?></div>
+                <?php endif; ?>
+                <?php if (isset($planError)): ?>
+                    <div class="alert alert-danger"><?php echo $planError; ?></div>
+                <?php endif; ?>
+                
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead>
+                            32
+                                <th>Plan Key</th>
+                                <th>Plan Name</th>
+                                <th>Monthly Price ($)</th>
+                                <th>Annual Price ($)</th>
+                                <th>Features</th>
+                                <th>Active</th>
+                                <th>Order</th>
+                                <th>Actions</th>
+                            </thead>
+                        <tbody>
+                            <?php
+                            $plans = $db->fetchAll("SELECT * FROM subscription_plans ORDER BY display_order, monthly_price");
+                            foreach ($plans as $plan):
+                            ?>
+                            <tr>
+                                <form method="post">
+                                    <input type="hidden" name="plan_key" value="<?php echo $plan['plan_key']; ?>">
+                                    <td><strong><?php echo htmlspecialchars($plan['plan_key']); ?></strong></td>
+                                    <td><input type="text" name="plan_name" class="form-control" value="<?php echo htmlspecialchars($plan['plan_name']); ?>" required></td>
+                                    <td><input type="number" step="0.01" name="monthly_price" class="form-control" value="<?php echo $plan['monthly_price']; ?>" required></td>
+                                    <td><input type="number" step="0.01" name="annual_price" class="form-control" value="<?php echo $plan['annual_price']; ?>" required></td>
+                                    <td><textarea name="features" class="form-control" rows="3"><?php echo htmlspecialchars($plan['features']); ?></textarea><small class="text-muted">Separate features with new lines</small></td>
+                                    <td class="text-center"><input type="checkbox" name="is_active" value="1" <?php echo $plan['is_active'] ? 'checked' : ''; ?>></td>
+                                    <td><input type="number" name="display_order" class="form-control" value="<?php echo $plan['display_order']; ?>" style="width:70px"></td>
+                                    <td><button type="submit" name="update_plan" class="btn btn-primary btn-sm">Save</button></td>
+                                </form>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="alert alert-info mt-3">
+                    <i class="fas fa-info-circle"></i> Note: Changing prices does not affect existing active subscriptions. New subscriptions will use updated prices.
+                </div>
             </div>
         </div>
 

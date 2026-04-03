@@ -2,33 +2,7 @@
 require_once 'db.php';
 require_once 'auth.php';
 // Global helper functions
-/**
- * Check if patients can view points
- * 
- */
-function canViewPoints() {
-    global $db;
-    static $cached = null;
-    if ($cached === null) {
-        $value = getClinicSetting('allow_points_view', '1');
-        $cached = ($value == '1');
-    }
-    return $cached;
-}
 
-/**
- * Check if patients can view referrals
- *
- */
-function canViewReferrals() {
-    global $db;
-    static $cached = null;
-    if ($cached === null) {
-        $value = getClinicSetting('allow_referrals_view', '1');
-        $cached = ($value == '1');
-    }
-    return $cached;
-}
 // Generate absolute URL for internal paths (keeps views/pages consistent)
 function url($path = '')
 {
@@ -38,7 +12,46 @@ function url($path = '')
     }
     return $base . '/' . ltrim($path, '/');
 }
+/**
+ * Get all active subscription plans
+ * @return array
+ */
+function getSubscriptionPlans() {
+    global $db;
+    return $db->fetchAll(
+        "SELECT * FROM subscription_plans WHERE is_active = 1 ORDER BY display_order, monthly_price"
+    );
+}
 
+/**
+ * Get a single subscription plan by key
+ * @param string $planKey
+ * @return array|null
+ */
+function getSubscriptionPlan($planKey) {
+    global $db;
+    return $db->fetchOne("SELECT * FROM subscription_plans WHERE plan_key = ? AND is_active = 1", [$planKey]);
+}
+
+/**
+ * Update subscription plan (admin only)
+ */
+function updateSubscriptionPlan($planKey, $data) {
+    global $db;
+    return $db->execute(
+        "UPDATE subscription_plans SET plan_name = ?, monthly_price = ?, annual_price = ?, features = ?, is_active = ?, display_order = ? WHERE plan_key = ?",
+        [
+            $data['plan_name'],
+            $data['monthly_price'],
+            $data['annual_price'],
+            $data['features'],
+            $data['is_active'],
+            $data['display_order'],
+            $planKey
+        ],
+        "sddssis"
+    );
+}
 // Convert a datetime string into a human readable "time ago" value
 function timeAgo($datetime)
 {
@@ -289,26 +302,165 @@ function getLanguage()
 {
     return $_SESSION['lang'] ?? 'en';
 }
+
+/** True if the current database has the given table (information_schema; cached per request). */
+function dbTableExists(string $table): bool
+{
+    static $cache = [];
+    if (array_key_exists($table, $cache)) {
+        return $cache[$table];
+    }
+    $db = Database::getInstance();
+    $row = $db->fetchOne(
+        'SELECT COUNT(*) AS c FROM information_schema.TABLES
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?',
+        [$table],
+        's'
+    );
+    $cache[$table] = !empty($row['c']);
+
+    return $cache[$table];
+}
+
+/** True if the current database has the given column (cached per request). */
+function dbColumnExists(string $table, string $column): bool
+{
+    static $cache = [];
+    $key = $table . '.' . $column;
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+    $db = Database::getInstance();
+    $row = $db->fetchOne(
+        'SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+        [$table, $column],
+        'ss'
+    );
+    $cache[$key] = !empty($row['c']);
+
+    return $cache[$key];
+}
+
 function getPatientIdFromUserId($userId)
 {
     $db = Database::getInstance();
     $patient = $db->fetchOne("SELECT id FROM patients WHERE user_id = ?", [$userId], "i");
     return $patient ? $patient['id'] : null;
 }
-function addResetToken($patientId, $token, $expiresAt)
-{
-    $db = Database::getInstance();
 
-    $db->execute(
-        "INSERT INTO `password_resets`(`patient_id`, `token`, `created_at`, `expires_at`) VALUES (?,?,?,?)",
-        [
-            $patientId,
-            $token,
-            date('Y-m-d H:i:s'),
-            $expiresAt
-        ],
-        "ssss"
-    );
+/**
+ * Single clinic setting value (global helper for patient booking, etc.).
+ */
+function getClinicSettingValue(Database $db, string $key, string $default = ''): string
+{
+    $row = $db->fetchOne('SELECT setting_value FROM clinic_settings WHERE setting_key = ?', [$key]);
+    if ($row && isset($row['setting_value']) && $row['setting_value'] !== null && $row['setting_value'] !== '') {
+        return (string) $row['setting_value'];
+    }
+
+    return $default;
+}
+
+/**
+ * Config for patient weekly booking: slot length + hours per day group.
+ * Setting clinic_hours_json (text/JSON), e.g.
+ * {"weekday":{"open":"09:00","close":"17:00"},"saturday":{"open":"09:00","close":"13:00"},"sunday":null}
+ * Sunday null (or omit open) = closed. Times are H:i 24h.
+ */
+function getClinicBookingCalendarConfig(Database $db): array
+{
+    $slot = (int) getClinicSettingValue($db, 'patient_slot_minutes', '45');
+    if ($slot < 10 || $slot > 120) {
+        $slot = 30;
+    }
+
+    $defaults = [
+        'weekday' => ['open' => '09:00', 'close' => '17:00'],
+        'saturday' => ['open' => '09:00', 'close' => '13:00'],
+        'sunday' => null,
+    ];
+
+    $json = getClinicSettingValue($db, 'clinic_hours_json', '');
+    if ($json !== '') {
+        $decoded = json_decode($json, true);
+        if (is_array($decoded)) {
+            foreach (['weekday', 'saturday', 'sunday'] as $k) {
+                if (!array_key_exists($k, $decoded)) {
+                    continue;
+                }
+                if ($decoded[$k] === null || $decoded[$k] === false) {
+                    $defaults[$k] = null;
+                    continue;
+                }
+                if (is_array($decoded[$k]) && isset($decoded[$k]['open'], $decoded[$k]['close'])) {
+                    $defaults[$k] = [
+                        'open' => (string) $decoded[$k]['open'],
+                        'close' => (string) $decoded[$k]['close'],
+                    ];
+                }
+            }
+        }
+    }
+
+    return [
+        'slot_minutes' => $slot,
+        'hours' => $defaults,
+    ];
+}
+
+/**
+ * Map PHP date('N') 1=Mon..7=Sun to hours band from clinic config.
+ */
+function clinicHoursBandForWeekdayN(int $n, array $hours): ?array
+{
+    if ($n >= 1 && $n <= 5) {
+        return $hours['weekday'];
+    }
+    if ($n === 6) {
+        return $hours['saturday'];
+    }
+
+    return $hours['sunday'];
+}
+/**
+ * Create password_resets if missing (common when DB was created before this table was added).
+ */
+function ensurePasswordResetsTableExists(): void
+{
+    $conn = Database::getInstance()->getConnection();
+    $sql = 'CREATE TABLE IF NOT EXISTS password_resets (
+        id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        patient_id INT NOT NULL,
+        token VARCHAR(255) NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME NOT NULL,
+        UNIQUE KEY uk_password_resets_token (token),
+        KEY idx_password_resets_patient (patient_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+    if (!$conn->query($sql)) {
+        throw new RuntimeException('password_resets table setup failed: ' . $conn->error);
+    }
+}
+
+/**
+ * Store a reset token. Uses mysqli bind with real variables (reliable with PHP 8 + db helper spread).
+ */
+function addResetToken($patientId, $token, $expiresAt): void
+{
+    $conn = Database::getInstance()->getConnection();
+    $stmt = $conn->prepare('INSERT INTO password_resets (patient_id, token, expires_at) VALUES (?, ?, ?)');
+    if ($stmt === false) {
+        throw new RuntimeException('password_resets prepare failed: ' . $conn->error);
+    }
+    $pid = (int) $patientId;
+    $tok = (string) $token;
+    $exp = (string) $expiresAt;
+    $stmt->bind_param('iss', $pid, $tok, $exp);
+    if (!$stmt->execute()) {
+        throw new RuntimeException('password_resets insert failed: ' . $stmt->error);
+    }
+    $stmt->close();
 }
 
 function buildPasswordResetLink(string $token): string
@@ -322,12 +474,59 @@ function buildPasswordResetLink(string $token): string
         }
     }
     $baseUrl = rtrim($baseUrl, '/');
-    return $baseUrl . '/rese_pass.php?token=' . urlencode($token);
+    return $baseUrl . '/reset_pass.php?token=' . urlencode($token);
 }
 
 function getPatientWhatsappPhone(array $user): string
 {
     return (string) ($user['phone'] ?? $user['mobile'] ?? $user['whatsapp_phone'] ?? '');
+}
+
+function normalizeWhatsappPhoneDigits(string $phone): string
+{
+    return preg_replace('/\D+/', '', $phone) ?? '';
+}
+
+function getPatientWhatsappDigitsByPatientId(Database $db, int $patientId): string
+{
+    $row = $db->fetchOne('SELECT phone FROM patients WHERE id = ?', [$patientId], 'i');
+    if (!$row || $row['phone'] === null || $row['phone'] === '') {
+        return '';
+    }
+
+    return normalizeWhatsappPhoneDigits((string) $row['phone']);
+}
+
+function buildAppointmentRequestAcceptedWhatsappMessage(
+    string $patientFirstName,
+    string $doctorName,
+    string $dateDisplay,
+    string $timeDisplay,
+    int $durationMin,
+    string $treatment
+): string {
+    $msg = 'Hello ' . $patientFirstName . ",\n\n";
+    $msg .= 'Great news — Dr. ' . $doctorName . " has *accepted* your appointment request.\n\n";
+    $msg .= "*Details*\n";
+    $msg .= 'Date: ' . $dateDisplay . "\n";
+    $msg .= 'Time: ' . $timeDisplay . "\n";
+    $msg .= 'Length: ' . $durationMin . " minutes\n";
+    $msg .= 'Visit type: ' . $treatment . "\n\n";
+    $msg .= 'We look forward to seeing you. If you need to change this visit, please contact the clinic.';
+    return $msg;
+}
+
+function buildAppointmentRequestDeclinedWhatsappMessage(
+    string $patientFirstName,
+    string $doctorName,
+    string $dateDisplay,
+    string $timeDisplay
+): string {
+    $msg = 'Hello ' . $patientFirstName . ",\n\n";
+    $msg .= 'Thank you for your booking request with Dr. ' . $doctorName . ".\n\n";
+    $msg .= "Unfortunately we are unable to confirm an appointment for *" . $dateDisplay . '* at *' . $timeDisplay . "* at this time.\n\n";
+    $msg .= 'Please try another time in the patient portal or call the clinic — we would be happy to help you find a suitable visit.';
+    return $msg;
 }
 
 function buildPasswordResetWhatsappMessage(string $resetLink): string
@@ -367,8 +566,9 @@ function sendWhatsapp(string $phone, string $message): array
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
         CURLOPT_POSTFIELDS => $payload,
-        CURLOPT_TIMEOUT => 15,
-        CURLOPT_CONNECTTIMEOUT => 3,
+        CURLOPT_TIMEOUT => 45,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
     ]);
 
     $raw = curl_exec($ch);
@@ -377,9 +577,11 @@ function sendWhatsapp(string $phone, string $message): array
     curl_close($ch);
 
     if ($raw === false || $raw === null || $raw === '') {
+        $hint = $curlError !== '' ? (' ' . $curlError) : '';
         return [
             'ok' => false,
-            'error' => 'WhatsApp Node server is not reachable. Run: npm start (from the Dental project folder).',
+            'error' => 'WhatsApp Node server is not reachable (http://127.0.0.1:3210/send).' . $hint
+                . ' Run: npm start (from the Dental project folder).',
         ];
     }
 
