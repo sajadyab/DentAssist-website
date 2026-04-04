@@ -124,6 +124,12 @@ $showSubscriptionMenu = getClinicSetting('allow_subscription_view', '1');
                 </a>
             </li>
             <?php endif; ?>
+            <li class="<?php echo $currentPage == 'manage_points.php ' ? 'active' : ''; ?>">
+                <a href="<?php echo url('manage_points.php'); ?>">
+                    <i class="fas fa-tooth"></i>
+                    <span><?php echo __('manage_points', 'Manage Points'); ?></span>
+                </a>
+            </li>
             <li>
                 <a href="<?php echo url('settings/index.php'); ?>">
                     <i class="fas fa-cog"></i> <span><?php echo __('settings', 'Settings'); ?></span>
