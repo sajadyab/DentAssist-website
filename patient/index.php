@@ -397,10 +397,11 @@ include '../layouts/header.php';
                         <div class="quick-action-icon">
                             <i class="fas fa-calendar-plus fa-2x text-primary"></i>
                         </div>
-                        <h6 class="mb-0">Book Appointment</h6>
-                        <small class="text-muted">Schedule a visit</small>
+                        <h6 class="mb-0">Book Appointment & Join Queue</h6>
+                        <small class="text-muted">Schedule a visit & join the waitlist</small>
                     </a>
                 </div>
+                 
                 <div class="col-6 mb-3">
                     <a href="bills.php" class="quick-action-btn">
                         <div class="quick-action-icon">
@@ -410,15 +411,7 @@ include '../layouts/header.php';
                         <small class="text-muted">Check payments</small>
                     </a>
                 </div>
-                <div class="col-6 mb-3">
-                    <a href="queue.php" class="quick-action-btn">
-                        <div class="quick-action-icon">
-                            <i class="fas fa-hourglass-half fa-2x text-warning"></i>
-                        </div>
-                        <h6 class="mb-0">Join Queue</h6>
-                        <small class="text-muted">Walk-in waitlist</small>
-                    </a>
-                </div>
+             
                 <div class="col-6 mb-3">
                     <a href="teeth.php" class="quick-action-btn">
                         <div class="quick-action-icon">

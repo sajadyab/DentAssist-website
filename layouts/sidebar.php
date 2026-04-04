@@ -143,16 +143,11 @@ $showSubscriptionMenu = getClinicSetting('allow_subscription_view', '1');
                     <span><?php echo __('profile', 'Profile'); ?></span>
                 </a>
             </li>
-            <li>
-                <a href="<?php echo url('patient/queue.php'); ?>">
-                    <i class="fas fa-calendar-plus"></i>
-                    <span><?php echo __('book_appointment', 'Book Appointment'); ?></span>
-                </a>
-            </li>
+        
             <li>
                 <a href="<?php echo url('patient/queue.php'); ?>">
                     <i class="fas fa-clock"></i>
-                    <span><?php echo __('join_queue', 'Join Queue'); ?></span>
+                    <span><?php echo __('join_queue & book_appointment', 'Join Queue & Book Appointment'); ?></span>
                 </a>
             </li>
             <li>

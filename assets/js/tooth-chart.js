@@ -1,4 +1,4 @@
-// Tooth Chart Module with SVG
+// Tooth Chart Module with SVG (fixed status colors)
 (function() {
     'use strict';
 
@@ -37,7 +37,6 @@
         const container = document.getElementById('tooth-chart-container');
         if (!container) return;
 
-        // Load the SVG template
         fetch('../assets/images/tooth-chart.svg')
             .then(response => response.text())
             .then(svgText => {
@@ -45,34 +44,46 @@
                 applyToothData();
                 attachEventListeners();
                 addLegend();
-            });
+            })
+            .catch(console.error);
     }
 
     function applyToothData() {
         for (let i = 1; i <= 32; i++) {
-            const tooth = document.getElementById(`tooth-${i}`);
-            if (!tooth) continue;
+            const toothGroup = document.getElementById(`tooth-${i}`);
+            if (!toothGroup) continue;
+
+            // Find the <use> element inside the group
+            const useElement = toothGroup.querySelector('use');
+            if (!useElement) continue;
 
             const data = toothData[i] || {};
             const status = data.status || 'healthy';
-            
-            // Apply status class
-            tooth.classList.add(status);
-            
-            // Add notes indicator
-            if (data.notes) {
-                tooth.classList.add('has-notes');
+
+            // Remove any existing status classes
+            const statusClasses = ['healthy', 'cavity', 'filled', 'crown', 'root-canal', 'missing', 'implant', 'bridge'];
+            useElement.classList.remove(...statusClasses);
+
+            // Add the current status class
+            useElement.classList.add(status);
+
+            // Handle notes indicator
+            if (data.notes && data.notes.trim() !== '') {
+                useElement.classList.add('has-notes');
+            } else {
+                useElement.classList.remove('has-notes');
             }
         }
     }
 
     function attachEventListeners() {
         for (let i = 1; i <= 32; i++) {
-            const tooth = document.getElementById(`tooth-${i}`);
-            if (tooth) {
-                tooth.addEventListener('click', (e) => {
+            const toothGroup = document.getElementById(`tooth-${i}`);
+            if (toothGroup) {
+                toothGroup.addEventListener('click', (e) => {
                     e.preventDefault();
-                    openToothModal(parseInt(e.currentTarget.dataset.tooth || i));
+                    const toothNum = parseInt(toothGroup.getAttribute('id').split('-')[1]);
+                    openToothModal(toothNum);
                 });
             }
         }
@@ -80,8 +91,20 @@
 
     function addLegend() {
         const container = document.getElementById('tooth-chart-container');
+        // Remove existing legend if any
+        const oldLegend = container.querySelector('.tooth-legend');
+        if (oldLegend) oldLegend.remove();
+
         const legend = document.createElement('div');
         legend.className = 'tooth-legend';
+        legend.style.display = 'flex';
+        legend.style.flexWrap = 'wrap';
+        legend.style.gap = '12px';
+        legend.style.marginTop = '20px';
+        legend.style.padding = '10px';
+        legend.style.backgroundColor = '#fff';
+        legend.style.borderRadius = '8px';
+        legend.style.border = '1px solid #dee2e6';
         
         const statuses = [
             { status: 'healthy', label: 'Healthy', color: '#28a745' },
@@ -97,9 +120,12 @@
         statuses.forEach(s => {
             const item = document.createElement('div');
             item.className = 'legend-item';
+            item.style.display = 'flex';
+            item.style.alignItems = 'center';
+            item.style.gap = '6px';
             item.innerHTML = `
-                <div class="legend-color" style="background-color: ${s.color}"></div>
-                <span>${s.label}</span>
+                <div style="width: 20px; height: 20px; background-color: ${s.color}; border-radius: 4px;"></div>
+                <span style="font-size: 14px;">${s.label}</span>
             `;
             legend.appendChild(item);
         });
@@ -115,7 +141,9 @@
         document.getElementById('tooth-diagnosis').value = data.diagnosis || '';
         document.getElementById('tooth-treatment').value = data.treatment || '';
         document.getElementById('tooth-notes').value = data.notes || '';
-        new bootstrap.Modal(document.getElementById('toothModal')).show();
+        const modalEl = document.getElementById('toothModal');
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
     }
 
     window.toothChart = {

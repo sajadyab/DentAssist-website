@@ -1,0 +1,120 @@
+/* Patient portal theme overrides (loaded only in /patient/) */
+
+:root {
+  --patient-surface: #ffffff;
+  --patient-bg: #f5f7fb;
+  --patient-text: #0f172a;
+  --patient-muted: #64748b;
+  --patient-border: rgba(15, 23, 42, 0.08);
+  --patient-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+  --patient-shadow-soft: 0 10px 22px rgba(15, 23, 42, 0.06);
+  --patient-radius: 14px;
+}
+
+body.section-patient {
+  background:
+    radial-gradient(1000px 420px at 18% -10%, rgba(52, 152, 219, 0.18), transparent 60%),
+    radial-gradient(920px 460px at 92% 0%, rgba(118, 75, 162, 0.12), transparent 58%),
+    var(--patient-bg);
+}
+
+/* Make the content area feel less "admin" and more like a portal */
+body.section-patient .main-content {
+  padding-top: 18px;
+}
+
+body.section-patient .container-fluid {
+  max-width: 1200px;
+}
+
+body.section-patient h1,
+body.section-patient h2,
+body.section-patient h3 {
+  letter-spacing: -0.02em;
+}
+
+body.section-patient .text-muted {
+  color: var(--patient-muted) !important;
+}
+
+/* Cards */
+body.section-patient .card {
+  border: 1px solid var(--patient-border);
+  border-radius: var(--patient-radius);
+  box-shadow: var(--patient-shadow-soft);
+}
+
+body.section-patient .card-header {
+  border-bottom: 1px solid var(--patient-border);
+}
+
+body.section-patient .card.hover-lift,
+body.section-patient .dashboard-card {
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+body.section-patient .card.hover-lift:hover,
+body.section-patient .dashboard-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--patient-shadow);
+  border-color: rgba(52, 152, 219, 0.22);
+}
+
+/* Tables */
+body.section-patient .table thead th {
+  color: var(--patient-muted);
+  font-size: 0.86rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+body.section-patient .table tbody td {
+  vertical-align: middle;
+}
+
+body.section-patient .table-hover tbody tr:hover {
+  background-color: rgba(52, 152, 219, 0.035);
+}
+
+/* Forms */
+body.section-patient .form-control,
+body.section-patient .form-select {
+  border-color: rgba(15, 23, 42, 0.12);
+}
+
+body.section-patient .form-control::placeholder {
+  color: rgba(100, 116, 139, 0.85);
+}
+
+/* Buttons */
+body.section-patient .btn {
+  border-radius: 10px;
+}
+
+body.section-patient .btn-primary {
+  background: linear-gradient(135deg, #3498db 0%, #4f46e5 100%);
+  border: none;
+}
+
+body.section-patient .btn-primary:hover {
+  filter: brightness(0.98);
+}
+
+/* Sidebar subtle polish (doesn't change layout) */
+body.section-patient .sidebar {
+  background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+}
+
+body.section-patient .nav-menu li.active a {
+  background: rgba(255, 255, 255, 0.10);
+  border-left: 3px solid rgba(52, 152, 219, 0.9);
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  body.section-patient .container-fluid {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
