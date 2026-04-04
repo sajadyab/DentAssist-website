@@ -4,34 +4,8 @@ require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
 
-// Helper: call Supabase API (if not already defined)
-if (!function_exists('callSupabaseAPI')) {
-    function callSupabaseAPI($endpoint, $data, $method = 'POST') {
-        $ch = curl_init(SUPABASE_URL . $endpoint);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'apikey: ' . SUPABASE_KEY,
-            'Authorization: Bearer ' . SUPABASE_KEY,
-            'Content-Type: application/json',
-            'Prefer: return=representation'
-        ]);
-        if ($method == 'POST') {
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        } elseif ($method == 'PATCH') {
-            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        }
-        $response = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($http_code == 201 || $http_code == 200) {
-            $result = json_decode($response, true);
-            return $result[0]['id'] ?? null;
-        }
-        return null;
-    }
-}
+
+
 
 Auth::requireLogin();
 if ($_SESSION['role'] !== 'patient') {
@@ -173,52 +147,52 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $_SESSION['full_name'] = $user['full_name'];
             $_SESSION['username'] = $user['username'];
 
-            // ---------- SYNC TO CLOUD ----------
-            // Patient data
-            $cloudPatientId = $patient['cloud_id'] ?? null;
-            $cloudPatientData = [
-                'full_name'                 => $_POST['full_name'],
-                'date_of_birth'             => $_POST['date_of_birth'] ?? null,
-                'gender'                    => $_POST['gender'] ?? null,
-                'phone'                     => $_POST['phone'],
-                'email'                     => $_POST['email'],
-                'emergency_contact_name'    => $_POST['emergency_contact_name'] ?? null,
-                'emergency_contact_phone'   => $_POST['emergency_contact_phone'] ?? null,
-                'emergency_contact_relation'=> $_POST['emergency_contact_relation'] ?? null,
-                'address'                   => $_POST['address'] ?? null,
-                'country'                   => $_POST['country'] ?? 'LB',
-                'source'                    => 'cloud'
-            ];
+            // // ---------- SYNC TO CLOUD ----------
+            // // Patient data
+            // $cloudPatientId = $patient['cloud_id'] ?? null;
+            // $cloudPatientData = [
+            //     'full_name'                 => $_POST['full_name'],
+            //     'date_of_birth'             => $_POST['date_of_birth'] ?? null,
+            //     'gender'                    => $_POST['gender'] ?? null,
+            //     'phone'                     => $_POST['phone'],
+            //     'email'                     => $_POST['email'],
+            //     'emergency_contact_name'    => $_POST['emergency_contact_name'] ?? null,
+            //     'emergency_contact_phone'   => $_POST['emergency_contact_phone'] ?? null,
+            //     'emergency_contact_relation'=> $_POST['emergency_contact_relation'] ?? null,
+            //     'address'                   => $_POST['address'] ?? null,
+            //     'country'                   => $_POST['country'] ?? 'LB',
+            //     'source'                    => 'cloud'
+            // ];
 
-            if ($cloudPatientId) {
-                // Update existing cloud record
-                callSupabaseAPI("/rest/v1/patients?id=eq.$cloudPatientId", $cloudPatientData, 'PATCH');
-            } else {
-                // Insert new cloud record and store its ID locally
-                $newCloudId = callSupabaseAPI('/rest/v1/patients', $cloudPatientData, 'POST');
-                if ($newCloudId) {
-                    $db->execute("UPDATE patients SET cloud_id = ? WHERE id = ?", [$newCloudId, $patientId], "ii");
-                }
-            }
+            // if ($cloudPatientId) {
+            //     // Update existing cloud record
+            //     callSupabaseAPI("/rest/v1/patients?id=eq.$cloudPatientId", $cloudPatientData, 'PATCH');
+            // } else {
+            //     // Insert new cloud record and store its ID locally
+            //     $newCloudId = callSupabaseAPI('/rest/v1/patients', $cloudPatientData, 'POST');
+            //     if ($newCloudId) {
+            //         $db->execute("UPDATE patients SET cloud_id = ? WHERE id = ?", [$newCloudId, $patientId], "ii");
+            //     }
+            // }
 
             // User data (username, email, full_name, phone)
-            $cloudUserId = $user['cloud_id'] ?? null;
-            $cloudUserData = [
-                'username'  => $newUsername,
-                'email'     => $newUsersEmail,
-                'full_name' => $_POST['full_name'],
-                'phone'     => $_POST['phone'],
-                'source'    => 'cloud'
-            ];
+            // $cloudUserId = $user['cloud_id'] ?? null;
+            // $cloudUserData = [
+            //     'username'  => $newUsername,
+            //     'email'     => $newUsersEmail,
+            //     'full_name' => $_POST['full_name'],
+            //     'phone'     => $_POST['phone'],
+            //     'source'    => 'cloud'
+            // ];
 
-            if ($cloudUserId) {
-                callSupabaseAPI("/rest/v1/users?id=eq.$cloudUserId", $cloudUserData, 'PATCH');
-            } else {
-                $newCloudUserId = callSupabaseAPI('/rest/v1/users', $cloudUserData, 'POST');
-                if ($newCloudUserId) {
-                    $db->execute("UPDATE users SET cloud_id = ? WHERE id = ?", [$newCloudUserId, $userId], "ii");
-                }
-            }
+            // if ($cloudUserId) {
+            //     callSupabaseAPI("/rest/v1/users?id=eq.$cloudUserId", $cloudUserData, 'PATCH');
+            // } else {
+            //     $newCloudUserId = callSupabaseAPI('/rest/v1/users', $cloudUserData, 'POST');
+            //     if ($newCloudUserId) {
+            //         $db->execute("UPDATE users SET cloud_id = ? WHERE id = ?", [$newCloudUserId, $userId], "ii");
+            //     }
+            // }
             // ---------- END SYNC ----------
 
         } catch (Exception $e) {

@@ -16,8 +16,16 @@
     
     <!-- Custom CSS -->
     <link href="<?php echo SITE_URL; ?>/assets/css/style.css" rel="stylesheet">
+
+    <?php
+    $reqUri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+    $isPatientSection = (strpos($reqUri, '/patient/') !== false);
+    ?>
+    <?php if ($isPatientSection): ?>
+        <link href="<?php echo SITE_URL; ?>/assets/css/patient.css" rel="stylesheet">
+    <?php endif; ?>
 </head>
-<body>
+<body class="<?php echo $isPatientSection ? 'section-patient' : ''; ?>">
     
     <?php if (Auth::isLoggedIn()): ?>
         <?php include 'sidebar.php'; ?>

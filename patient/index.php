@@ -393,7 +393,7 @@ include '../layouts/header.php';
         <div class="col-md-6 mb-3">
             <div class="row h-100">
                 <div class="col-6 mb-3">
-                    <a href="book.php" class="quick-action-btn">
+                    <a href="queue.php" class="quick-action-btn">
                         <div class="quick-action-icon">
                             <i class="fas fa-calendar-plus fa-2x text-primary"></i>
                         </div>
