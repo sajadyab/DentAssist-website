@@ -169,14 +169,14 @@ include 'layouts/header.php';
                 <div class="card-body">
                     <h6 class="mb-3 fw-semibold">Quick Actions</h6>
                     <div class="d-flex flex-wrap gap-2">
-                        <a href="assistant_subscriptions.php" class="btn btn-warning quick-action-btn text-white">
+                        <a href="assistant_subscriptions.php" class="btn btn-warning quick-action-btn text-white" style="background-color: rgb(237, 219, 16); border-color: rgb(250, 236, 82);">
                             <i class="fas fa-crown me-2"></i>
                             Pending Subscriptions
                             <?php if ($pendingSubscriptions > 0): ?>
                                 <span class="badge bg-danger ms-1"><?php echo $pendingSubscriptions; ?></span>
                             <?php endif; ?>
                         </a>
-                        <a href="patients/add.php" class="btn btn-primary quick-action-btn">
+                        <a href="patients/add.php" class="btn btn-primary quick-action-btn" style="background-color: rgb(23, 69, 185); border-color: rgb(34, 197, 94);">
                             <i class="fas fa-user-plus me-2"></i> Add Patient
                         </a>
                         <a href="appointments/add.php" class="btn btn-success quick-action-btn">
@@ -268,7 +268,7 @@ include 'layouts/header.php';
     
     <!-- Summary badges (non-clickable, single row) -->
     <div class="dashboard-summary-row mb-4" role="presentation">
-        <div class="dashboard-summary-item bg-primary text-white">
+        <div class="dashboard-summary-item text-white dashboard-summary-item--gradient-success">
             <div class="inner">
                 <h6 class="text-white">Today's Appointments</h6>
                 <div class="summary-value-row">
@@ -278,8 +278,8 @@ include 'layouts/header.php';
             </div>
         </div>
         <div class="dashboard-summary-item text-white dashboard-summary-item--gradient-info">
-            <div class="inner">
-                <h6 class="text-white">Upcoming Appointments</h6>
+            <div class="inner" style="background-color: rgb(55, 145, 248); ">
+                <h6 class="text-white" style="bac">Upcoming Appointments</h6>
                 <div class="summary-value-row">
                     <i class="fas fa-calendar-alt summary-icon text-white" aria-hidden="true"></i>
                     <p class="stat-value text-white mb-0"><?php echo (int) $stats['upcoming_appointments']; ?></p>
@@ -287,7 +287,7 @@ include 'layouts/header.php';
             </div>
         </div>
         <div class="dashboard-summary-item text-white dashboard-summary-item--gradient-warning">
-            <div class="inner">
+            <div class="inner" style="background-color: rgb(248, 161, 55);  ">
                 <h6 class="text-white">Completed Today</h6>
                 <div class="summary-value-row">
                     <i class="fas fa-check-circle summary-icon text-white" aria-hidden="true"></i>
