@@ -61,6 +61,26 @@
         "application/x-www-form-urlencoded;charset=UTF-8";
     }
 
+    // FormData does not include the submit button; PHP often uses name="action"
+    // on the clicked button (e.g. update_profile, add_user). Without this, the
+    // API receives no action and returns "Invalid action."
+    const submitter = e.submitter;
+    if (
+      submitter &&
+      (submitter.type === "submit" || submitter.type === "image") &&
+      submitter.name
+    ) {
+      const key = submitter.name;
+      const val = submitter.value != null ? String(submitter.value) : "";
+      if (body instanceof FormData) {
+        body.delete(key);
+        body.append(key, val);
+      } else {
+        body.delete(key);
+        body.append(key, val);
+      }
+    }
+
     try {
       const res = await fetch(apiUrl, {
         method: (form.getAttribute("method") || "POST").toUpperCase(),

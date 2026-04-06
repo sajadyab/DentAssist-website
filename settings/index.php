@@ -135,6 +135,7 @@ include '../layouts/header.php';
             <div class="card-body">
                 <form method="post" action="<?php echo url('api/settings.php'); ?>" data-api="<?php echo url('api/settings.php'); ?>" data-message-target="#message">
                     <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                    <input type="hidden" name="settings_action" value="update_profile">
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label"><?php echo __('full_name'); ?> *</label>
@@ -182,6 +183,7 @@ include '../layouts/header.php';
             <div class="card-body">
                 <form method="post" action="<?php echo url('api/settings.php'); ?>" data-api="<?php echo url('api/settings.php'); ?>" data-message-target="#message">
                     <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                    <input type="hidden" name="settings_action" value="change_password">
                     <div class="mb-3">
                         <label class="form-label"><?php echo __('current_password'); ?> *</label>
                         <input type="password" class="form-control" name="current_password" required>
@@ -216,6 +218,7 @@ include '../layouts/header.php';
             <div class="card-body">
                 <form method="post" action="<?php echo url('api/settings.php'); ?>" data-api="<?php echo url('api/settings.php'); ?>" data-message-target="#message">
                     <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                    <input type="hidden" name="settings_action" value="add_user">
                     <div class="row">
                         <div class="col-md-4 mb-3">
                             <label class="form-label"><?php echo __('username'); ?> *</label>
@@ -319,6 +322,7 @@ include '../layouts/header.php';
                                     <div class="btn-group btn-group-sm">
                                         <form method="post" action="<?php echo url('api/settings.php'); ?>" data-api="<?php echo url('api/settings.php'); ?>" data-message-target="#message" style="display: inline-block;">
                                             <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                                            <input type="hidden" name="settings_action" value="toggle_user_status">
                                             <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
                                             <input type="hidden" name="current_status" value="<?php echo $user['is_active']; ?>">
                                             <button type="submit" name="toggle_user_status" class="btn btn-sm btn-warning" title="Toggle Status">
@@ -327,6 +331,7 @@ include '../layouts/header.php';
                                         </form>
                                         <form method="post" action="<?php echo url('api/settings.php'); ?>" data-api="<?php echo url('api/settings.php'); ?>" data-message-target="#message" style="display: inline-block;">
                                             <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                                            <input type="hidden" name="settings_action" value="toggle_admin_status">
                                             <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
                                             <input type="hidden" name="current_admin" value="<?php echo $user['is_admin']; ?>">
                                             <button type="submit" name="toggle_admin_status" class="btn btn-sm btn-info" title="Toggle Admin Privileges">
@@ -336,6 +341,7 @@ include '../layouts/header.php';
                                         <form method="post" action="<?php echo url('api/settings.php'); ?>" data-api="<?php echo url('api/settings.php'); ?>" data-message-target="#message" style="display: inline-block;" 
                                               onsubmit="return confirm('Reset password for <?php echo htmlspecialchars($user['full_name']); ?>?');">
                                             <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                                            <input type="hidden" name="settings_action" value="reset_user_password">
                                             <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
                                             <button type="submit" name="reset_user_password" class="btn btn-sm btn-secondary" title="Reset Password">
                                                 <i class="fas fa-key"></i>
@@ -345,6 +351,7 @@ include '../layouts/header.php';
                                         <form method="post" action="<?php echo url('api/settings.php'); ?>" data-api="<?php echo url('api/settings.php'); ?>" data-message-target="#message" style="display: inline-block;" 
                                               onsubmit="return confirm('Delete user <?php echo htmlspecialchars($user['full_name']); ?>?');">
                                             <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                                            <input type="hidden" name="settings_action" value="delete_user">
                                             <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
                                             <button type="submit" name="delete_user" class="btn btn-sm btn-danger" title="Delete">
                                                 <i class="fas fa-trash"></i>
@@ -370,6 +377,7 @@ include '../layouts/header.php';
             <div class="card-body">
                 <form method="post" action="<?php echo url('api/settings.php'); ?>" data-api="<?php echo url('api/settings.php'); ?>" data-message-target="#message">
                     <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                    <input type="hidden" name="settings_action" value="update_clinic">
                     <div class="mb-3">
                         <label class="form-label"><?php echo __('clinic_name'); ?></label>
                         <input type="text" class="form-control" name="clinic_name" 
@@ -442,6 +450,23 @@ include '../layouts/header.php';
                     <div class="alert alert-danger"><?php echo $planError; ?></div>
                 <?php endif; ?>
                 
+                <?php
+                $subscriptionPlans = $db->fetchAll('SELECT * FROM subscription_plans ORDER BY display_order, monthly_price');
+                ?>
+                <div class="d-none" aria-hidden="true">
+                    <?php foreach ($subscriptionPlans as $_plan): ?>
+                        <?php $pfid = 'subscriptionPlanForm_' . (int) ($_plan['id'] ?? 0); ?>
+                        <form id="<?php echo htmlspecialchars($pfid); ?>"
+                              method="post"
+                              action="<?php echo url('api/settings.php'); ?>"
+                              data-api="<?php echo url('api/settings.php'); ?>"
+                              data-message-target="#message">
+                            <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                            <input type="hidden" name="settings_action" value="update_plan">
+                            <input type="hidden" name="plan_key" value="<?php echo htmlspecialchars((string) ($_plan['plan_key'] ?? '')); ?>">
+                        </form>
+                    <?php endforeach; ?>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-bordered">
                         <thead>
@@ -457,23 +482,17 @@ include '../layouts/header.php';
                             </tr>
                         </thead>
                         <tbody>
-                            <?php
-                            $plans = $db->fetchAll("SELECT * FROM subscription_plans ORDER BY display_order, monthly_price");
-                            foreach ($plans as $plan):
-                            ?>
+                            <?php foreach ($subscriptionPlans as $plan): ?>
+                                <?php $pfid = 'subscriptionPlanForm_' . (int) ($plan['id'] ?? 0); ?>
                             <tr>
-                                <form method="post" action="<?php echo url('api/settings.php'); ?>" data-api="<?php echo url('api/settings.php'); ?>" data-message-target="#message">
-                                    <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
-                                    <input type="hidden" name="plan_key" value="<?php echo $plan['plan_key']; ?>">
-                                    <td><strong><?php echo htmlspecialchars($plan['plan_key']); ?></strong></td>
-                                    <td><input type="text" name="plan_name" class="form-control" value="<?php echo htmlspecialchars($plan['plan_name']); ?>" required></td>
-                                    <td><input type="number" step="0.01" name="monthly_price" class="form-control" value="<?php echo $plan['monthly_price']; ?>" required></td>
-                                    <td><input type="number" step="0.01" name="annual_price" class="form-control" value="<?php echo $plan['annual_price']; ?>" required></td>
-                                    <td><textarea name="features" class="form-control" rows="3"><?php echo htmlspecialchars($plan['features']); ?></textarea><small class="text-muted">Separate features with new lines</small></td>
-                                    <td class="text-center"><input type="checkbox" name="is_active" value="1" <?php echo $plan['is_active'] ? 'checked' : ''; ?>></td>
-                                    <td><input type="number" name="display_order" class="form-control" value="<?php echo $plan['display_order']; ?>" style="width:70px"></td>
-                                    <td><button type="submit" name="update_plan" class="btn btn-primary btn-sm">Save</button></td>
-                                </form>
+                                    <td><strong><?php echo htmlspecialchars((string) ($plan['plan_key'] ?? '')); ?></strong></td>
+                                    <td><input type="text" name="plan_name" class="form-control" form="<?php echo htmlspecialchars($pfid); ?>" value="<?php echo htmlspecialchars((string) ($plan['plan_name'] ?? '')); ?>" required></td>
+                                    <td><input type="number" step="0.01" name="monthly_price" class="form-control" form="<?php echo htmlspecialchars($pfid); ?>" value="<?php echo htmlspecialchars((string) ($plan['monthly_price'] ?? '')); ?>" required></td>
+                                    <td><input type="number" step="0.01" name="annual_price" class="form-control" form="<?php echo htmlspecialchars($pfid); ?>" value="<?php echo htmlspecialchars((string) ($plan['annual_price'] ?? '')); ?>" required></td>
+                                    <td><textarea name="features" class="form-control" rows="3" form="<?php echo htmlspecialchars($pfid); ?>"><?php echo htmlspecialchars((string) ($plan['features'] ?? '')); ?></textarea><small class="text-muted">Separate features with new lines</small></td>
+                                    <td class="text-center"><input type="checkbox" name="is_active" value="1" form="<?php echo htmlspecialchars($pfid); ?>" <?php echo !empty($plan['is_active']) ? 'checked' : ''; ?>></td>
+                                    <td><input type="number" name="display_order" class="form-control" form="<?php echo htmlspecialchars($pfid); ?>" value="<?php echo (int) ($plan['display_order'] ?? 0); ?>" style="width:70px"></td>
+                                    <td><button type="submit" name="update_plan" class="btn btn-primary btn-sm" form="<?php echo htmlspecialchars($pfid); ?>">Save</button></td>
                             </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -494,6 +513,7 @@ include '../layouts/header.php';
             <div class="card-body">
                 <form method="post" action="<?php echo url('api/settings.php'); ?>" data-api="<?php echo url('api/settings.php'); ?>" data-message-target="#message">
                     <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                    <input type="hidden" name="settings_action" value="change_language">
                     <div class="mb-3">
                         <label class="form-label"><?php echo __('select_language'); ?></label>
                         <select name="language" class="form-select">

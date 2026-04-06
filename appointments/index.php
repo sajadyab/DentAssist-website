@@ -138,12 +138,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_walkin_arriv
         $_SESSION['appointments_flash_error'] = 'You can only complete your own walk-in entries.';
         $appointmentsRedirect('#clinic-arrivals');
     }
-    if (empty($row['patient_id'])) {
+    $pid = (int) ($row['patient_id'] ?? 0);
+    if ($pid <= 0) {
         $_SESSION['appointments_flash_error'] = 'Link this walk-in to a patient before marking completed.';
-    } else {
+        $appointmentsRedirect('#clinic-arrivals');
+    }
+    $docId = (int) ($row['doctor_id'] ?? 0);
+    if ($docId <= 0) {
+        $_SESSION['appointments_flash_error'] = 'This walk-in has no dentist assigned.';
+        $appointmentsRedirect('#clinic-arrivals');
+    }
+
+    $reason = trim((string) ($row['reason'] ?? ''));
+    $treatmentType = $reason !== '' ? substr($reason, 0, 100) : 'Walk-in visit';
+
+    $arrivedRaw = (string) ($row['arrived_at'] ?? '');
+    $apptDate = date('Y-m-d');
+    $apptTime = date('H:i:s');
+    if ($arrivedRaw !== '') {
+        $ts = strtotime($arrivedRaw);
+        if ($ts !== false) {
+            $apptDate = date('Y-m-d', $ts);
+            $apptTime = date('H:i:s', $ts);
+        }
+    }
+
+    $db->beginTransaction();
+    try {
+        $newApptId = (int) $db->insert(
+            "INSERT INTO appointments (
+                patient_id, doctor_id, appointment_date, appointment_time,
+                duration, treatment_type, description, status, created_by
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ?)",
+            [
+                $pid,
+                $docId,
+                $apptDate,
+                $apptTime,
+                30,
+                $treatmentType,
+                'Recorded from walk-in clinic arrival.',
+                $currentUserId,
+            ],
+            'iississi'
+        );
+        if ($newApptId <= 0) {
+            throw new RuntimeException('Could not record completed visit.');
+        }
         $db->execute('DELETE FROM clinic_arrivals WHERE id = ?', [$aid], 'i');
-        logAction('DELETE', 'clinic_arrivals', $aid, $row, ['via' => 'walk_in_completed']);
-        $_SESSION['appointments_flash_ok'] = 'Walk-in visit marked completed.';
+        logAction('CREATE', 'appointments', $newApptId, null, ['via' => 'walk_in_completed', 'clinic_arrival_id' => $aid, 'status' => 'completed']);
+        logAction('DELETE', 'clinic_arrivals', $aid, $row, null);
+        $db->commit();
+    } catch (Throwable $e) {
+        $db->rollback();
+        $_SESSION['appointments_flash_error'] = $e->getMessage();
+        $appointmentsRedirect('#clinic-arrivals');
+    }
+    $wa = notifyPatientPostTreatmentInstructionsOnCompleted($newApptId);
+    if (!empty($wa['skipped_whatsapp'])) {
+        $_SESSION['appointments_flash_ok'] = 'Appointment marked completed. ' . ($wa['message'] ?? 'No WhatsApp sent (no matching treatment instructions).');
+    } elseif (!empty($wa['ok'])) {
+        $_SESSION['appointments_flash_ok'] = $wa['message'] ?? 'Appointment completed; post-treatment WhatsApp sent.';
+    } else {
+        $_SESSION['appointments_flash_ok'] = 'Appointment marked completed. ' . ($wa['message'] ?? '') . ($wa['error'] ? ' ' . $wa['error'] : '');
     }
     $appointmentsRedirect('#clinic-arrivals');
 }
