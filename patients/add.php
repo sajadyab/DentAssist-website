@@ -203,6 +203,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $medicalHistoryPayload = null;
             }
 
+            $meds = $_POST['medications'] ?? [];
+            if (!is_array($meds)) {
+                $meds = [];
+            }
+            $meds = array_values(array_unique(array_filter(array_map('strval', $meds))));
+            $medsPayload = json_encode($meds, JSON_UNESCAPED_UNICODE);
+            if ($medsPayload === false) {
+                $medsPayload = null;
+            }
+
+            $allergiesFlag = 'no';
+            $ay = !empty($_POST['allergies_yes']);
+            $an = !empty($_POST['allergies_no']);
+            if ($ay && !$an) {
+                $allergiesFlag = 'yes';
+            }
+            if ($an && !$ay) {
+                $allergiesFlag = 'no';
+            }
+
             // Insert patient linked to user
             $patientId = $db->insert(
                 "INSERT INTO patients (
@@ -228,8 +248,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $_POST['insurance_type'] ?? 'None',
                     $_POST['insurance_coverage'] ?? 0,
                     $medicalHistoryPayload,
-                    $_POST['allergies'] ?? null,
-                    $_POST['current_medications'] ?? null,
+                    $allergiesFlag,
+                    $medsPayload,
                     $_POST['dental_history'] ?? null,
                     normalizePatientOptionalDate($_POST['last_visit_date'] ?? null),
                     $address !== '' ? $address : null,
@@ -369,6 +389,8 @@ include '../layouts/header.php';
         </div>
     <?php endif; ?>
     
+    <div class="row">
+        <div class="col-12 col-xl-9 col-lg-10">
     <div class="card">
         <div class="card-body">
             <form method="POST" action="" enctype="multipart/form-data">
@@ -435,6 +457,87 @@ include '../layouts/header.php';
                                 <input type="text" class="form-control" name="address" placeholder="Full address">
                             </div>
 
+                            
+                            <div class="col-12">
+                                <h5 class="mt-3">Medical History</h5>
+                                <hr>
+                            </div>
+
+                            <div class="col-12 mb-2">
+                                <label class="form-label">Medical History</label>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="medical_conditions[]" value="Cardiovascular Diseases" id="mh_cardio">
+                                            <label class="form-check-label" for="mh_cardio">Cardiovascular Diseases</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="medical_conditions[]" value="Hypertension" id="mh_htn">
+                                            <label class="form-check-label" for="mh_htn">Hypertension</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="medical_conditions[]" value="Autoimmune diseases" id="mh_autoimmune">
+                                            <label class="form-check-label" for="mh_autoimmune">Autoimmune diseases</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="medical_conditions[]" value="Immunosuppression" id="mh_immuno">
+                                            <label class="form-check-label" for="mh_immuno">Immunosuppression</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="medical_conditions[]" value="Diabetes" id="mh_diabetes">
+                                            <label class="form-check-label" for="mh_diabetes">Diabetes</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="medical_conditions[]" value="Stroke history" id="mh_stroke">
+                                            <label class="form-check-label" for="mh_stroke">Stroke history</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="medical_conditions[]" value="Osteoporosis" id="mh_osteo">
+                                            <label class="form-check-label" for="mh_osteo">Osteoporosis</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="medical_conditions[]" value="Epilepsy" id="mh_epilepsy">
+                                            <label class="form-check-label" for="mh_epilepsy">Epilepsy</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12 mb-3">
+                                <label class="form-label">Current Medications</label>
+                               
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="medications[]" value="Anticoagulants" id="med_anticoag">
+                                        <label class="form-check-label" for="med_anticoag">Anticoagulants</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="medications[]" value="Steroids" id="med_steroids">
+                                        <label class="form-check-label" for="med_steroids">Steroids</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="medications[]" value="Chemotherapy" id="med_chemo">
+                                        <label class="form-check-label" for="med_chemo">Chemotherapy</label>
+                                    </div>
+                               
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label d-block">Allergies</label>
+                                <div class="d-flex gap-3 align-items-center">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="allergies_yes" value="1" id="allergies_yes">
+                                        <label class="form-check-label" for="allergies_yes">Yes</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="allergies_no" value="1" id="allergies_no" checked>
+                                        <label class="form-check-label" for="allergies_no">No</label>
+                                    </div>
+                                </div>
+                               
+                            </div>
+
                             <div class="col-12">
                                 <h5 class="mt-3">Emergency Contact</h5>
                                 <hr>
@@ -485,62 +588,6 @@ include '../layouts/header.php';
                                 <input type="number" class="form-control" name="insurance_coverage" min="0" max="100" value="0">
                             </div>
 
-                            <div class="col-12">
-                                <h5 class="mt-3">Medical History</h5>
-                                <hr>
-                            </div>
-
-                            <div class="col-12 mb-2">
-                                <label class="form-label">Medical History</label>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" name="medical_conditions[]" value="Cardiovascular Diseases" id="mh_cardio">
-                                            <label class="form-check-label" for="mh_cardio">Cardiovascular Diseases</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" name="medical_conditions[]" value="Hypertension" id="mh_htn">
-                                            <label class="form-check-label" for="mh_htn">Hypertension</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" name="medical_conditions[]" value="Autoimmune diseases" id="mh_autoimmune">
-                                            <label class="form-check-label" for="mh_autoimmune">Autoimmune diseases</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" name="medical_conditions[]" value="Immunosuppression" id="mh_immuno">
-                                            <label class="form-check-label" for="mh_immuno">Immunosuppression</label>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" name="medical_conditions[]" value="Diabetes" id="mh_diabetes">
-                                            <label class="form-check-label" for="mh_diabetes">Diabetes</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" name="medical_conditions[]" value="Stroke history" id="mh_stroke">
-                                            <label class="form-check-label" for="mh_stroke">Stroke history</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" name="medical_conditions[]" value="Osteoporosis" id="mh_osteo">
-                                            <label class="form-check-label" for="mh_osteo">Osteoporosis</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" name="medical_conditions[]" value="Epilepsy" id="mh_epilepsy">
-                                            <label class="form-check-label" for="mh_epilepsy">Epilepsy</label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Allergies</label>
-                                <textarea class="form-control" name="allergies" rows="3"></textarea>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Current Medications</label>
-                                <textarea class="form-control" name="current_medications" rows="3"></textarea>
-                            </div>
 
                             <div class="col-12 mb-3">
                                 <label class="form-label">Additional Notes</label>
@@ -588,8 +635,23 @@ include '../layouts/header.php';
             </form>
         </div>
     </div>
+        </div>
+    </div>
 </div>
 <?php include '../layouts/footer.php'; ?>
+
+<script>
+// keep allergies yes/no mutually exclusive (checkbox UI as requested)
+document.getElementById('allergies_yes')?.addEventListener('change', function () {
+    const noEl = document.getElementById('allergies_no');
+    if (this.checked && noEl) noEl.checked = false;
+});
+document.getElementById('allergies_no')?.addEventListener('change', function () {
+    const yesEl = document.getElementById('allergies_yes');
+    if (this.checked && yesEl) yesEl.checked = false;
+    if (!this.checked && yesEl && !yesEl.checked) this.checked = true;
+});
+</script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@18/build/css/intlTelInput.css">
 <script src="https://cdn.jsdelivr.net/npm/intl-tel-input@18/build/js/intlTelInput.min.js"></script>
 <style>
