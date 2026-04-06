@@ -1,0 +1,169 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 550" width="100%" height="100%">
+  <defs>
+    <style>
+      .tooth {
+  /* fill removed – let the attribute or parent decide */
+  stroke: #000000;
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+  transition: fill 0.2s;
+  cursor: pointer;
+}
+      .tooth-number {
+        font-family: Arial, sans-serif;
+        font-size: 100px;
+        font-weight: bold;
+        fill: #7b7373;
+        stroke: #7a6565;
+        stroke-width: 0.5;
+        paint-order: stroke;
+        text-anchor: middle;
+        dominant-baseline: central;
+        pointer-events: none;
+      }
+      .healthy { fill: #28a745; }
+      .cavity { fill: #fd7e14; }
+      .filled { fill: #007bff; }
+      .crown { fill: #6f42c1; }
+      .root-canal { fill: #ffc107; }
+      .missing { fill: #6c757d; }
+      .implant { fill: #20c997; }
+      .bridge { fill: #795548; }
+      .has-notes { stroke: #ff0000; stroke-width: 2.5; }
+    </style>
+    <path id="tooth-shape" d="m460.65 200.1c-10.82-0.007812-21.57 1.7344-31.832 5.1641-18.695 6.3086-38.945 6.3086-57.645 0-10.262-3.4336-21.012-5.1797-31.832-5.168-57.098 0-103.55 48.195-103.55 107.43-0.011719 11.855 1.8789 23.637 5.5977 34.891 6.3516 29.762 13.148 67.164 13.148 82.883 0 1.3672 0 3.0234-0.035157 4.9336-0.36328 35.32-1.4648 142.81 69.719 167.27v-0.003906c4.2227 1.5234 8.668 2.3359 13.152 2.4062 5.4297 0.078125 10.746-1.5469 15.207-4.6406 15.383-10.711 15.965-35.191 16.625-63.535 1.1953-50.383 5.9336-73.164 30.77-74.164 24.832 1.0078 29.574 23.758 30.77 74.164 0.67578 28.344 1.2578 52.824 16.625 63.535h-0.003906c8.5 5.4062 19.125 6.2461 28.363 2.2344 71.18-24.43 70.074-131.92 69.711-167.24 0-1.9102-0.035156-3.5664-0.035156-4.9336 0-15.719 6.7969-53.121 13.148-82.883l0.003906 0.003907c3.7188-11.258 5.6094-23.039 5.5977-34.895 0.039063-59.258-46.41-107.45-103.51-107.45zm6.9492 373.56c-4.3594 1.5117-5.7852 0.92578-5.793 0.92188-4.9023-3.4102-5.4961-28.48-5.8555-43.465-0.91797-38.672-2.3086-97.113-55.566-98.746h-0.77734c-53.258 1.6484-54.648 60.09-55.566 98.746-0.35938 14.984-0.95312 40.055-5.8555 43.465 0 0-1.4453 0.57031-5.7891-0.92188-35.816-12.293-53.551-60.457-52.703-143.15 0-2.0156 0.039063-3.75 0.039063-5.1875 0-0.95312-0.039063-2.0156-0.074219-3.0586h0.003906c5.5117 4.5508 11.996 7.7695 18.953 9.4062 3.2734 0.73438 6.707 0.13281 9.5352-1.6719 2.8281-1.8047 4.8203-4.6641 5.5352-7.9453 0.71094-3.2773 0.085938-6.707-1.7422-9.5234-1.8242-2.8164-4.6992-4.7852-7.9844-5.4766-15.617-3.3945-28.539-31.141-32.242-41.605-2.1406-11.305-4.2539-21.512-5.6992-28.27l-0.13672-0.65625v0.003907c-0.089843-0.43359-0.20703-0.86328-0.34766-1.2852-0.023437-0.09375-0.054687-0.19141-0.089844-0.28906v0.003906c-2.9727-8.8359-4.4805-18.098-4.4688-27.418 0-45.344 35.152-82.242 78.359-82.242 8.1016-0.007813 16.152 1.2969 23.84 3.8633 23.879 8.0547 49.746 8.0547 73.625 0 7.6875-2.5664 15.738-3.8711 23.84-3.8633 43.207 0 78.359 36.895 78.359 82.242 0.011719 9.3203-1.4961 18.582-4.4688 27.418-0.035156 0.09375-0.066406 0.19141-0.089844 0.28906v-0.003907c-0.14062 0.42188-0.25391 0.85156-0.34766 1.2852l-0.13672 0.65625c-1.4453 6.7578-3.5586 16.957-5.6992 28.266-3.6875 10.461-16.594 38.215-32.242 41.609v-0.003907c-3.2852 0.69141-6.1602 2.6602-7.9844 5.4766-1.8281 2.8164-2.4531 6.2461-1.7422 9.5234 0.71484 3.2812 2.707 6.1406 5.5352 7.9453 2.8281 1.8047 6.2617 2.4062 9.5352 1.6719 6.957-1.6367 13.441-4.8555 18.953-9.4062-0.035156 1.0469-0.074219 2.1055-0.074219 3.0586 0 1.4414 0 3.1797 0.039063 5.1875 0.86719 82.703-16.867 130.86-52.676 143.15z"></path>
+  </defs>
+
+  <!-- Upper teeth (1-16) with numbers -->
+  <!-- Spacing step = 75, scale = 0.22, starting x = 70 to ensure first and last visible -->
+  <g id="tooth-1" transform="translate(70, 110) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">1</text>
+  </g>
+  <g id="tooth-2" transform="translate(145, 110) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">2</text>
+  </g>
+  <g id="tooth-3" transform="translate(220, 110) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">3</text>
+  </g>
+  <g id="tooth-4" transform="translate(295, 110) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">4</text>
+  </g>
+  <g id="tooth-5" transform="translate(370, 110) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">5</text>
+  </g>
+  <g id="tooth-6" transform="translate(445, 110) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">6</text>
+  </g>
+  <g id="tooth-7" transform="translate(520, 110) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">7</text>
+  </g>
+  <g id="tooth-8" transform="translate(595, 110) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">8</text>
+  </g>
+  <g id="tooth-9" transform="translate(670, 110) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">9</text>
+  </g>
+  <g id="tooth-10" transform="translate(745, 110) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">10</text>
+  </g>
+  <g id="tooth-11" transform="translate(820, 110) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">11</text>
+  </g>
+  <g id="tooth-12" transform="translate(895, 110) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">12</text>
+  </g>
+  <g id="tooth-13" transform="translate(970, 110) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">13</text>
+  </g>
+  <g id="tooth-14" transform="translate(1045, 110) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">14</text>
+  </g>
+  <g id="tooth-15" transform="translate(1120, 110) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">15</text>
+  </g>
+  <g id="tooth-16" transform="translate(1195, 110) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">16</text>
+  </g>
+
+  <!-- Lower teeth (17-32) with numbers -->
+  <g id="tooth-17" transform="translate(70, 380) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">17</text>
+  </g>
+  <g id="tooth-18" transform="translate(145, 380) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">18</text>
+  </g>
+  <g id="tooth-19" transform="translate(220, 380) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">19</text>
+  </g>
+  <g id="tooth-20" transform="translate(295, 380) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">20</text>
+  </g>
+  <g id="tooth-21" transform="translate(370, 380) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">21</text>
+  </g>
+  <g id="tooth-22" transform="translate(445, 380) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">22</text>
+  </g>
+  <g id="tooth-23" transform="translate(520, 380) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">23</text>
+  </g>
+  <g id="tooth-24" transform="translate(595, 380) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">24</text>
+  </g>
+  <g id="tooth-25" transform="translate(670, 380) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">25</text>
+  </g>
+  <g id="tooth-26" transform="translate(745, 380) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">26</text>
+  </g>
+  <g id="tooth-27" transform="translate(820, 380) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">27</text>
+  </g>
+  <g id="tooth-28" transform="translate(895, 380) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">28</text>
+  </g>
+  <g id="tooth-29" transform="translate(970, 380) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">29</text>
+  </g>
+  <g id="tooth-30" transform="translate(1045, 380) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">30</text>
+  </g>
+  <g id="tooth-31" transform="translate(1120, 380) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">31</text>
+  </g>
+  <g id="tooth-32" transform="translate(1195, 380) scale(0.22)">
+    <use href="#tooth-shape" class="tooth"/>
+    <text x="230" y="180" class="tooth-number">32</text>
+  </g>
+</svg>
