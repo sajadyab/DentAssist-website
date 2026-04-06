@@ -1,0 +1,33 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Dependencies
+node_modules/
+vendor/
+
+# Build / cache
+dist/
+build/
+coverage/
+.phpunit.result.cache
+
+# Environment / secrets
+.env
+.env.*
+*.local.php
+includes/config.local.php
+includes/config.php
+
+# Runtime uploads (keep a placeholder if needed)
+uploads/*
+!uploads/.gitkeep
+
+# WhatsApp Web JS auth session (whatsapp-web.js)
+.wwebjs_auth/
+.wwebjs_auth
