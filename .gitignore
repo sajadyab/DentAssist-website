@@ -28,6 +28,10 @@ includes/config.php
 uploads/*
 !uploads/.gitkeep
 
+# WhatsApp web.js auth sessions
+.wwebjs_auth/
+api/.wwebjs_auth/
+
 # WhatsApp Web JS auth session (whatsapp-web.js)
 .wwebjs_auth/
 .wwebjs_auth
