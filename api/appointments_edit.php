@@ -11,20 +11,12 @@ if (Auth::hasRole('patient')) {
     api_error('Forbidden.', 403);
 }
 
-$db = Database::getInstance();
 $appointmentId = (int) ($_POST['id'] ?? 0);
 if ($appointmentId <= 0) {
     api_error('Invalid appointment.', 422);
 }
 
-$appointment = $db->fetchOne(
-    "SELECT a.*, p.full_name as patient_name
-     FROM appointments a
-     JOIN patients p ON a.patient_id = p.id
-     WHERE a.id = ?",
-    [$appointmentId],
-    'i'
-);
+$appointment = repo_appointment_find_by_id_with_patient_name($appointmentId);
 if (!$appointment) {
     api_error('Appointment not found.', 404);
 }
@@ -40,41 +32,30 @@ if ($chairNumber !== null && $chairNumber !== '') {
     $chairNumber = null;
 }
 
-$existing = $db->fetchOne(
-    "SELECT id FROM appointments
-     WHERE appointment_date = ? AND appointment_time = ? AND chair_number = ?
-     AND status != 'cancelled' AND id != ?",
-    [$appointmentDate, $appointmentTime, $chairNumber, $appointmentId],
-    'ssii'
+$existing = repo_appointment_find_active_chair_conflict(
+    $appointmentDate,
+    $appointmentTime,
+    $chairNumber,
+    $appointmentId
 );
 if ($existing) {
     api_error('This time slot is already booked for the selected chair', 409);
 }
 
-$payload = [
-    (int) ($_POST['patient_id'] ?? 0),
-    (int) ($_POST['doctor_id'] ?? 0),
-    $appointmentDate,
-    $appointmentTime,
-    (int) ($_POST['duration'] ?? 30),
-    (string) ($_POST['treatment_type'] ?? ''),
-    $_POST['description'] ?? null,
-    $chairNumber,
-    (string) ($_POST['status'] ?? 'scheduled'),
-    $_POST['notes'] ?? null,
-    $appointmentId,
-];
+$ok = repo_appointment_update_staff($appointmentId, [
+    'patient_id' => (int) ($_POST['patient_id'] ?? 0),
+    'doctor_id' => (int) ($_POST['doctor_id'] ?? 0),
+    'appointment_date' => $appointmentDate,
+    'appointment_time' => $appointmentTime,
+    'duration' => (int) ($_POST['duration'] ?? 30),
+    'treatment_type' => (string) ($_POST['treatment_type'] ?? ''),
+    'description' => $_POST['description'] ?? null,
+    'chair_number' => $chairNumber,
+    'status' => (string) ($_POST['status'] ?? 'scheduled'),
+    'notes' => $_POST['notes'] ?? null,
+]);
 
-$result = $db->execute(
-    "UPDATE appointments SET
-        patient_id = ?, doctor_id = ?, appointment_date = ?, appointment_time = ?,
-        duration = ?, treatment_type = ?, description = ?, chair_number = ?, status = ?, notes = ?
-     WHERE id = ?",
-    $payload,
-    'iississsssi'
-);
-
-if ($result === false) {
+if (!$ok) {
     api_error('Error updating appointment', 500);
 }
 
@@ -90,4 +71,3 @@ if ($newStatus === 'completed' && $previousStatus !== 'completed') {
 }
 
 api_ok(['reload' => true], $message);
-

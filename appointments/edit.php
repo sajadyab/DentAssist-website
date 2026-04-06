@@ -1,5 +1,6 @@
 ﻿<?php
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
 // block patients from editing appointments
@@ -29,8 +30,8 @@ if (!$appointment) {
 $pageTitle = 'Edit Appointment';
 
 // Get doctors and patients for dropdowns
-$doctors = UserRepository::listDoctors(false);
-$patients = PatientRepository::listForSelect();
+$doctors = repo_user_list_doctors(false);
+$patients = repo_patient_list_for_select();
 
 $error = '';
 $success = '';

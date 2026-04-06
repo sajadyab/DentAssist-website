@@ -1,12 +1,13 @@
 ﻿<?php
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
 
 $patientId = (int) ($_GET['id'] ?? 0);
 
 // Fetch patient data
-$patient = PatientRepository::findById($patientId);
+$patient = repo_patient_find_by_id($patientId);
 if (!$patient) {
     header('Location: index.php');
     exit;
@@ -17,7 +18,7 @@ $error = '';
 $success = '';
 
 // Fetch existing dental history image (handwritten)
-$dentalHistoryImage = XrayRepository::findLatestDentalHistoryHandwritten($patientId);
+$dentalHistoryImage = repo_xray_find_latest_dental_history_handwritten($patientId);
 
 // Decode medical history JSON
 $existingConditions = [];
@@ -77,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'country' => 'LB',
         ];
 
-        $ok = PatientRepository::updateFromEditPayload($patientId, $updatePayload);
+        $ok = repo_patient_update_from_edit_payload($patientId, $updatePayload);
 
         if ($ok) {
             logAction('UPDATE', 'patients', $patientId, $patient, $_POST);
@@ -86,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Handle removal of existing dental history image
             if (isset($_POST['remove_dental_history_image']) && $_POST['remove_dental_history_image'] === '1' && $dentalHistoryImage && !empty($dentalHistoryImage['id'])) {
                 $path = (string)($dentalHistoryImage['file_path'] ?? '');
-                XrayRepository::deleteByIdForPatient((int) $dentalHistoryImage['id'], $patientId);
+                repo_xray_delete_by_id_for_patient((int) $dentalHistoryImage['id'], $patientId);
                 if ($path !== '' && file_exists($path)) @unlink($path);
             }
 
@@ -99,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $uploadResult = uploadFile($file, $uploadDir, ['image/jpeg', 'image/png']);
                 if ($uploadResult['success']) {
                     $path = (string)($uploadResult['path'] ?? '');
-                    XrayRepository::insertDentalHistoryHandwrittenFromEditForm(
+                    repo_xray_insert_dental_history_handwritten_from_edit_form(
                         $patientId,
                         basename($path),
                         $path,
@@ -113,8 +114,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // Refresh patient data
-            $patient = PatientRepository::findById($patientId);
-            $dentalHistoryImage = XrayRepository::findLatestDentalHistoryHandwritten($patientId);
+            $patient = repo_patient_find_by_id($patientId);
+            $dentalHistoryImage = repo_xray_find_latest_dental_history_handwritten($patientId);
         } else {
             $error = 'Database error: could not update patient.';
         }

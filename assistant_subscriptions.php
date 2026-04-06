@@ -1,5 +1,6 @@
 ﻿<?php
 require_once __DIR__ . '/includes/bootstrap.php';
+require_once __DIR__ . '/api/_helpers.php';
 
 // Only assistant and admin can access
 Auth::requireLogin();
@@ -8,7 +9,7 @@ if (!in_array($_SESSION['role'], ['admin', 'assistant', 'doctor'])) {
     exit;
 }
 
-$pendingSubscriptions = SubscriptionRepository::listPendingSubscriptions();
+$pendingSubscriptions = repo_subscription_list_pending_subscriptions();
 
 $pageTitle = 'Manage Subscriptions';
 include 'layouts/header.php';
@@ -40,13 +41,13 @@ include 'layouts/header.php';
                     </div>
                     <div class="col-md-4 text-center">
                         <div class="stats-number"><?php 
-                            echo SubscriptionRepository::countActive();
+                            echo repo_subscription_count_active();
                         ?></div>
                         <div class="text-muted">Active Subscriptions</div>
                     </div>
                     <div class="col-md-4 text-center">
                         <div class="stats-number"><?php 
-                            echo SubscriptionRepository::countExpiringSoon30Days();
+                            echo repo_subscription_count_expiring_soon_30_days();
                         ?></div>
                         <div class="text-muted">Expiring Soon (30 days)</div>
                     </div>

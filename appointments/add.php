@@ -1,5 +1,6 @@
 ﻿<?php
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
 // patients should not be able to add appointments via staff interface
@@ -23,7 +24,7 @@ if ($patientId) {
 }
 
 // Get doctors
-$doctors = UserRepository::listDoctors(false);
+$doctors = repo_user_list_doctors(false);
 
 // Get patients list
 $patients = $db->fetchAll('SELECT id, full_name, phone, email FROM patients ORDER BY full_name');

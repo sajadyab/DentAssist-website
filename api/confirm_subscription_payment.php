@@ -21,7 +21,7 @@ if ($patientId <= 0) {
     api_error('Invalid patient.', 422);
 }
 
-$res = SubscriptionService::confirmClinicPayment($patientId, $reference, (int) Auth::userId());
+$res = repo_subscription_confirm_clinic_payment($patientId, $reference, (int) Auth::userId());
 if (!empty($res['ok'])) {
     api_ok(['redirect' => 'assistant_subscriptions.php?success=1'], 'Subscription activated successfully.');
 }

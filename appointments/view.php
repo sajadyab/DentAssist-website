@@ -293,30 +293,7 @@ include '../layouts/header.php';
                 </div>
             </div>
             
-            <!-- History -->
-            <?php if (!empty($history)): ?>
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">History</h5>
-                </div>
-                <div class="card-body">
-                    <div class="timeline-sm">
-                        <?php foreach ($history as $entry): ?>
-                            <div class="timeline-item">
-                                <div class="timeline-date"><?php echo formatDate($entry['performed_at'], 'g:i A'); ?></div>
-                                <div class="timeline-content">
-                                    <strong><?php echo $entry['action']; ?></strong>
-                                    <p class="small mb-0"><?php echo $entry['ip_address']; ?></p>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-            </div>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
+           
 <script>
 function editAppointment() {
     window.location.href = 'edit.php?id=<?php echo $appointmentId; ?>';

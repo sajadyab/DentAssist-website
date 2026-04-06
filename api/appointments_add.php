@@ -11,8 +11,6 @@ if (Auth::hasRole('patient')) {
     api_error('Forbidden.', 403);
 }
 
-$db = Database::getInstance();
-
 $patientId = (int) ($_POST['patient_id'] ?? 0);
 $doctorId = (int) ($_POST['doctor_id'] ?? 0);
 $appointmentDate = (string) ($_POST['appointment_date'] ?? '');
@@ -34,36 +32,28 @@ if ($chairNumber !== null && $chairNumber !== '') {
     $chairNumber = null;
 }
 
-$existing = $db->fetchOne(
-    "SELECT id FROM appointments
-     WHERE appointment_date = ? AND appointment_time = ? AND chair_number = ? AND status != 'cancelled'",
-    [$appointmentDate, $appointmentTime, $chairNumber],
-    'ssi'
+$existing = repo_appointment_find_active_chair_conflict(
+    $appointmentDate,
+    $appointmentTime,
+    $chairNumber,
+    null
 );
 if ($existing) {
     api_error('This time slot is already booked for the selected chair', 409);
 }
 
-$appointmentId = $db->insert(
-    "INSERT INTO appointments (
-        patient_id, doctor_id, appointment_date, appointment_time, duration,
-        treatment_type, description, chair_number, status, notes, created_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    [
-        $patientId,
-        $doctorId,
-        $appointmentDate,
-        $appointmentTime,
-        $duration,
-        $treatmentType,
-        $description,
-        $chairNumber,
-        'scheduled',
-        $notes,
-        (int) Auth::userId(),
-    ],
-    'iississsssi'
-);
+$appointmentId = repo_appointment_insert_staff_scheduled([
+    'patient_id' => $patientId,
+    'doctor_id' => $doctorId,
+    'appointment_date' => $appointmentDate,
+    'appointment_time' => $appointmentTime,
+    'duration' => $duration,
+    'treatment_type' => $treatmentType,
+    'description' => $description,
+    'chair_number' => $chairNumber,
+    'notes' => $notes,
+    'created_by' => (int) Auth::userId(),
+]);
 
 if (!$appointmentId) {
     api_error('Error scheduling appointment', 500);
@@ -71,6 +61,7 @@ if (!$appointmentId) {
 
 logAction('CREATE', 'appointments', (int) $appointmentId, null, $_POST);
 
+$db = Database::getInstance();
 $patientData = $db->fetchOne('SELECT user_id FROM patients WHERE id = ?', [$patientId], 'i');
 if ($patientData && !empty($patientData['user_id'])) {
     sendNotification(
@@ -86,4 +77,3 @@ if ($saveAndNew) {
 }
 
 api_ok(['redirect' => url('appointments/view.php?id=' . (int) $appointmentId)], 'Appointment scheduled successfully.');
-

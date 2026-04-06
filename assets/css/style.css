@@ -186,17 +186,17 @@ h6 {
 
 .alert-success {
   background-color: rgb(140, 199, 241)  ;
-  color: rgb(34, 197, 94);
+  color: rgb(8, 10, 9);
 }
 
 .alert-danger {
   background-color: #f8d7da;
-  color: rgb(247, 51, 29);
+  color: rgb(16, 6, 5);
 }
 
 .alert-warning {
   background-color: #fff3cd;
-  color: rgb(250, 236, 82) ;
+  color: rgb(17, 17, 11) ;
 }
 
 .alert-info {
@@ -1589,7 +1589,7 @@ body.section-patient .sidebar-mobile-toggle {
 
 .bills-page .btn-bills-outline {
   border: 1px solid rgba(108, 163, 245, 0.45);
-  color: var(--bills-accent-deep) !important;
+  color: #fff !important;
   font-weight: 600;
   border-radius: 25px;
   background: rgba(108, 163, 245, 0.08);
@@ -1790,7 +1790,7 @@ body.auth-layout.auth-shell--reset-pass .auth-main {
 
 .auth-site-header {
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.97);
+  background: rgba(255, 255, 255, 0);
   border-bottom: 1px solid rgba(51, 65, 85, 0.08);
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.06);
 }

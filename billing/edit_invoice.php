@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
 
@@ -22,7 +23,7 @@ if (!$invoice) {
 
 $pageTitle = 'Edit Invoice';
 
-$patients = PatientRepository::listForSelect();
+$patients = repo_patient_list_for_select();
 
 $error = '';
 $success = '';
@@ -216,7 +217,7 @@ if (!$invoice) {
 
 $pageTitle = 'Edit Invoice';
 
-$patients = PatientRepository::listForSelect();
+$patients = repo_patient_list_for_select();
 
 $error = '';
 $success = '';

@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
 $pageTitle = 'Create Treatment Plan';
@@ -18,7 +19,7 @@ if ($patientId) {
 }
 
 // Get all patients for dropdown
-$patients = PatientRepository::listForSelect();
+$patients = repo_patient_list_for_select();
 
 $error = '';
 $success = '';

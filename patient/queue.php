@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
 if ($_SESSION['role'] != 'patient') {
@@ -23,7 +24,7 @@ $calendarConfig = getClinicBookingCalendarConfig($db);
 $slotMinutes = $calendarConfig['slot_minutes'];
 $hoursConfig = $calendarConfig['hours'];
 
-$doctors = UserRepository::listDoctors(true);
+$doctors = repo_user_list_doctors(true);
 
 $visitTypeOptions = [
     'Check-up / cleaning',

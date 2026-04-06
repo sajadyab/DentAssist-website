@@ -5,6 +5,7 @@
 // ==============================================
 
 require_once __DIR__ . '/includes/bootstrap.php';
+require_once __DIR__ . '/api/_helpers.php';
 
 // Require login
 Auth::requireLogin();
@@ -25,20 +26,20 @@ $dashboardUserId = (int) Auth::userId();
 $today = date('Y-m-d');
 
 // Today's appointments (all clinic staff; scoped to doctor when logged in as doctor)
-$todayAppointments = DashboardRepository::listTodayAppointments(
+$todayAppointments = repo_dashboard_list_today_appointments(
     $today,
     $dashboardRole === 'doctor' ? $dashboardUserId : null
 );
 
 // Subscription stats (compatible with older schemas)
-$subscriptionCounts = DashboardRepository::getSubscriptionCounts();
+$subscriptionCounts = repo_dashboard_get_subscription_counts();
 $pendingSubscriptions = (int) ($subscriptionCounts['pending'] ?? 0);
 $activeSubscriptions = (int) ($subscriptionCounts['active'] ?? 0);
 $expiringSubscriptions = (int) ($subscriptionCounts['expiring'] ?? 0);
-$subscriptionRevenue = DashboardRepository::getSubscriptionRevenueTotal();
+$subscriptionRevenue = repo_dashboard_get_subscription_revenue_total();
 
 // Summary stats (appointment counts respect doctor scope when role is doctor)
-$apptCounts = DashboardRepository::getAppointmentCounts(
+$apptCounts = repo_dashboard_get_appointment_counts(
     $today,
     $dashboardRole === 'doctor' ? $dashboardUserId : null
 );
@@ -54,26 +55,26 @@ $stats = [
     'subscription_revenue' => $subscriptionRevenue
 ];
 
-$dashOnlineRequests = DashboardRepository::listOnlineAppointmentRequests(
+$dashOnlineRequests = repo_dashboard_list_online_appointment_requests(
     $dashboardRole === 'doctor' ? $dashboardUserId : null
 );
 $dashOnlineRequestCount = count($dashOnlineRequests);
 
 $calendarDoctorOptions = [];
 if ($dashboardRole !== 'doctor') {
-    $calendarDoctorOptions = UserRepository::listDoctors(true);
+    $calendarDoctorOptions = repo_user_list_doctors(true);
 }
 $defaultCalDoctorId = $dashboardRole === 'doctor'
     ? $dashboardUserId
     : (int) (($calendarDoctorOptions[0]['id'] ?? 0));
 
-$calendarPatientsForJs = PatientRepository::listForSelect(800);
+$calendarPatientsForJs = repo_patient_list_for_select(800);
 
 require_once __DIR__ . '/includes/dashboard_staff_calendar.php';
 
-$dashWaitingQueue = DashboardRepository::listWeeklyWaitingQueue($staffCalDoctorId);
+$dashWaitingQueue = repo_dashboard_list_weekly_waiting_queue($staffCalDoctorId);
 
-$todayAppointmentsSidebar = DashboardRepository::listTodayAppointments(
+$todayAppointmentsSidebar = repo_dashboard_list_today_appointments(
     $today,
     $staffCalDoctorId > 0 ? $staffCalDoctorId : null
 );
@@ -81,7 +82,7 @@ $todayAppointmentsSidebar = DashboardRepository::listTodayAppointments(
 /** @var list<array{item_name: string, status: string, badge_class: string}> $dashInventoryNotices */
 $dashInventoryNotices = [];
 if ($dashboardRole === 'doctor') {
-    $invCandidates = DashboardRepository::listInventoryNoticeCandidates();
+    $invCandidates = repo_dashboard_list_inventory_notice_candidates();
     $weekLast = date('Y-m-d', strtotime($today . ' +7 days'));
     foreach ($invCandidates as $inv) {
         $expRaw = $inv['expiry_date'] ?? null;

@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
 $pageTitle = 'Create Invoice';
@@ -21,7 +22,7 @@ if ($appointmentId) {
     }
 }
 
-$patients = PatientRepository::listForSelect();
+$patients = repo_patient_list_for_select();
 
 $error = '';
 $success = '';

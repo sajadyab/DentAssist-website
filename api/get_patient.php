@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/_helpers.php';
 
 // Require login
 Auth::requireLogin();
@@ -22,7 +22,7 @@ if (Auth::hasRole('patient')) {
     }
 }
 
-$patient = PatientRepository::findForApi($patientId);
+$patient = repo_patient_find_for_api($patientId);
 
 if ($patient) {
     echo json_encode(['success' => true, 'patient' => $patient]);

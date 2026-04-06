@@ -1,5 +1,6 @@
 ﻿<?php
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
 
@@ -405,8 +406,8 @@ if ($role === 'doctor') {
     );
 }
 
-$doctorSelectList = UserRepository::listDoctors(true);
-$allPatientsForQueue = PatientRepository::listForSelect();
+$doctorSelectList = repo_user_list_doctors(true);
+$allPatientsForQueue = repo_patient_list_for_select();
 
 $staffWeeklyVisitTypeOptions = [
     'Check-up / cleaning',

@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/_helpers.php';
 
 // Only authenticated users can delete
 Auth::requireLogin();
@@ -14,7 +14,7 @@ if (!$patientId) {
 }
 
 // Fetch patient for logging
-$patient = PatientRepository::findById($patientId);
+$patient = repo_patient_find_by_id($patientId);
 if (!$patient) {
     echo json_encode(['success' => false, 'message' => 'Patient not found']);
     exit;
@@ -26,7 +26,7 @@ if (!$patient) {
 //     exit;
 // }
 
-$result = PatientService::deletePatientCascade($patientId);
+$result = repo_patient_delete_cascade($patientId);
 
 if ($result) {
     logAction('DELETE', 'patients', $patientId, $patient, null);

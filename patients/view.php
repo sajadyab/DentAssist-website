@@ -1,12 +1,13 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
 
 $patientId = (int) ($_GET['id'] ?? 0);
 
 // Get patient details (+ linked login username)
-$patient = PatientRepository::findWithAccountUsername($patientId);
+$patient = repo_patient_find_with_account_username($patientId);
 
 if (!$patient) {
     header('Location: index.php');
@@ -23,11 +24,11 @@ $removeMessage = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_dental_history_xray_id'])) {
     $removeId = (int) ($_POST['remove_dental_history_xray_id'] ?? 0);
     if ($removeId > 0) {
-        $rowToDelete = XrayRepository::findDentalHistoryHandwrittenById($removeId, $patientId);
+        $rowToDelete = repo_xray_find_dental_history_handwritten_by_id($removeId, $patientId);
 
         if ($rowToDelete) {
             $path = (string) ($rowToDelete['file_path'] ?? '');
-            XrayRepository::deleteByIdForPatient($removeId, $patientId);
+            repo_xray_delete_by_id_for_patient($removeId, $patientId);
 
             if ($path !== '' && is_file($path)) {
                 @unlink($path);
@@ -56,7 +57,7 @@ if (is_array($decodedMedical) && (isset($decodedMedical['conditions']) || array_
 }
 
 // Handwritten dental history images (same source as add.php / edit.php)
-$dentalHistoryImages = XrayRepository::listDentalHistoryHandwrittenImages($patientId);
+$dentalHistoryImages = repo_xray_list_dental_history_handwritten_images($patientId);
 
 /** Public URL for an xrays row (handles xrays/ vs dental-history/ uploads). */
 function patient_upload_url_for_xray(array $row): string
@@ -70,16 +71,16 @@ function patient_upload_url_for_xray(array $row): string
 }
 
 // Get appointments
-$appointments = AppointmentRepository::listForPatient($patientId);
+$appointments = repo_appointment_list_for_patient($patientId);
 
 // Get treatment plans
-$treatmentPlans = TreatmentPlanRepository::listForPatient($patientId);
+$treatmentPlans = repo_treatment_plan_list_for_patient($patientId);
 
 // Get X-rays
-$xrays = XrayRepository::listForPatientExcludingDentalHistory($patientId);
+$xrays = repo_xray_list_for_patient_excluding_dental_history($patientId);
 
 // Get invoices
-$invoices = InvoiceRepository::listForPatient($patientId);
+$invoices = repo_invoice_list_for_patient($patientId);
 
 include '../layouts/header.php';
 ?>

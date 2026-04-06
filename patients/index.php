@@ -1,5 +1,6 @@
 ﻿<?php
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
 $pageTitle = 'Patients';
@@ -13,9 +14,9 @@ if ($page < 1) {
 $limit = 10;
 $offset = ($page - 1) * $limit;
 
-$total = PatientRepository::countBySearch((string) $search);
+$total = repo_patient_count_by_search((string) $search);
 $totalPages = ceil($total / $limit);
-$patients = PatientRepository::search((string) $search, $limit, $offset);
+$patients = repo_patient_search((string) $search, $limit, $offset);
 
 include '../layouts/header.php';
 ?>

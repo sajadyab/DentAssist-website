@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/_helpers.php';
 
 header('Content-Type: application/json');
 
@@ -23,7 +23,7 @@ if (!$patientId) {
     exit;
 }
 
-$res = SubscriptionService::rejectPendingSubscription((int) $patientId, (string) $reason);
+$res = repo_subscription_reject_pending((int) $patientId, (string) $reason);
 if (!empty($res['ok'])) {
     echo json_encode(['success' => true]);
 } else {

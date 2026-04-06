@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
 $pageTitle = 'Invoices';
@@ -11,7 +12,7 @@ $status = $_GET['status'] ?? '';
 $patientId = $_GET['patient_id'] ?? '';
 
 // Get patients for filter
-$patients = PatientRepository::listForSelect();
+$patients = repo_patient_list_for_select();
 
 $where = ["1=1"];
 $params = [];

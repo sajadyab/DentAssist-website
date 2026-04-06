@@ -24,11 +24,11 @@ if ($dashboardRole === 'doctor') {
     if ($staffCalDoctorId <= 0) {
         $staffCalDoctorId = $defaultCalDoctorId;
     }
-    if (!DashboardRepository::findActiveDoctorRow($staffCalDoctorId)) {
+    if (!repo_dashboard_find_active_doctor_row($staffCalDoctorId)) {
         $staffCalDoctorId = $defaultCalDoctorId;
     }
 }
-$staffCalDoctorName = DashboardRepository::findUserFullName($staffCalDoctorId);
+$staffCalDoctorName = repo_dashboard_find_user_full_name($staffCalDoctorId);
 
 $staffCalView = isset($_GET['cal_view']) && $_GET['cal_view'] === 'day' ? 'day' : 'week';
 $staffCalWeekOffset = (int) ($_GET['cal_week'] ?? 0);
@@ -70,9 +70,9 @@ if ($staffCalView === 'day') {
     }
 }
 
-$appts = DashboardRepository::listCalendarAppointments($staffCalDoctorId, $rangeStart, $rangeEnd);
+$appts = repo_dashboard_list_calendar_appointments($staffCalDoctorId, $rangeStart, $rangeEnd);
 
-$reqs = DashboardRepository::listCalendarRequests($staffCalDoctorId, $rangeStart, $rangeEnd);
+$reqs = repo_dashboard_list_calendar_requests($staffCalDoctorId, $rangeStart, $rangeEnd);
 
 /**
  * Normalize to H:i:s.

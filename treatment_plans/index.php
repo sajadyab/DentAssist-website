@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
 $pageTitle = 'Treatment Plans';
@@ -17,7 +18,7 @@ $patientId = $_GET['patient_id'] ?? '';
 $priority = $_GET['priority'] ?? '';
 
 // Get patients for filter dropdown
-$patients = PatientRepository::listForSelect();
+$patients = repo_patient_list_for_select();
 
 // Build query with filters
 $where = ["1=1"];

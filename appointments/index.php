@@ -1,5 +1,6 @@
 ﻿<?php
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
 // only staff users may view appointment listing
@@ -244,7 +245,7 @@ $status = $_GET['status'] ?? '';
 $doctorId = $_GET['doctor_id'] ?? '';
 
 // Get doctors for filter
-$doctors = UserRepository::listDoctors(false);
+$doctors = repo_user_list_doctors(false);
 
 // Check if we have patients
 $patientCount = $db->fetchOne("SELECT COUNT(*) as count FROM patients")['count'];
@@ -287,8 +288,8 @@ $todayForCheckIn = date('Y-m-d');
 $checkedInAppointmentIds = [];
 $scheduledArrivals = [];
 $walkinArrivals = [];
-$doctorSelectList = UserRepository::listDoctors(true);
-$allPatientsForQueue = PatientRepository::listForSelect();
+$doctorSelectList = repo_user_list_doctors(true);
+$allPatientsForQueue = repo_patient_list_for_select();
 
 if (dbTableExists('clinic_arrivals')) {
     $chkRows = $db->fetchAll(
@@ -739,7 +740,7 @@ include '../layouts/header.php';
                             <select class="form-select" id="patientId" name="patient_id" required>
                                 <option value="">Select Patient</option>
                                 <?php
-                                $patients = PatientRepository::listForSelect();
+                                $patients = repo_patient_list_for_select();
                                 foreach ($patients as $patient):
                                 ?>
                                     <option value="<?php echo $patient['id']; ?>">
