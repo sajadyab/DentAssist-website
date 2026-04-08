@@ -1,5 +1,4 @@
 <?php
-require_once __DIR__ . '/../vendor/autoload.php';
 
 // Database configuration
 define('DB_HOST', 'localhost');
@@ -17,8 +16,56 @@ if (!defined('MAIL_FROM_NAME')) {
     define('MAIL_FROM_NAME', SITE_NAME);
 }
 
-// Correct SITE_URL to match project directory (case-sensitive on some setups)
-define('SITE_URL', 'http://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/Dental');
+// Site URL + web path (auto-detect app folder under document root — fixes CSS/JS when folder name or host differs)
+if (!defined('SITE_URL')) {
+    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (isset($_SERVER['SERVER_PORT']) && (string) $_SERVER['SERVER_PORT'] === '443')
+        ? 'https'
+        : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+
+    $docRaw = $_SERVER['DOCUMENT_ROOT'] ?? '';
+    $docResolved = ($docRaw !== '') ? realpath($docRaw) : false;
+    $appResolved = realpath(__DIR__ . DIRECTORY_SEPARATOR . '..');
+
+    $basePrefix = '';
+    if ($docResolved !== false && $appResolved !== false) {
+        $d = rtrim(str_replace('\\', '/', $docResolved), '/');
+        $a = rtrim(str_replace('\\', '/', $appResolved), '/');
+        if ($d !== '' && strpos($a . '/', $d . '/') === 0) {
+            $tail = trim(substr($a, strlen($d)), '/');
+            $basePrefix = $tail === '' ? '' : '/' . $tail;
+        }
+    }
+    if ($basePrefix === '' && $docResolved === false && $appResolved !== false) {
+        $basePrefix = '/' . basename($appResolved);
+    }
+
+    define('BASE_PATH', $basePrefix);
+    define('SITE_URL', $protocol . '://' . $host . $basePrefix);
+}
+
+if (!defined('BASE_PATH')) {
+    $pu = parse_url(SITE_URL, PHP_URL_PATH);
+    $p = ($pu !== null && $pu !== false) ? rtrim((string) $pu, '/') : '';
+    define('BASE_PATH', $p);
+}
+
+if (!function_exists('asset_url')) {
+    /**
+     * Root-relative URL for static files (uses current host — avoids localhost vs 127.0.0.1 mismatches).
+     */
+    function asset_url(string $path): string
+    {
+        $path = ltrim($path, '/');
+        $b = defined('BASE_PATH') ? BASE_PATH : '';
+        if ($b === '' || $b === '/') {
+            return '/' . $path;
+        }
+
+        return rtrim($b, '/') . '/' . $path;
+    }
+}
 // Public URL used in WhatsApp links (must be reachable from patient phone).
 // Example: https://your-domain.com/Dental or https://xxxx.ngrok-free.app/Dental
 if (!defined('PUBLIC_SITE_URL')) {
@@ -28,9 +75,10 @@ if (!defined('PUBLIC_SITE_URL')) {
 if (!defined('WHATSAPP_NODE_SEND_URL')) {
     define('WHATSAPP_NODE_SEND_URL', 'http://127.0.0.1:3210/send');
 }
-// Upload path and URL
-define('UPLOAD_PATH', $_SERVER['DOCUMENT_ROOT'] . '/Dental/assets/uploads/');
-define('UPLOAD_URL', SITE_URL . '/assets/uploads/');
+// Upload path and URL (folder under this project)
+$__uploadReal = realpath(__DIR__ . '/../assets/uploads');
+define('UPLOAD_PATH', ($__uploadReal !== false ? $__uploadReal . DIRECTORY_SEPARATOR : __DIR__ . '/../assets/uploads/'));
+define('UPLOAD_URL', rtrim(SITE_URL, '/') . '/assets/uploads/');
 
 // Timezone
 date_default_timezone_set('America/New_York');

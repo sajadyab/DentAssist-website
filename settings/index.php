@@ -1,42 +1,8 @@
-<?php
+﻿<?php
 require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
-
-// Ensure subscription plan helper functions exist (in case they are not in functions.php)
-if (!function_exists('getSubscriptionPlans')) {
-    function getSubscriptionPlans() {
-        global $db;
-        return $db->fetchAll(
-            "SELECT * FROM subscription_plans WHERE is_active = 1 ORDER BY display_order, monthly_price"
-        );
-    }
-}
-if (!function_exists('getSubscriptionPlan')) {
-    function getSubscriptionPlan($planKey) {
-        global $db;
-        return $db->fetchOne("SELECT * FROM subscription_plans WHERE plan_key = ?", [$planKey]);
-    }
-}
-if (!function_exists('updateSubscriptionPlan')) {
-    function updateSubscriptionPlan($planKey, $data) {
-        global $db;
-        return $db->execute(
-            "UPDATE subscription_plans SET plan_name = ?, monthly_price = ?, annual_price = ?, features = ?, is_active = ?, display_order = ? WHERE plan_key = ?",
-            [
-                $data['plan_name'],
-                $data['monthly_price'],
-                $data['annual_price'],
-                $data['features'],
-                $data['is_active'],
-                $data['display_order'],
-                $planKey
-            ],
-            "sddssis"
-        );
-    }
-}
 
 Auth::requireLogin();
 $isAdmin = Auth::isAdmin(); // Check if user is admin (not just doctor)
@@ -57,189 +23,6 @@ function getClinicSetting($key, $default = '') {
     global $db;
     $result = $db->fetchOne("SELECT setting_value FROM clinic_settings WHERE setting_key = ?", [$key]);
     return $result ? $result['setting_value'] : $default;
-}
-
-// Helper function to update clinic setting (admin only)
-function updateClinicSetting($key, $value) {
-    global $db;
-    try {
-        $existing = $db->fetchOne("SELECT id FROM clinic_settings WHERE setting_key = ?", [$key]);
-        if ($existing) {
-            $result = $db->execute("UPDATE clinic_settings SET setting_value = ? WHERE setting_key = ?", [$value, $key], "ss");
-            if ($result === false) {
-                error_log("updateClinicSetting: UPDATE failed for $key");
-                return false;
-            }
-        } else {
-            $result = $db->execute("INSERT INTO clinic_settings (setting_key, setting_value) VALUES (?, ?)", [$key, $value], "ss");
-            if ($result === false) {
-                error_log("updateClinicSetting: INSERT failed for $key");
-                return false;
-            }
-        }
-        error_log("updateClinicSetting: Successfully updated $key to $value");
-        return true;
-    } catch (Exception $e) {
-        error_log("updateClinicSetting: Exception - " . $e->getMessage());
-        return false;
-    }
-}
-
-// Handle profile update (available to all users)
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_profile'])) {
-    $userId = Auth::userId();
-    $fullName = $_POST['full_name'] ?? '';
-    $phone = $_POST['phone'] ?? '';
-    $email = $_POST['email'] ?? '';
-    
-    $existing = $db->fetchOne("SELECT id FROM users WHERE email = ? AND id != ?", [$email, $userId]);
-    if ($existing) {
-        $error = __('email_exists');
-    } else {
-        $db->execute("UPDATE users SET full_name = ?, phone = ?, email = ? WHERE id = ?", 
-                     [$fullName, $phone, $email, $userId], "sssi");
-        $success = __('profile_updated');
-        $_SESSION['full_name'] = $fullName;
-    }
-}
-
-// Handle password change (available to all users)
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['change_password'])) {
-    $userId = Auth::userId();
-    $currentPassword = $_POST['current_password'] ?? '';
-    $newPassword = $_POST['new_password'] ?? '';
-    $confirmPassword = $_POST['confirm_password'] ?? '';
-    
-    $user = $db->fetchOne("SELECT password_hash FROM users WHERE id = ?", [$userId]);
-    
-    if (!password_verify($currentPassword, $user['password_hash'])) {
-        $error = __('current_password_incorrect');
-    } elseif (strlen($newPassword) < 6) {
-        $error = __('password_too_short');
-    } elseif ($newPassword !== $confirmPassword) {
-        $error = __('passwords_do_not_match');
-    } else {
-        $newHash = Auth::hashPassword($newPassword);
-        $db->execute("UPDATE users SET password_hash = ? WHERE id = ?", [$newHash, $userId], "si");
-        $success = __('password_updated');
-    }
-}
-
-// Handle clinic info update (admin only)
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_clinic']) && $isAdmin) {
-    $clinicName = $_POST['clinic_name'] ?? '';
-    $clinicPhone = $_POST['clinic_phone'] ?? '';
-    $clinicEmail = $_POST['clinic_email'] ?? '';
-    $clinicAddress = $_POST['clinic_address'] ?? '';
-    $openingHours = $_POST['opening_hours'] ?? '';
-    
-    updateClinicSetting('clinic_name', $clinicName);
-    updateClinicSetting('clinic_phone', $clinicPhone);
-    updateClinicSetting('clinic_email', $clinicEmail);
-    updateClinicSetting('clinic_address', $clinicAddress);
-    updateClinicSetting('opening_hours', $openingHours);
-    
-    $allowPoints = isset($_POST['allow_points']) ? 1 : 0;
-    $allowReferrals = isset($_POST['allow_referrals']) ? 1 : 0;
-    $allowSubscription = isset($_POST['allow_subscription']) ? 1 : 0;
-
-    $pointsUpdate = updateClinicSetting('allow_points_view', $allowPoints);
-    $referralsUpdate = updateClinicSetting('allow_referrals_view', $allowReferrals);
-    $subscriptionUpdate = updateClinicSetting('allow_subscription_view', $allowSubscription);
-
-    if ($pointsUpdate && $referralsUpdate && $subscriptionUpdate) {
-        $success = __('clinic_info_updated');
-        $allowPoints = $allowPoints;
-        $allowReferrals = $allowReferrals;
-        $allowSubscription = $allowSubscription;
-    } else {
-        $error = 'Error updating settings. Please try again.';
-    }
-}
-
-// Handle subscription plan updates (admin only)
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_plan']) && $isAdmin) {
-    $planKey = $_POST['plan_key'];
-    $data = [
-        'plan_name' => $_POST['plan_name'],
-        'monthly_price' => $_POST['monthly_price'],
-        'annual_price' => $_POST['annual_price'],
-        'features' => $_POST['features'],
-        'is_active' => isset($_POST['is_active']) ? 1 : 0,
-        'display_order' => $_POST['display_order']
-    ];
-    if (updateSubscriptionPlan($planKey, $data)) {
-        $planSuccess = "Plan updated successfully.";
-    } else {
-        $planError = "Error updating plan.";
-    }
-}
-
-// Handle language change (available to all users)
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['change_language'])) {
-    $newLang = $_POST['language'] ?? 'en';
-    if (setLanguage($newLang)) {
-        $success = __('language_updated');
-    }
-    header('Location: ' . url('settings/index.php?tab=language'));
-    exit;
-}
-
-// Handle user management (admin only)
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && $isAdmin) {
-    if (isset($_POST['add_user'])) {
-        $username = $_POST['username'];
-        $email = $_POST['email'];
-        $fullName = $_POST['full_name'];
-        $role = $_POST['role'];
-        $phone = $_POST['phone'] ?? '';
-        $isAdminUser = isset($_POST['is_admin']) ? 1 : 0;
-        $password = $_POST['password'] ?? generateRandomPassword();
-        
-        $existing = $db->fetchOne("SELECT id FROM users WHERE username = ? OR email = ?", [$username, $email]);
-        if ($existing) {
-            $error = __('username_email_exists');
-        } else {
-            $passwordHash = Auth::hashPassword($password);
-            $db->execute(
-                "INSERT INTO users (username, email, password_hash, full_name, role, phone, is_admin, is_active) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
-                [$username, $email, $passwordHash, $fullName, $role, $phone, $isAdminUser],
-                "ssssssi"
-            );
-            $success = __('user_added') . " - Password: " . $password;
-        }
-    } elseif (isset($_POST['toggle_user_status'])) {
-        $userId = $_POST['user_id'];
-        $currentStatus = $_POST['current_status'];
-        $newStatus = $currentStatus == 1 ? 0 : 1;
-        $db->execute("UPDATE users SET is_active = ? WHERE id = ?", [$newStatus, $userId], "ii");
-        $success = __('user_status_updated');
-    } elseif (isset($_POST['toggle_admin_status'])) {
-        $userId = $_POST['user_id'];
-        $currentAdmin = $_POST['current_admin'];
-        $newAdmin = $currentAdmin == 1 ? 0 : 1;
-        if ($userId == Auth::userId() && $newAdmin == 0) {
-            $error = __('cannot_remove_own_admin');
-        } else {
-            $db->execute("UPDATE users SET is_admin = ? WHERE id = ?", [$newAdmin, $userId], "ii");
-            $success = __('admin_status_updated');
-        }
-    } elseif (isset($_POST['delete_user'])) {
-        $userId = $_POST['user_id'];
-        if ($userId != Auth::userId()) {
-            $db->execute("DELETE FROM users WHERE id = ?", [$userId], "i");
-            $success = __('user_deleted');
-        } else {
-            $error = __('cannot_delete_self');
-        }
-    } elseif (isset($_POST['reset_user_password'])) {
-        $userId = $_POST['user_id'];
-        $newPassword = generateRandomPassword();
-        $passwordHash = Auth::hashPassword($newPassword);
-        $db->execute("UPDATE users SET password_hash = ? WHERE id = ?", [$passwordHash, $userId], "si");
-        $success = __('password_reset') . " - New Password: " . $newPassword;
-    }
 }
 
 // Get users for admin view (admin only)
@@ -274,31 +57,31 @@ if ($isAdmin) {
 include '../layouts/header.php';
 ?>
 
-<div class="container-fluid">
-    <h1 class="h3 mb-4">
-        <?php echo __('settings_title'); ?>
-        <?php if ($isAdmin): ?>
-            <small class="text-muted">(Admin Access)</small>
-        <?php elseif ($isDoctor): ?>
-            <small class="text-muted">(Doctor Access - Limited)</small>
-        <?php else: ?>
-            <small class="text-muted">(Limited Access)</small>
-        <?php endif; ?>
-    </h1>
+<!-- Custom Dental Theme CSS -->
 
-    <?php if (isset($success)): ?>
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <?php echo $success; ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+<div class="container-fluid settings-page">
+    <!-- Page Header with Dental Icon -->
+    <div class="page-header d-flex align-items-center justify-content-between flex-wrap">
+        <div>
+            <h1><i class="fas fa-tooth me-2"></i> <?php echo __('settings_Page'); ?></h1>
+            <p class="mb-0">
+                <?php if ($isAdmin): ?>
+                    <i class="fas fa-shield-alt me-1"></i> Full administrative access
+                <?php elseif ($isDoctor): ?>
+                    <i class="fas fa-user-md me-1"></i> Doctor access – limited settings
+                <?php else: ?>
+                    <i class="fas fa-user me-1"></i> Profile & language settings
+                <?php endif; ?>
+            </p>
         </div>
-    <?php endif; ?>
-    
-    <?php if (isset($error)): ?>
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <?php echo $error; ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="mt-2 mt-sm-0">
+            <span class="badge bg-light text-dark p-2">
+                <i class="fas fa-calendar-alt me-1"></i> <?php echo date('F j, Y'); ?>
+            </span>
         </div>
-    <?php endif; ?>
+    </div>
+
+    <div id="message"></div>
 
     <!-- Tabs -->
     <ul class="nav nav-tabs mb-4">
@@ -350,7 +133,9 @@ include '../layouts/header.php';
                 <h5><i class="fas fa-user-edit"></i> <?php echo __('my_profile'); ?></h5>
             </div>
             <div class="card-body">
-                <form method="post">
+                <form method="post" action="<?php echo url('api/settings.php'); ?>" data-api="<?php echo url('api/settings.php'); ?>" data-message-target="#message">
+                    <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                    <input type="hidden" name="settings_action" value="update_profile">
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label"><?php echo __('full_name'); ?> *</label>
@@ -378,7 +163,7 @@ include '../layouts/header.php';
                         <?php if ($currentUser['is_admin']): ?>
                         <div class="col-md-6 mb-3">
                             <label class="form-label"><?php echo __('admin_privileges'); ?></label>
-                            <input type="text" class="form-control" value="Yes" disabled style="background-color: #d4edda; color: #155724;">
+                            <input type="text" class="form-control" value="Yes" disabled style="background-color: #ecfdf5; color: #065f46;">
                         </div>
                         <?php endif; ?>
                     </div>
@@ -396,7 +181,9 @@ include '../layouts/header.php';
                 <h5><i class="fas fa-key"></i> <?php echo __('change_password'); ?></h5>
             </div>
             <div class="card-body">
-                <form method="post">
+                <form method="post" action="<?php echo url('api/settings.php'); ?>" data-api="<?php echo url('api/settings.php'); ?>" data-message-target="#message">
+                    <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                    <input type="hidden" name="settings_action" value="change_password">
                     <div class="mb-3">
                         <label class="form-label"><?php echo __('current_password'); ?> *</label>
                         <input type="password" class="form-control" name="current_password" required>
@@ -429,7 +216,9 @@ include '../layouts/header.php';
                 <h5><i class="fas fa-user-plus"></i> <?php echo __('add_new_user'); ?></h5>
             </div>
             <div class="card-body">
-                <form method="post">
+                <form method="post" action="<?php echo url('api/settings.php'); ?>" data-api="<?php echo url('api/settings.php'); ?>" data-message-target="#message">
+                    <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                    <input type="hidden" name="settings_action" value="add_user">
                     <div class="row">
                         <div class="col-md-4 mb-3">
                             <label class="form-label"><?php echo __('username'); ?> *</label>
@@ -487,7 +276,7 @@ include '../layouts/header.php';
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
-                            32
+                            <tr>
                                 <th>ID</th>
                                 <th><?php echo __('username'); ?></th>
                                 <th><?php echo __('full_name'); ?></th>
@@ -498,7 +287,8 @@ include '../layouts/header.php';
                                 <th><?php echo __('status'); ?></th>
                                 <th><?php echo __('last_login'); ?></th>
                                 <th><?php echo __('actions'); ?></th>
-                            </thead>
+                            </tr>
+                        </thead>
                         <tbody>
                             <?php foreach ($users as $user): ?>
                             <tr>
@@ -530,30 +320,38 @@ include '../layouts/header.php';
                                 <td><?php echo $user['last_login'] ? date('Y-m-d H:i', strtotime($user['last_login'])) : 'Never'; ?></td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <form method="post" style="display: inline-block;">
+                                        <form method="post" action="<?php echo url('api/settings.php'); ?>" data-api="<?php echo url('api/settings.php'); ?>" data-message-target="#message" style="display: inline-block;">
+                                            <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                                            <input type="hidden" name="settings_action" value="toggle_user_status">
                                             <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
                                             <input type="hidden" name="current_status" value="<?php echo $user['is_active']; ?>">
                                             <button type="submit" name="toggle_user_status" class="btn btn-sm btn-warning" title="Toggle Status">
                                                 <i class="fas fa-power-off"></i>
                                             </button>
                                         </form>
-                                        <form method="post" style="display: inline-block;">
+                                        <form method="post" action="<?php echo url('api/settings.php'); ?>" data-api="<?php echo url('api/settings.php'); ?>" data-message-target="#message" style="display: inline-block;">
+                                            <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                                            <input type="hidden" name="settings_action" value="toggle_admin_status">
                                             <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
                                             <input type="hidden" name="current_admin" value="<?php echo $user['is_admin']; ?>">
                                             <button type="submit" name="toggle_admin_status" class="btn btn-sm btn-info" title="Toggle Admin Privileges">
                                                 <i class="fas fa-crown"></i>
                                             </button>
                                         </form>
-                                        <form method="post" style="display: inline-block;" 
+                                        <form method="post" action="<?php echo url('api/settings.php'); ?>" data-api="<?php echo url('api/settings.php'); ?>" data-message-target="#message" style="display: inline-block;" 
                                               onsubmit="return confirm('Reset password for <?php echo htmlspecialchars($user['full_name']); ?>?');">
+                                            <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                                            <input type="hidden" name="settings_action" value="reset_user_password">
                                             <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
                                             <button type="submit" name="reset_user_password" class="btn btn-sm btn-secondary" title="Reset Password">
                                                 <i class="fas fa-key"></i>
                                             </button>
                                         </form>
                                         <?php if ($user['id'] != Auth::userId()): ?>
-                                        <form method="post" style="display: inline-block;" 
+                                        <form method="post" action="<?php echo url('api/settings.php'); ?>" data-api="<?php echo url('api/settings.php'); ?>" data-message-target="#message" style="display: inline-block;" 
                                               onsubmit="return confirm('Delete user <?php echo htmlspecialchars($user['full_name']); ?>?');">
+                                            <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                                            <input type="hidden" name="settings_action" value="delete_user">
                                             <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
                                             <button type="submit" name="delete_user" class="btn btn-sm btn-danger" title="Delete">
                                                 <i class="fas fa-trash"></i>
@@ -577,7 +375,9 @@ include '../layouts/header.php';
                 <h5><i class="fas fa-hospital"></i> <?php echo __('clinic_info'); ?></h5>
             </div>
             <div class="card-body">
-                <form method="post">
+                <form method="post" action="<?php echo url('api/settings.php'); ?>" data-api="<?php echo url('api/settings.php'); ?>" data-message-target="#message">
+                    <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                    <input type="hidden" name="settings_action" value="update_clinic">
                     <div class="mb-3">
                         <label class="form-label"><?php echo __('clinic_name'); ?></label>
                         <input type="text" class="form-control" name="clinic_name" 
@@ -650,10 +450,27 @@ include '../layouts/header.php';
                     <div class="alert alert-danger"><?php echo $planError; ?></div>
                 <?php endif; ?>
                 
+                <?php
+                $subscriptionPlans = $db->fetchAll('SELECT * FROM subscription_plans ORDER BY display_order, monthly_price');
+                ?>
+                <div class="d-none" aria-hidden="true">
+                    <?php foreach ($subscriptionPlans as $_plan): ?>
+                        <?php $pfid = 'subscriptionPlanForm_' . (int) ($_plan['id'] ?? 0); ?>
+                        <form id="<?php echo htmlspecialchars($pfid); ?>"
+                              method="post"
+                              action="<?php echo url('api/settings.php'); ?>"
+                              data-api="<?php echo url('api/settings.php'); ?>"
+                              data-message-target="#message">
+                            <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                            <input type="hidden" name="settings_action" value="update_plan">
+                            <input type="hidden" name="plan_key" value="<?php echo htmlspecialchars((string) ($_plan['plan_key'] ?? '')); ?>">
+                        </form>
+                    <?php endforeach; ?>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-bordered">
                         <thead>
-                            32
+                            <tr>
                                 <th>Plan Key</th>
                                 <th>Plan Name</th>
                                 <th>Monthly Price ($)</th>
@@ -662,24 +479,20 @@ include '../layouts/header.php';
                                 <th>Active</th>
                                 <th>Order</th>
                                 <th>Actions</th>
-                            </thead>
+                            </tr>
+                        </thead>
                         <tbody>
-                            <?php
-                            $plans = $db->fetchAll("SELECT * FROM subscription_plans ORDER BY display_order, monthly_price");
-                            foreach ($plans as $plan):
-                            ?>
+                            <?php foreach ($subscriptionPlans as $plan): ?>
+                                <?php $pfid = 'subscriptionPlanForm_' . (int) ($plan['id'] ?? 0); ?>
                             <tr>
-                                <form method="post">
-                                    <input type="hidden" name="plan_key" value="<?php echo $plan['plan_key']; ?>">
-                                    <td><strong><?php echo htmlspecialchars($plan['plan_key']); ?></strong></td>
-                                    <td><input type="text" name="plan_name" class="form-control" value="<?php echo htmlspecialchars($plan['plan_name']); ?>" required></td>
-                                    <td><input type="number" step="0.01" name="monthly_price" class="form-control" value="<?php echo $plan['monthly_price']; ?>" required></td>
-                                    <td><input type="number" step="0.01" name="annual_price" class="form-control" value="<?php echo $plan['annual_price']; ?>" required></td>
-                                    <td><textarea name="features" class="form-control" rows="3"><?php echo htmlspecialchars($plan['features']); ?></textarea><small class="text-muted">Separate features with new lines</small></td>
-                                    <td class="text-center"><input type="checkbox" name="is_active" value="1" <?php echo $plan['is_active'] ? 'checked' : ''; ?>></td>
-                                    <td><input type="number" name="display_order" class="form-control" value="<?php echo $plan['display_order']; ?>" style="width:70px"></td>
-                                    <td><button type="submit" name="update_plan" class="btn btn-primary btn-sm">Save</button></td>
-                                </form>
+                                    <td><strong><?php echo htmlspecialchars((string) ($plan['plan_key'] ?? '')); ?></strong></td>
+                                    <td><input type="text" name="plan_name" class="form-control" form="<?php echo htmlspecialchars($pfid); ?>" value="<?php echo htmlspecialchars((string) ($plan['plan_name'] ?? '')); ?>" required></td>
+                                    <td><input type="number" step="0.01" name="monthly_price" class="form-control" form="<?php echo htmlspecialchars($pfid); ?>" value="<?php echo htmlspecialchars((string) ($plan['monthly_price'] ?? '')); ?>" required></td>
+                                    <td><input type="number" step="0.01" name="annual_price" class="form-control" form="<?php echo htmlspecialchars($pfid); ?>" value="<?php echo htmlspecialchars((string) ($plan['annual_price'] ?? '')); ?>" required></td>
+                                    <td><textarea name="features" class="form-control" rows="3" form="<?php echo htmlspecialchars($pfid); ?>"><?php echo htmlspecialchars((string) ($plan['features'] ?? '')); ?></textarea><small class="text-muted">Separate features with new lines</small></td>
+                                    <td class="text-center"><input type="checkbox" name="is_active" value="1" form="<?php echo htmlspecialchars($pfid); ?>" <?php echo !empty($plan['is_active']) ? 'checked' : ''; ?>></td>
+                                    <td><input type="number" name="display_order" class="form-control" form="<?php echo htmlspecialchars($pfid); ?>" value="<?php echo (int) ($plan['display_order'] ?? 0); ?>" style="width:70px"></td>
+                                    <td><button type="submit" name="update_plan" class="btn btn-primary btn-sm" form="<?php echo htmlspecialchars($pfid); ?>">Save</button></td>
                             </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -698,13 +511,15 @@ include '../layouts/header.php';
                 <h5><i class="fas fa-language"></i> <?php echo __('language_settings'); ?></h5>
             </div>
             <div class="card-body">
-                <form method="post">
+                <form method="post" action="<?php echo url('api/settings.php'); ?>" data-api="<?php echo url('api/settings.php'); ?>" data-message-target="#message">
+                    <input type="hidden" name="tab" value="<?php echo htmlspecialchars($activeTab); ?>">
+                    <input type="hidden" name="settings_action" value="change_language">
                     <div class="mb-3">
                         <label class="form-label"><?php echo __('select_language'); ?></label>
                         <select name="language" class="form-select">
                             <option value="en" <?php echo getLanguage() == 'en' ? 'selected' : ''; ?>>English</option>
-                            <option value="ar" <?php echo getLanguage() == 'ar' ? 'selected' : ''; ?>>العربية (Arabic)</option>
-                            <option value="fr" <?php echo getLanguage() == 'fr' ? 'selected' : ''; ?>>Français (French)</option>
+                            <option value="ar" <?php echo getLanguage() == 'ar' ? 'selected' : ''; ?>>Ø§Ù„Ø¹Ø±Ø¨ÙŠØ© (Arabic)</option>
+                            <option value="fr" <?php echo getLanguage() == 'fr' ? 'selected' : ''; ?>>FranÃ§ais (French)</option>
                         </select>
                     </div>
                     <button type="submit" name="change_language" class="btn btn-primary">
@@ -717,7 +532,7 @@ include '../layouts/header.php';
 </div>
 
 <script>
-// Show/hide passwords functionality
+// Show/hide passwords functionality (unchanged)
 document.getElementById('showPasswords')?.addEventListener('change', function(e) {
     const passwordFields = document.querySelectorAll('input[type="password"]');
     passwordFields.forEach(field => {

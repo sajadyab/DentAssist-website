@@ -1,8 +1,6 @@
 <?php
-require_once '../includes/config.php';
-require_once '../includes/db.php';
-require_once '../includes/auth.php';
-require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
 $pageTitle = 'Treatment Plans';
@@ -20,7 +18,7 @@ $patientId = $_GET['patient_id'] ?? '';
 $priority = $_GET['priority'] ?? '';
 
 // Get patients for filter dropdown
-$patients = $db->fetchAll("SELECT id, full_name FROM patients ORDER BY full_name");
+$patients = repo_patient_list_for_select();
 
 // Build query with filters
 $where = ["1=1"];

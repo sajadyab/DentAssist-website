@@ -3,19 +3,13 @@
  * API endpoint: send_reminder.php
  * Sends a WhatsApp reminder for a given appointment.
  * Expects POST JSON: { "appointment_id": 123 }
- * Returns JSON: { "success": bool, "message": string, "sid": string|null }
+ * Returns JSON: { "success": bool, "message": string } (WhatsApp via local Node send.js)
  */
 
-require_once '../includes/config.php';
-require_once '../includes/db.php';
-require_once '../includes/auth.php';
-require_once '../includes/functions.php';
-
-// Twilio SDK (must be installed via Composer)
-require_once '../vendor/autoload.php';
-
-use Twilio\Rest\Client;
-use Twilio\Exceptions\TwilioException;
+require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/functions.php';
 
 Auth::requireLogin();
 
@@ -64,31 +58,11 @@ if ($appointment['status'] === 'cancelled') {
     exit;
 }
 
-// Validate patient phone number
 $patientPhone = $appointment['patient_phone'];
-if (empty($patientPhone)) {
+if (empty(trim((string) $patientPhone))) {
     echo json_encode(['success' => false, 'message' => 'Patient has no phone number on file']);
     exit;
 }
-
-// Clean phone number: remove all non‑numeric characters except '+'
-$cleanPhone = preg_replace('/[^0-9+]/', '', $patientPhone);
-if (substr($cleanPhone, 0, 1) !== '+') {
-    // If no leading '+', assume it's missing country code – prepend default (adjust as needed)
-    // For Lebanon, country code is +961. You may want to detect based on your clinic's location.
-    $cleanPhone = '+961' . ltrim($cleanPhone, '0'); // Example: remove leading zero if present
-}
-$toNumber = 'whatsapp:' . $cleanPhone;
-
-// Twilio credentials (defined in config.php)
-if (!defined('TWILIO_SID') || !defined('TWILIO_AUTH_TOKEN') || !defined('TWILIO_WHATSAPP_NUMBER')) {
-    echo json_encode(['success' => false, 'message' => 'Twilio credentials not configured']);
-    exit;
-}
-
-$twilioSid = TWILIO_SID;
-$twilioToken = TWILIO_AUTH_TOKEN;
-$fromNumber = 'whatsapp:' . TWILIO_WHATSAPP_NUMBER; // e.g., 'whatsapp:+14155238886'
 
 // Build message text
 $date = formatDate($appointment['appointment_date']);
@@ -103,59 +77,35 @@ $messageBody = "Dear {$appointment['patient_name']},\n\n"
              . "Please arrive 15 minutes early. If you need to reschedule, please contact us.\n\n"
              . "Thank you,\nDental Clinic Team";
 
-// Initialize Twilio client
-$client = new Client($twilioSid, $twilioToken);
-
-try {
-    // Send WhatsApp message
-    $message = $client->messages->create(
-        $toNumber,
-        [
-            'from' => $fromNumber,
-            'body' => $messageBody
-        ]
-    );
-
-    // Log the message in the database (if messages table exists)
-    // If the table does not exist, we skip logging but still return success.
-    // You can create the table using the SQL below.
-    $messageId = $message->sid;
-    $logged = false;
-    try {
-        $logged = $db->execute(
-            "INSERT INTO messages 
-             (patient_id, message_type, subject, message, delivery_method, status, sent_at, created_by, external_id)
-             VALUES (?, 'appointment_reminder', ?, ?, 'whatsapp', 'sent', NOW(), ?, ?)",
-            [
-                $appointment['patient_id'],
-                "Appointment Reminder",
-                $messageBody,
-                Auth::userId(),
-                $messageId
-            ],
-            "isssis"
-        );
-    } catch (Exception $e) {
-        // Table might not exist – we don't fail the request for that
-        error_log("Failed to log message: " . $e->getMessage());
-    }
-
-    echo json_encode([
-        'success' => true,
-        'message' => 'Reminder sent successfully',
-        'sid' => $messageId
-    ]);
-
-} catch (TwilioException $e) {
-    error_log("Twilio error: " . $e->getMessage());
+$sent = sendWhatsapp($patientPhone, $messageBody);
+if (!$sent['ok']) {
     echo json_encode([
         'success' => false,
-        'message' => 'Failed to send reminder: ' . $e->getMessage()
+        'message' => 'Failed to send reminder: ' . ($sent['error'] ?? 'Unknown error'),
     ]);
-} catch (Exception $e) {
-    error_log("Unexpected error: " . $e->getMessage());
-    echo json_encode([
-        'success' => false,
-        'message' => 'An unexpected error occurred'
-    ]);
+    exit;
 }
+
+$externalId = 'node';
+try {
+    $db->execute(
+        "INSERT INTO messages 
+         (patient_id, message_type, subject, message, delivery_method, status, sent_at, created_by, external_id)
+         VALUES (?, 'appointment_reminder', ?, ?, 'whatsapp', 'sent', NOW(), ?, ?)",
+        [
+            $appointment['patient_id'],
+            'Appointment Reminder',
+            $messageBody,
+            Auth::userId(),
+            $externalId,
+        ],
+        'issis'
+    );
+} catch (Exception $e) {
+    error_log('Failed to log message: ' . $e->getMessage());
+}
+
+echo json_encode([
+    'success' => true,
+    'message' => 'Reminder sent successfully (WhatsApp via local Node server).',
+]);

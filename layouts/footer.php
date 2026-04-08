@@ -12,7 +12,9 @@
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.0/main.min.js"></script>
     
     <!-- Custom JS -->
-    <script src="<?php echo SITE_URL; ?>/assets/js/dashboard.js"></script>
+    <script src="<?php echo htmlspecialchars(asset_url('assets/js/dashboard.js')); ?>"></script>
+    <script src="<?php echo htmlspecialchars(asset_url('assets/js/api-forms.js')); ?>"></script>
+    <script src="<?php echo htmlspecialchars(asset_url('assets/js/packages/sweetalert2.js')); ?>?v=<?php echo (int) @filemtime(__DIR__ . '/../assets/js/toast.js'); ?>"></script>
     
     <?php if (isset($additionalScripts)): ?>
         <?php echo $additionalScripts; ?>

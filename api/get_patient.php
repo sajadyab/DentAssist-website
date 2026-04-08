@@ -1,8 +1,5 @@
 <?php
-require_once '../includes/config.php';
-require_once '../includes/db.php';
-require_once '../includes/auth.php';
-require_once '../includes/functions.php';
+require_once __DIR__ . '/_helpers.php';
 
 // Require login
 Auth::requireLogin();
@@ -14,8 +11,7 @@ if (!isset($_GET['id'])) {
     exit;
 }
 
-$db = Database::getInstance();
-$patientId = intval($_GET['id']);
+$patientId = (int) ($_GET['id'] ?? 0);
 
 // Check authorization: patients can only view their own data
 if (Auth::hasRole('patient')) {
@@ -26,14 +22,7 @@ if (Auth::hasRole('patient')) {
     }
 }
 
-$patient = $db->fetchOne(
-    "SELECT id, full_name, date_of_birth, phone, email, 
-            insurance_provider, insurance_id, insurance_type, insurance_coverage,
-            allergies, medical_history
-     FROM patients WHERE id = ?",
-    [$patientId],
-    "i"
-);
+$patient = repo_patient_find_for_api($patientId);
 
 if ($patient) {
     echo json_encode(['success' => true, 'patient' => $patient]);

@@ -486,8 +486,10 @@ function markApproved(planId) {
     if (confirm('Mark this treatment plan as approved by the patient?')) {
         fetch('../api/approve_plan.php', {
             method: 'POST',
+            credentials: 'same-origin',
             headers: {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json',
             },
             body: JSON.stringify({id: planId})
         })
@@ -496,7 +498,7 @@ function markApproved(planId) {
             if (data.success) {
                 location.reload();
             } else {
-                alert('Error marking plan as approved');
+                alert(data.message || 'Error marking plan as approved');
             }
         })
         .catch(error => {

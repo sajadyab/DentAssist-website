@@ -1,8 +1,6 @@
-<?php
-require_once '../includes/config.php';
-require_once '../includes/db.php';
-require_once '../includes/auth.php';
-require_once '../includes/functions.php';
+﻿<?php
+require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
 // patients should not be able to add appointments via staff interface
@@ -26,174 +24,21 @@ if ($patientId) {
 }
 
 // Get doctors
-$doctors = $db->fetchAll(
-    "SELECT id, full_name FROM users WHERE role = 'doctor' ORDER BY full_name"
-);
+$doctors = repo_user_list_doctors(false);
 
 // Get patients list
-$patients = $db->fetchAll(
-    "SELECT id, full_name, phone, email FROM patients ORDER BY full_name"
-);
-
-// Check if we have required data
-if (empty($patients)) {
-    $error = 'No patients found. Please <a href="../patients/add.php">add a patient</a> first.';
-}
-
-if (empty($doctors)) {
-    $error = 'No doctors found. Please add a doctor user first.';
-}
+$patients = $db->fetchAll('SELECT id, full_name, phone, email FROM patients ORDER BY full_name');
 
 $error = '';
-$success = '';
-
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Check if we have required data
-    if (empty($patients)) {
-        $error = 'No patients found. Please add a patient first.';
-    } elseif (empty($doctors)) {
-        $error = 'No doctors found. Please add a doctor user first.';
-    } else {
-        // Check availability
-        $existing = $db->fetchOne(
-            "SELECT id FROM appointments 
-             WHERE appointment_date = ? AND appointment_time = ? AND chair_number = ? AND status != 'cancelled'",
-            [$_POST['appointment_date'], $_POST['appointment_time'], $_POST['chair_number']],
-            "ssi"
-        );
-        
-        if ($existing) {
-            $error = 'This time slot is already booked for the selected chair';
-        } else {
-        // Create appointment
-        $appointmentId = $db->insert(
-            "INSERT INTO appointments (
-                patient_id, doctor_id, appointment_date, appointment_time, duration,
-                treatment_type, description, chair_number, status, notes, created_by
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            [
-                $_POST['patient_id'],
-                $_POST['doctor_id'],
-                $_POST['appointment_date'],
-                $_POST['appointment_time'],
-                $_POST['duration'] ?? 30,
-                $_POST['treatment_type'],
-                $_POST['description'] ?? null,
-                $_POST['chair_number'] ?? null,
-                'scheduled',
-                $_POST['notes'] ?? null,
-                Auth::userId()
-            ],
-            "iississsssi"
-        );
-        
-        if ($appointmentId) {
-            logAction('CREATE', 'appointments', $appointmentId, null, $_POST);
-            
-            // Send notification to patient (if they have user account)
-            $patientData = $db->fetchOne(
-                "SELECT user_id FROM patients WHERE id = ?",
-                [$_POST['patient_id']],
-                "i"
-            );
-            
-            if ($patientData && $patientData['user_id']) {
-                sendNotification(
-                    $patientData['user_id'],
-                    'appointment_reminder',
-                    'Appointment Scheduled',
-                    'Your appointment has been scheduled for ' . formatDate($_POST['appointment_date']) . 
-                    ' at ' . formatTime($_POST['appointment_time'])
-                );
-            }
-            
-            $success = 'Appointment scheduled successfully';
-            
-            if (!isset($_POST['save_and_new'])) {
-                header("Location: view.php?id=$appointmentId");
-                exit;
-            }
-        } else {
-            $error = 'Error scheduling appointment';
-        }
-    }
-}
+if (empty($patients)) {
+    $error = 'No patients found. Please <a href="../patients/add.php">add a patient</a> first.';
+} elseif (empty($doctors)) {
+    $error = 'No doctors found. Please add a doctor user first.';
 }
 
 include '../layouts/header.php';
 ?>
 
-<style>
-    .appointments-schedule-header {
-        flex-wrap: wrap;
-        gap: 0.75rem;
-    }
-
-    .appointments-schedule-title {
-        margin-bottom: 0;
-    }
-
-    .appointment-detail-card,
-    .appointment-side-card {
-        border-radius: 12px;
-    }
-
-    .appointment-detail-card .card-header,
-    .appointment-side-card .card-header {
-        padding: 0.65rem 1rem;
-    }
-
-    .appointment-form-actions {
-        flex-wrap: wrap;
-        gap: 0.5rem;
-    }
-
-    @media (max-width: 767.98px) {
-        .appointments-schedule-title {
-            font-size: 1.15rem;
-            width: 100%;
-        }
-
-        .appointments-schedule-header .btn {
-            width: 100%;
-            padding: 0.55rem 0.85rem;
-            font-size: 14px;
-        }
-
-        .appointment-detail-card .card-body,
-        .appointment-side-card .card-body {
-            padding: 1rem;
-        }
-
-        .appointment-detail-card .form-control,
-        .appointment-detail-card .form-select,
-        .appointment-side-card .form-control {
-            padding: 0.6rem 0.75rem;
-            font-size: 14px;
-        }
-
-        .appointment-detail-card .form-label,
-        .appointment-side-card .form-label {
-            font-size: 14px;
-        }
-
-        .appointment-form-actions {
-            flex-direction: column;
-            align-items: stretch;
-        }
-
-        .appointment-form-actions .btn {
-            width: 100%;
-            padding: 0.55rem 0.85rem;
-            font-size: 14px;
-        }
-
-        .appointment-side-card .btn {
-            padding: 0.5rem 0.75rem;
-            font-size: 14px;
-        }
-    }
-</style>
 
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4 appointments-schedule-header">
@@ -203,12 +48,13 @@ include '../layouts/header.php';
         </a>
     </div>
     
+    <div id="message"></div>
+    <?php if (isset($_GET['success'])): ?>
+        <div class="alert alert-success">Appointment scheduled successfully</div>
+    <?php endif; ?>
+
     <?php if ($error): ?>
         <div class="alert alert-danger"><?php echo $error; ?></div>
-    <?php endif; ?>
-    
-    <?php if ($success): ?>
-        <div class="alert alert-success"><?php echo $success; ?></div>
     <?php endif; ?>
     
     <div class="row g-3">
@@ -218,7 +64,7 @@ include '../layouts/header.php';
                     <h5 class="card-title mb-0">Appointment Details</h5>
                 </div>
                 <div class="card-body">
-                    <form method="POST" action="" id="appointmentForm">
+                    <form method="POST" action="<?php echo url('api/appointments_add.php'); ?>" data-api="<?php echo url('api/appointments_add.php'); ?>" data-message-target="#message" id="appointmentForm">
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Patient *</label>
@@ -322,7 +168,7 @@ include '../layouts/header.php';
         
         <div class="col-lg-4">
             <!-- Patient Info Card -->
-            <div class="card appointment-side-card mb-3" id="patientInfoCard" style="display: none;">
+            <div class="card appointment-side-card mb-3 d-none" id="patientInfoCard">
                 <div class="card-header">
                     <h5 class="card-title mb-0">Patient Information</h5>
                 </div>
@@ -382,11 +228,11 @@ function updatePatientInfo() {
                         <p><strong>Allergies:</strong> ${patient.allergies || 'None'}</p>
                         <p><strong>Medical History:</strong> ${patient.medical_history || 'None'}</p>
                     `;
-                    infoCard.style.display = 'block';
+                    infoCard.classList.remove('d-none');
                 }
             });
     } else {
-        infoCard.style.display = 'none';
+        infoCard.classList.add('d-none');
     }
 }
 

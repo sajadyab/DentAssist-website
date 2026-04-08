@@ -1016,11 +1016,14 @@ CREATE TABLE `waiting_queue` (
   `id` int(11) NOT NULL,
   `patient_id` int(11) DEFAULT NULL,
   `patient_name` varchar(100) DEFAULT NULL,
+  `doctor_id` int(11) DEFAULT NULL,
   `queue_type` enum('daily','weekly') NOT NULL,
   `priority` enum('emergency','high','medium','low') DEFAULT 'medium',
   `reason` varchar(100) DEFAULT NULL,
   `preferred_treatment` varchar(100) DEFAULT NULL,
   `preferred_day` varchar(20) DEFAULT NULL,
+  `preferred_date` date DEFAULT NULL,
+  `date_flexibility_days` int(11) NOT NULL DEFAULT 0,
   `estimated_wait_minutes` int(11) DEFAULT NULL,
   `position` int(11) DEFAULT NULL,
   `status` enum('waiting','notified','checked-in','cancelled') DEFAULT 'waiting',
@@ -1348,7 +1351,8 @@ ALTER TABLE `users`
 --
 ALTER TABLE `waiting_queue`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `patient_id` (`patient_id`);
+  ADD KEY `patient_id` (`patient_id`),
+  ADD KEY `idx_waiting_queue_doctor_weekly` (`doctor_id`,`queue_type`,`status`);
 
 --
 -- Indexes for table `appointment_requests`
@@ -1611,6 +1615,77 @@ ALTER TABLE `xrays`
   ADD CONSTRAINT `xrays_ibfk_1` FOREIGN KEY (`patient_id`) REFERENCES `patients` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `xrays_ibfk_2` FOREIGN KEY (`uploaded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
 COMMIT;
+
+-- Run once if `appointment_requests` is missing (patient portal online booking / queue tab).
+CREATE TABLE IF NOT EXISTS `appointment_requests` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `patient_id` int(11) NOT NULL,
+  `doctor_id` int(11) NOT NULL,
+  `requested_date` date NOT NULL,
+  `requested_time` time NOT NULL,
+  `duration_minutes` int(11) NOT NULL DEFAULT 30,
+  `treatment_type` varchar(100) NOT NULL,
+  `description` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `doctor_date` (`doctor_id`, `requested_date`),
+  KEY `patient_id` (`patient_id`),
+  CONSTRAINT `appointment_requests_ibfk_1` FOREIGN KEY (`patient_id`) REFERENCES `patients` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `appointment_requests_ibfk_2` FOREIGN KEY (`doctor_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+
+-- Run once: weekly date flexibility + clinic arrivals log (MySQL / MariaDB)
+-- Optional migration for existing DBs (skip if column/table already present; see CREATE TABLE definitions above).
+-- ALTER TABLE `waiting_queue` ADD COLUMN `date_flexibility_days` int(11) NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS `clinic_arrivals` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `doctor_id` int(11) DEFAULT NULL,
+  `kind` enum('scheduled','walk_in') NOT NULL,
+  `patient_id` int(11) DEFAULT NULL,
+  `patient_display_name` varchar(150) DEFAULT NULL,
+  `appointment_id` int(11) DEFAULT NULL,
+  `treatment_type` varchar(100) DEFAULT NULL,
+  `appointment_date` date DEFAULT NULL,
+  `appointment_time` time DEFAULT NULL,
+  `reason` varchar(255) DEFAULT NULL,
+  `priority` enum('emergency','high','medium','low') NOT NULL DEFAULT 'medium',
+  `arrived_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_by` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_clinic_arrivals_doctor_arrived` (`doctor_id`,`arrived_at`),
+  KEY `idx_clinic_arrivals_kind` (`kind`),
+  CONSTRAINT `clinic_arrivals_ibfk_patient` FOREIGN KEY (`patient_id`) REFERENCES `patients` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `clinic_arrivals_ibfk_appt` FOREIGN KEY (`appointment_id`) REFERENCES `appointments` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `clinic_arrivals_ibfk_doctor` FOREIGN KEY (`doctor_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+
+CREATE TABLE IF NOT EXISTS `subscription_plans` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `plan_key` varchar(50) NOT NULL,
+  `plan_name` varchar(100) NOT NULL,
+  `monthly_price` decimal(10,2) NOT NULL,
+  `annual_price` decimal(10,2) NOT NULL,
+  `features` text DEFAULT NULL,
+  `is_active` tinyint(1) DEFAULT 1,
+
+  `display_order` int(11) DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `plan_key` (`plan_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Insert default plans
+INSERT INTO `subscription_plans` (`plan_key`, `plan_name`, `monthly_price`, `annual_price`, `features`, `is_active`, `display_order`) VALUES
+('basic', 'Basic Plan', 29.00, 348.00, '2 free cleanings/year\n10% off treatments\nFree consultation', 1, 1),
+('premium', 'Premium Plan', 49.00, 588.00, '4 free cleanings/year\n20% off treatments\nPriority scheduling\nEmergency access', 1, 2),
+('family', 'Family Plan', 79.00, 948.00, 'Covers up to 4 members\n3 cleanings each/year\n15% off treatments', 1, 3);
+
+
+
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;

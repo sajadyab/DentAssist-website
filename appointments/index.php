@@ -1,8 +1,6 @@
-<?php
-require_once '../includes/config.php';
-require_once '../includes/db.php';
-require_once '../includes/auth.php';
-require_once '../includes/functions.php';
+﻿<?php
+require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
 // only staff users may view appointment listing
@@ -140,12 +138,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_walkin_arriv
         $_SESSION['appointments_flash_error'] = 'You can only complete your own walk-in entries.';
         $appointmentsRedirect('#clinic-arrivals');
     }
-    if (empty($row['patient_id'])) {
+    $pid = (int) ($row['patient_id'] ?? 0);
+    if ($pid <= 0) {
         $_SESSION['appointments_flash_error'] = 'Link this walk-in to a patient before marking completed.';
-    } else {
+        $appointmentsRedirect('#clinic-arrivals');
+    }
+    $docId = (int) ($row['doctor_id'] ?? 0);
+    if ($docId <= 0) {
+        $_SESSION['appointments_flash_error'] = 'This walk-in has no dentist assigned.';
+        $appointmentsRedirect('#clinic-arrivals');
+    }
+
+    $reason = trim((string) ($row['reason'] ?? ''));
+    $treatmentType = $reason !== '' ? substr($reason, 0, 100) : 'Walk-in visit';
+
+    $arrivedRaw = (string) ($row['arrived_at'] ?? '');
+    $apptDate = date('Y-m-d');
+    $apptTime = date('H:i:s');
+    if ($arrivedRaw !== '') {
+        $ts = strtotime($arrivedRaw);
+        if ($ts !== false) {
+            $apptDate = date('Y-m-d', $ts);
+            $apptTime = date('H:i:s', $ts);
+        }
+    }
+
+    $db->beginTransaction();
+    try {
+        $newApptId = (int) $db->insert(
+            "INSERT INTO appointments (
+                patient_id, doctor_id, appointment_date, appointment_time,
+                duration, treatment_type, description, status, created_by
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ?)",
+            [
+                $pid,
+                $docId,
+                $apptDate,
+                $apptTime,
+                30,
+                $treatmentType,
+                'Recorded from walk-in clinic arrival.',
+                $currentUserId,
+            ],
+            'iississi'
+        );
+        if ($newApptId <= 0) {
+            throw new RuntimeException('Could not record completed visit.');
+        }
         $db->execute('DELETE FROM clinic_arrivals WHERE id = ?', [$aid], 'i');
-        logAction('DELETE', 'clinic_arrivals', $aid, $row, ['via' => 'walk_in_completed']);
-        $_SESSION['appointments_flash_ok'] = 'Walk-in visit marked completed.';
+        logAction('CREATE', 'appointments', $newApptId, null, ['via' => 'walk_in_completed', 'clinic_arrival_id' => $aid, 'status' => 'completed']);
+        logAction('DELETE', 'clinic_arrivals', $aid, $row, null);
+        $db->commit();
+    } catch (Throwable $e) {
+        $db->rollback();
+        $_SESSION['appointments_flash_error'] = $e->getMessage();
+        $appointmentsRedirect('#clinic-arrivals');
+    }
+    $wa = notifyPatientPostTreatmentInstructionsOnCompleted($newApptId);
+    if (!empty($wa['skipped_whatsapp'])) {
+        $_SESSION['appointments_flash_ok'] = 'Appointment marked completed. ' . ($wa['message'] ?? 'No WhatsApp sent (no matching treatment instructions).');
+    } elseif (!empty($wa['ok'])) {
+        $_SESSION['appointments_flash_ok'] = $wa['message'] ?? 'Appointment completed; post-treatment WhatsApp sent.';
+    } else {
+        $_SESSION['appointments_flash_ok'] = 'Appointment marked completed. ' . ($wa['message'] ?? '') . ($wa['error'] ? ' ' . $wa['error'] : '');
     }
     $appointmentsRedirect('#clinic-arrivals');
 }
@@ -247,9 +302,7 @@ $status = $_GET['status'] ?? '';
 $doctorId = $_GET['doctor_id'] ?? '';
 
 // Get doctors for filter
-$doctors = $db->fetchAll(
-    "SELECT id, full_name FROM users WHERE role = 'doctor' ORDER BY full_name"
-);
+$doctors = repo_user_list_doctors(false);
 
 // Check if we have patients
 $patientCount = $db->fetchOne("SELECT COUNT(*) as count FROM patients")['count'];
@@ -292,10 +345,8 @@ $todayForCheckIn = date('Y-m-d');
 $checkedInAppointmentIds = [];
 $scheduledArrivals = [];
 $walkinArrivals = [];
-$doctorSelectList = $db->fetchAll(
-    "SELECT id, full_name FROM users WHERE role = 'doctor' AND COALESCE(is_active, 1) = 1 ORDER BY full_name"
-);
-$allPatientsForQueue = $db->fetchAll('SELECT id, full_name FROM patients ORDER BY full_name');
+$doctorSelectList = repo_user_list_doctors(true);
+$allPatientsForQueue = repo_patient_list_for_select();
 
 if (dbTableExists('clinic_arrivals')) {
     $chkRows = $db->fetchAll(
@@ -344,355 +395,6 @@ include '../layouts/header.php';
 ?>
 
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
-
-<style>
-    .appointments-page-title {
-        margin-bottom: 0.75rem;
-    }
-
-    .appointments-page-header {
-        flex-wrap: wrap;
-        gap: 0.75rem;
-    }
-
-    .btn-new-appointment {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.55rem 1.25rem;
-        font-weight: 600;
-        border-radius: 10px;
-    }
-
-    .appointments-filters .form-label {
-        font-weight: 500;
-    }
-
-    .appointments-date-nav {
-        flex-wrap: wrap;
-        gap: 0.75rem;
-    }
-
-    .appointments-date-nav .appointments-date-heading {
-        text-align: center;
-        flex: 1 1 auto;
-        min-width: 0;
-        font-size: 1.1rem;
-    }
-
-    .appointments-date-nav .btn-date-nav {
-        border-radius: 12px;
-        padding: 0.55rem 0.9rem;
-        font-weight: 600;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.55rem;
-        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
-        border-width: 1px;
-    }
-
-    .appointments-date-nav .btn-date-nav:hover {
-        transform: translateY(-1px);
-    }
-
-    .appointments-date-tools {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .appointments-date-tools .form-control,
-    .appointments-date-tools .form-select {
-        max-width: 210px;
-    }
-
-    .appointments-table-wrap .table {
-        font-size: 0.875rem;
-    }
-
-    .appointments-table-wrap .table thead th {
-        padding: 0.45rem 0.5rem;
-        vertical-align: middle;
-        white-space: nowrap;
-    }
-
-    .appointments-table-wrap .table tbody td {
-        padding: 0.35rem 0.5rem;
-        vertical-align: middle;
-    }
-
-    .appointments-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.35rem;
-        align-items: center;
-        max-width: 200px;
-    }
-
-    .appointments-actions form.appointments-checkin-form,
-    .appointments-actions form.appointments-actions-form {
-        display: inline-flex;
-        margin: 0;
-        padding: 0;
-    }
-
-    .appointments-actions .btn {
-        padding: 0.2rem 0.35rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    #clinic-arrivals .arrivals-section-header {
-        min-height: 4.95rem;
-        padding-top: 0.65rem;
-        padding-bottom: 0.65rem;
-    }
-
-    #clinic-arrivals .arrivals-section-header__inner {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: space-between;
-        align-items: center;
-        gap: 0.75rem;
-        width: 100%;
-    }
-
-    #clinic-arrivals .arrivals-section-header .card-title {
-        font-size: 1rem;
-        font-weight: 600;
-    }
-
-    #clinic-arrivals .arrivals-hdr-blue {
-        background: linear-gradient(135deg,rgb(142, 203, 244) 0%, rgb(85, 189, 245) 100%);
-        color: #fff;
-    }
-
-    #clinic-arrivals .arrivals-hdr-yellow {
-        background: linear-gradient(135deg, rgb(243, 241, 132) 0%, rgb(252, 243, 80) 100%);
-        color: #1f2937;
-    }
-
-    #clinic-arrivals .arrivals-hdr-blue .text-muted,
-    #clinic-arrivals .arrivals-hdr-yellow .text-muted {
-        color: rgba(255, 255, 255, 0.85) !important;
-    }
-
-    #clinic-arrivals .arrivals-hdr-yellow .text-muted {
-        color: rgba(31, 41, 55, 0.75) !important;
-    }
-
-    #clinic-arrivals .arrivals-narrow-wrap {
-        max-width: 756px;
-        margin-left: 0;
-        margin-right: auto;
-    }
-
-    #clinic-arrivals .clinic-arrivals-heading {
-        margin-bottom: 1.35rem;
-    }
-
-    #clinic-arrivals .arrivals-add-walkin-btn {
-        width: 2.35rem;
-        height: 2.35rem;
-        padding: 0;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        border: 1px solid rgba(31, 41, 55, 0.12);
-        background: #fff;
-        color:rgb(36, 41, 48);
-        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
-        position: relative;
-    right: 0.5rem; 
-    }
-
-    #clinic-arrivals .arrivals-add-walkin-btn:hover {
-        background: #f8fafc;
-        color: #0f172a;
-    }
-
-    #clinic-arrivals .arrivals-table-fit {
-        overflow-x: visible;
-    }
-
-    #clinic-arrivals .arrivals-table-fit .table {
-        table-layout: fixed;
-        width: 100%;
-        font-size: 0.875rem;
-    }
-
-    #clinic-arrivals .arrivals-table-fit .table thead th,
-    #clinic-arrivals .arrivals-table-fit .table tbody td {
-        padding: 0.45rem 0rem;
-        vertical-align: middle;
-        word-break: break-word;
-        text-align: center;
-    }
-
-    #clinic-arrivals .arrivals-table-fit .table thead th {
-        font-size: 0.78rem;
-        text-transform: uppercase;
-        letter-spacing: 0.02em;
-        font-weight: 700;
-        color: #0f172a;
-    }
-
-    #clinic-arrivals .arrivals-table-fit .appointments-actions {
-        max-width: 7rem;
-        margin-left: auto;
-        margin-right: auto;
-        justify-content: center;
-        gap: 0.2rem;
-    }
-
-    #clinic-arrivals .arrivals-table-fit .appointments-actions .btn {
-        padding: 0.1rem 0.22rem;
-        font-size: 0.72rem;
-        min-width: 1.5rem;
-    }
-
-    #clinic-arrivals .arrivals-table-fit .caution-badges-wrap {
-        justify-content: center;
-    }
-
-    .patient-name-link {
-        color: inherit;
-        text-decoration: none;
-    }
-
-    .patient-name-link:hover {
-        text-decoration: underline;
-        color: var(--bs-primary);
-    }
-
-    #clinic-arrivals .arrivals-table-fit .caution-cell {
-        min-width: 0;
-    }
-
-    #safetyCheckModal .modal-dialog {
-        max-width: 420px;
-    }
-
-    .queue-add-patient-ts .ts-control {
-        min-height: 38px;
-        padding: 0.35rem 0.5rem;
-    }
-
-    #appointmentModal .modal-dialog {
-        margin: 0.5rem auto;
-    }
-
-    @media (max-width: 575.98px) {
-        #appointmentModal .modal-dialog {
-            margin: 0;
-            max-width: 100%;
-            height: 100%;
-            min-height: 100%;
-        }
-
-        #appointmentModal .modal-content {
-            min-height: 100vh;
-            border-radius: 0;
-            border: 0;
-        }
-
-        #appointmentModal .modal-body {
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-    }
-
-    @media (max-width: 768px) {
-        .appointments-page-title {
-            font-size: 1.15rem;
-            width: 100%;
-        }
-
-        .appointments-page-header .btn {
-            width: 100%;
-            padding: 0.55rem 0.85rem;
-            font-size: 14px;
-        }
-
-        .appointments-page-header .appointments-header-actions {
-            width: 100%;
-            justify-content: stretch;
-        }
-
-        .appointments-page-header .appointments-header-actions .btn {
-            flex: 1 1 100%;
-        }
-
-        .appointments-page-header .btn-new-appointment {
-            width: 100%;
-            max-width: none;
-            margin-left: 0;
-            margin-right: 0;
-            justify-content: center;
-        }
-
-        .appointments-filters .card-body {
-            padding: 1rem;
-        }
-
-        .appointments-filters .form-control,
-        .appointments-filters .form-select {
-            padding: 0.6rem 0.75rem;
-            font-size: 14px;
-        }
-
-        .appointments-filters .form-label {
-            font-size: 14px;
-        }
-
-        .appointments-date-nav .btn {
-            flex: 1 1 auto;
-            min-width: 0;
-            padding: 0.5rem 0.6rem;
-            font-size: 14px;
-        }
-
-        .appointments-date-nav .appointments-date-heading {
-            order: -1;
-            width: 100%;
-            font-size: 1rem;
-            margin-bottom: 0.25rem;
-        }
-
-        .appointments-table-wrap .table {
-            font-size: 13px;
-        }
-
-        .appointments-table-wrap .table thead th,
-        .appointments-table-wrap .table tbody td {
-            padding: 0.3rem 0.35rem;
-        }
-
-        .appointments-actions {
-            max-width: 100%;
-            gap: 0.3rem;
-        }
-
-        #appointmentModal .modal-body .form-control,
-        #appointmentModal .modal-body .form-select {
-            padding: 0.6rem 0.75rem;
-            font-size: 14px;
-        }
-
-        #appointmentModal .modal-body .form-label {
-            font-size: 14px;
-        }
-
-        #appointmentModal .modal-footer .btn {
-            padding: 0.55rem 0.85rem;
-            font-size: 14px;
-        }
-    }
-</style>
 
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4 appointments-page-header">
@@ -1095,7 +797,7 @@ include '../layouts/header.php';
                             <select class="form-select" id="patientId" name="patient_id" required>
                                 <option value="">Select Patient</option>
                                 <?php
-                                $patients = $db->fetchAll("SELECT id, full_name FROM patients ORDER BY full_name");
+                                $patients = repo_patient_list_for_select();
                                 foreach ($patients as $patient):
                                 ?>
                                     <option value="<?php echo $patient['id']; ?>">

@@ -50,116 +50,9 @@ $history = $db->fetchAll(
 include '../layouts/header.php';
 ?>
 
+
 <div class="container-fluid">
-    <style>
-        .appointment-view-title-wrap {
-            min-width: 0;
-        }
-
-        .appointment-view-header-btns {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            justify-content: flex-end;
-        }
-
-        .appointment-status-bar-inner {
-            flex-wrap: wrap;
-            gap: 0.75rem;
-        }
-
-        .appointment-status-bar-inner .status-group {
-            flex: 1 1 auto;
-            min-width: 0;
-        }
-
-        .appointment-view-main .card-header,
-        .appointment-view-side .card-header {
-            padding: 0.65rem 1rem;
-        }
-
-        @media (max-width: 768px) {
-            .appointment-view-title {
-                font-size: 1.1rem;
-                line-height: 1.35;
-            }
-
-            .appointment-view-header {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 0.75rem;
-            }
-
-            .appointment-view-header > h1 {
-                margin-bottom: 0 !important;
-            }
-
-            .appointment-view-header-btns {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                justify-content: stretch;
-            }
-
-            .appointment-view-header-btns .btn {
-                width: 100%;
-                padding: 0.5rem 0.6rem;
-                font-size: 14px;
-            }
-
-            .appointment-view-header-btns .btn-secondary {
-                grid-column: 1 / -1;
-            }
-
-            .appointment-view-header-btns .btn-back-mobile {
-                background-color: var(--primary-color);
-                border-color: var(--primary-color);
-                color: #fff;
-            }
-
-            .appointment-view-header-btns .btn-back-mobile:hover {
-                background-color: #2980b9;
-                border-color: #2980b9;
-                color: #fff;
-            }
-
-            .appointment-status-card .card-body {
-                padding: 0.85rem 1rem;
-            }
-
-            .appointment-status-bar-inner {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-
-            .appointment-status-bar-inner .ms-4 {
-                margin-left: 0 !important;
-            }
-
-            .appointment-view-main .card-body,
-            .appointment-view-side .card-body,
-            .appointment-view-side .card-footer {
-                padding: 0.85rem 1rem;
-            }
-
-            .appointment-view-cols > .col-md-8,
-            .appointment-view-cols > .col-md-4 {
-                flex: 0 0 100%;
-                max-width: 100%;
-            }
-
-            .appointment-view-main .row .col-md-6 {
-                flex: 0 0 100%;
-                max-width: 100%;
-            }
-
-            .appointment-view-side .d-grid .btn {
-                padding: 0.55rem 0.75rem;
-                font-size: 14px;
-            }
-        }
-    </style>
-
-    <div class="d-flex justify-content-between align-items-center mb-4 appointment-view-header flex-wrap gap-2">
+<div class="d-flex justify-content-between align-items-center mb-4 appointment-view-header flex-wrap gap-2">
         <h1 class="h3 appointment-view-title appointment-view-title-wrap mb-0">
             <i class="fas fa-calendar-check"></i> Appointment Details
         </h1>
@@ -320,10 +213,13 @@ include '../layouts/header.php';
                         </div>
                         <?php endif; ?>
                         
-                        <?php if ($appointment['medical_history']): ?>
+                        <?php
+                        $medicalHistoryHtml = formatPatientMedicalHistoryForDisplay($appointment['medical_history'] ?? null);
+                        if ($medicalHistoryHtml !== ''):
+                        ?>
                         <div class="col-12 mb-3">
                             <label class="fw-bold">Medical History:</label>
-                            <p class="mb-0"><?php echo nl2br(htmlspecialchars($appointment['medical_history'])); ?></p>
+                            <p class="mb-0"><?php echo $medicalHistoryHtml; ?></p>
                         </div>
                         <?php endif; ?>
                     </div>
@@ -380,7 +276,7 @@ include '../layouts/header.php';
                         "s"
                     );
                     ?>
-                    <pre style="white-space: pre-wrap;"><?php echo $instructions['instructions'] ?? 'No instructions available'; ?></pre>
+                    <pre class="appointment-instructions-pre"><?php echo $instructions['instructions'] ?? 'No instructions available'; ?></pre>
                     <button class="btn btn-sm btn-outline-primary w-100" onclick="printInstructions()">
                         <i class="fas fa-print"></i> Print Instructions
                     </button>
@@ -400,69 +296,7 @@ include '../layouts/header.php';
                 </div>
             </div>
             
-            <!-- History -->
-            <?php if (!empty($history)): ?>
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">History</h5>
-                </div>
-                <div class="card-body">
-                    <div class="timeline-sm">
-                        <?php foreach ($history as $entry): ?>
-                            <div class="timeline-item">
-                                <div class="timeline-date"><?php echo formatDate($entry['performed_at'], 'g:i A'); ?></div>
-                                <div class="timeline-content">
-                                    <strong><?php echo $entry['action']; ?></strong>
-                                    <p class="small mb-0"><?php echo $entry['ip_address']; ?></p>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-            </div>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
-
-<style>
-.timeline-sm {
-    position: relative;
-    padding-left: 20px;
-}
-
-.timeline-sm:before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: #e9ecef;
-}
-
-.timeline-sm .timeline-item {
-    position: relative;
-    margin-bottom: 15px;
-}
-
-.timeline-sm .timeline-item:before {
-    content: '';
-    position: absolute;
-    left: -24px;
-    top: 0;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--primary-color);
-}
-
-.timeline-sm .timeline-date {
-    font-size: 11px;
-    color: #6c757d;
-}
-</style>
-
+           
 <script>
 function editAppointment() {
     window.location.href = 'edit.php?id=<?php echo $appointmentId; ?>';
@@ -504,8 +338,31 @@ function updateStatus(status) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            if (status === 'completed' && data.post_treatment_whatsapp) {
+                const w = data.post_treatment_whatsapp;
+                if (w.skipped_whatsapp) {
+                    alert(w.message || 'Appointment marked complete. No matching treatment instructions — WhatsApp not sent.');
+                } else if (w.ok) {
+                    let msg = w.message || 'Post-treatment instructions sent via WhatsApp.';
+                    if (w.sid) {
+                        msg += '\n\nMessage ID: ' + w.sid;
+                    }
+                    alert(msg);
+                } else {
+                    alert(
+                        'Appointment marked as completed.\n\nWhatsApp (post-treatment instructions):\n' +
+                        (w.message || 'Not sent.') +
+                        (w.error ? '\n\n' + w.error : '')
+                    );
+                }
+            }
             location.reload();
+        } else {
+            alert(data.message || 'Could not update status.');
         }
+    })
+    .catch(function () {
+        alert('Network error while updating status.');
     });
 }
 
@@ -538,12 +395,8 @@ function printInstructions() {
         <html>
         <head>
             <title>Treatment Instructions</title>
-            <style>
-                body { font-family: Arial, sans-serif; padding: 20px; }
-                h1 { color: #333; }
-                pre { white-space: pre-wrap; }
-            </style>
-        </head>
+            <style>body{font-family:Arial,sans-serif;padding:20px}h1{color:#334155}pre{white-space:pre-wrap}</style>
+</head>
         <body>
             <h1>Post-Treatment Instructions</h1>
             <p><strong>Patient:</strong> <?php echo $appointment['patient_name']; ?></p>

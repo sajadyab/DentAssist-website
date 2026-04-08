@@ -1,7 +1,5 @@
 <?php
-require_once '../includes/config.php';
-require_once '../includes/db.php';
-require_once '../includes/auth.php';
+require_once __DIR__ . '/_helpers.php';
 
 header('Content-Type: application/json');
 
@@ -25,29 +23,10 @@ if (!$patientId) {
     exit;
 }
 
-$db = Database::getInstance();
-
-try {
-    // Get patient details
-    $patient = $db->fetchOne("SELECT full_name, subscription_type FROM patients WHERE id = ?", [$patientId], "i");
-    
-    // Update patient subscription status to none
-    $db->execute(
-        "UPDATE patients SET subscription_status = 'none', subscription_type = 'none', subscription_start_date = NULL, subscription_end_date = NULL WHERE id = ?",
-        [$patientId],
-        "i"
-    );
-    
-    // Update subscription payment to failed
-    $db->execute(
-        "UPDATE subscription_payments SET status = 'failed', notes = ? WHERE patient_id = ? AND status = 'pending'",
-        ["Rejected: " . $reason, $patientId],
-        "si"
-    );
-    
+$res = repo_subscription_reject_pending((int) $patientId, (string) $reason);
+if (!empty($res['ok'])) {
     echo json_encode(['success' => true]);
-    
-} catch (Exception $e) {
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+} else {
+    echo json_encode(['success' => false, 'error' => (string) ($res['error'] ?? 'Unknown error')]);
 }
 ?>

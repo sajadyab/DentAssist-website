@@ -1,17 +1,12 @@
 <?php
-require_once '../includes/config.php';
-require_once '../includes/db.php';
-require_once '../includes/auth.php';
-require_once '../includes/functions.php';
+require_once __DIR__ . '/_helpers.php';
 
 // Only authenticated users can delete
 Auth::requireLogin();
 
-$db = Database::getInstance();
-
 // Get JSON input
 $input = json_decode(file_get_contents('php://input'), true);
-$patientId = $input['id'] ?? 0;
+$patientId = (int) ($input['id'] ?? 0);
 
 if (!$patientId) {
     echo json_encode(['success' => false, 'message' => 'Invalid patient ID']);
@@ -19,7 +14,7 @@ if (!$patientId) {
 }
 
 // Fetch patient for logging
-$patient = $db->fetchOne("SELECT * FROM patients WHERE id = ?", [$patientId], "i");
+$patient = repo_patient_find_by_id($patientId);
 if (!$patient) {
     echo json_encode(['success' => false, 'message' => 'Patient not found']);
     exit;
@@ -31,18 +26,9 @@ if (!$patient) {
 //     exit;
 // }
 
-// Delete related records to avoid foreign key issues (if not set to CASCADE)
-// Adjust based on your database schema
-$db->execute("DELETE FROM appointments WHERE patient_id = ?", [$patientId], "i");
-$db->execute("DELETE FROM treatment_plans WHERE patient_id = ?", [$patientId], "i");
-$db->execute("DELETE FROM xrays WHERE patient_id = ?", [$patientId], "i");
-$db->execute("DELETE FROM invoices WHERE patient_id = ?", [$patientId], "i");
-// Add any other related tables
+$result = repo_patient_delete_cascade($patientId);
 
-// Finally, delete the patient
-$result = $db->execute("DELETE FROM patients WHERE id = ?", [$patientId], "i");
-
-if ($result !== false) {
+if ($result) {
     logAction('DELETE', 'patients', $patientId, $patient, null);
     echo json_encode(['success' => true]);
 } else {

@@ -18,6 +18,21 @@ if (!$patientId) {
     die("Patient record not found.");
 }
 
+// Get clinic phone for WhatsApp
+$clinicPhone = '';
+$settingResult = $db->fetchOne("SELECT setting_value FROM clinic_settings WHERE setting_key = 'clinic_phone'");
+if ($settingResult && !empty($settingResult['setting_value'])) {
+    $clinicPhone = $settingResult['setting_value'];
+}
+
+// Clean phone number: keep digits and optional leading '+'
+$cleanPhone = preg_replace('/[^0-9+]/', '', $clinicPhone);
+// Ensure it starts with '+' if it contains a plus, otherwise assume digits only
+$whatsappUrl = '';
+if (!empty($cleanPhone)) {
+    $whatsappUrl = 'https://wa.me/' . ltrim($cleanPhone, '+'); // wa.me works with digits only
+}
+
 // Get invoices
 $invoices = $db->fetchAll(
     "SELECT * FROM invoices WHERE patient_id = ? ORDER BY invoice_date DESC",
@@ -44,378 +59,227 @@ $pageTitle = 'My Bills';
 include '../layouts/header.php';
 ?>
 
-<style>
-.billing-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 20px;
-    padding: 30px;
-    margin-bottom: 30px;
-    color: white;
-    position: relative;
-    overflow: hidden;
-}
-
-.billing-header::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    right: -50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(circle, rgba(255,255,255,0.1) 1%, transparent 1%);
-    background-size: 50px 50px;
-    animation: moveBackground 30s linear infinite;
-}
-
-@keyframes moveBackground {
-    0% { transform: translate(0, 0); }
-    100% { transform: translate(50px, 50px); }
-}
-
-.summary-card {
-    background: white;
-    border-radius: 15px;
-    padding: 20px;
-    text-align: center;
-    transition: all 0.3s ease;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    height: 100%;
-}
-
-.summary-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-}
-
-.summary-number {
-    font-size: 36px;
-    font-weight: bold;
-    margin-bottom: 5px;
-}
-
-.summary-label {
-    font-size: 14px;
-    color: #6c757d;
-}
-
-.bill-card {
-    border-radius: 15px;
-    border: none;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    overflow: hidden;
-    margin-bottom: 20px;
-    transition: all 0.3s ease;
-}
-
-.bill-card:hover {
-    box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-}
-
-.bill-header {
-    background: #f8f9fa;
-    padding: 15px 20px;
-    border-bottom: 1px solid #e0e0e0;
-}
-
-.table-modern {
-    margin-bottom: 0;
-}
-
-.table-modern thead {
-    background: #f8f9fa;
-}
-
-.table-modern tbody tr:hover {
-    background: #f8f9fa;
-    transition: background 0.3s ease;
-}
-
-.status-badge {
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: bold;
-    display: inline-block;
-}
-
-.status-paid { background: #d4edda; color: #155724; }
-.status-partial { background: #fff3cd; color: #856404; }
-.status-pending { background: #e2e3e5; color: #383d41; }
-.status-overdue { background: #f8d7da; color: #721c24; }
-
-.btn-view {
-    background: #667eea;
-    color: white;
-    padding: 5px 15px;
-    border-radius: 20px;
-    font-size: 12px;
-    transition: all 0.3s ease;
-}
-
-.btn-view:hover {
-    background: #5a67d8;
-    color: white;
-    transform: translateY(-2px);
-}
-
-.payment-method-icon {
-    width: 30px;
-    height: 30px;
-    background: #f8f9fa;
-    border-radius: 8px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 8px;
-}
-</style>
-
-<div class="container-fluid">
-    <!-- Back Button -->
-    <div class="mb-3">
-        <a href="index.php" class="btn btn-secondary">
-            <i class="fas fa-arrow-left"></i> Back to Dashboard
-        </a>
-    </div>
-
-    <!-- Billing Header -->
-    <div class="billing-header">
-        <div class="row align-items-center">
+<div class="container-fluid bills-page patient-portal">
+    <!-- Billing Header (queue-style gradient) -->
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
             <div class="col-md-8">
-                <h2 class="mb-2">
-                    <i class="fas fa-file-invoice-dollar"></i> My Bills & Payments
+                <h2 class="mb-2 fw-bold">
+                    <i class="fas fa-file-invoice-dollar me-2 opacity-90"></i>My Bills &amp; Payments
                 </h2>
-                <p class="mb-0">View and manage all your financial transactions</p>
+                <p class="mb-0 opacity-90">View and manage all your financial transactions</p>
             </div>
-            <div class="col-md-4 text-md-end mt-3 mt-md-0">
-                <div class="bg-white text-dark rounded p-2">
-                    <small>Total Balance Due</small>
-                    <h3 class="mb-0 <?php echo $totalDue > 0 ? 'text-danger' : 'text-success'; ?>">
-                        <?php echo formatCurrency($totalDue); ?>
-                    </h3>
+            <div class="col-md-4 mt-3 mt-md-0">
+                <div class="bills-balance-wrap">
+                    <div class="bills-balance-box">
+                        <small>Total balance due</small>
+                        <p class="bills-balance-amount"><?php echo htmlspecialchars(formatCurrency($totalDue)); ?></p>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Summary Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3 mb-3">
-            <div class="summary-card">
-                <div class="summary-number text-primary"><?php echo count($invoices); ?></div>
-                <div class="summary-label">Total Invoices</div>
+    <!-- Summary Cards (dashboard stats style) -->
+    <div class="row patient-stats-row mb-4 g-3">
+        <div class="col-6 col-md-3 mb-3">
+            <div class="bills-stats-card bills-stats-card--invoices">
+                <div class="bills-stats-number"><?php echo count($invoices); ?></div>
+                <div class="bills-stats-label">Total Invoices</div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="summary-card">
-                <div class="summary-number text-success"><?php echo formatCurrency($totalPaid); ?></div>
-                <div class="summary-label">Total Paid</div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="bills-stats-card bills-stats-card--paid">
+                <div class="bills-stats-number"><?php echo htmlspecialchars(formatCurrency($totalPaid)); ?></div>
+                <div class="bills-stats-label">Total Paid</div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="summary-card">
-                <div class="summary-number text-danger"><?php echo formatCurrency($totalDue); ?></div>
-                <div class="summary-label">Balance Due</div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="bills-stats-card bills-stats-card--due">
+                <div class="bills-stats-number"><?php echo htmlspecialchars(formatCurrency($totalDue)); ?></div>
+                <div class="bills-stats-label">Balance Due</div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="summary-card">
-                <div class="summary-number text-info"><?php echo count($subscriptions); ?></div>
-                <div class="summary-label">Subscriptions</div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="bills-stats-card bills-stats-card--subs">
+                <div class="bills-stats-number"><?php echo count($subscriptions); ?></div>
+                <div class="bills-stats-label">Subscriptions</div>
             </div>
         </div>
     </div>
 
-    <!-- Treatment Invoices Section -->
-    <div class="card border-0 shadow-sm mb-4">
-        <div class="card-header bg-white border-0 py-3">
-            <h5 class="card-title mb-0">
-                <i class="fas fa-stethoscope text-primary"></i> Treatment Invoices
-            </h5>
-        </div>
-        <div class="card-body p-0">
-            <?php if (empty($invoices)): ?>
-                <div class="text-center py-5">
-                    <i class="fas fa-receipt fa-4x text-muted mb-3"></i>
-                    <p class="text-muted">No invoices yet.</p>
-                    <a href="book.php" class="btn btn-primary">Book an Appointment</a>
+    <div class="row g-4 align-items-start">
+        <div class="col-lg-8">
+            <!-- Treatment Invoices -->
+            <div class="card bills-dash-section-card">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--invoices border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-stethoscope me-2" aria-hidden="true"></i>Treatment Invoices</h5>
+                        </div>
+                        <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
+                    </div>
                 </div>
-            <?php else: ?>
-                <div class="table-responsive">
-                    <table class="table table-modern">
-                        <thead>
-                            32
-                                <th>Invoice #</th>
-                                <th>Date</th>
-                                <th>Due Date</th>
-                                <th>Total</th>
-                                <th>Paid</th>
-                                <th>Balance</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </thead>
-                        <tbody>
-                            <?php foreach ($invoices as $inv): ?>
-                            <tr>
-                                <td>
-                                    <strong><?php echo htmlspecialchars($inv['invoice_number']); ?></strong>
-                                </td>
-                                <td><?php echo formatDate($inv['invoice_date']); ?></td>
-                                <td><?php echo formatDate($inv['due_date']); ?></td>
-                                <td><?php echo formatCurrency($inv['total_amount']); ?></td>
-                                <td><?php echo formatCurrency($inv['paid_amount']); ?></td>
-                                <td class="<?php echo $inv['balance_due'] > 0 ? 'text-danger fw-bold' : 'text-success'; ?>">
-                                    <?php echo formatCurrency($inv['balance_due']); ?>
-                                </td>
-                                <td>
-                                    <?php
-                                    $statusClass = '';
-                                    switch($inv['payment_status']) {
-                                        case 'paid': $statusClass = 'status-paid'; break;
-                                        case 'partial': $statusClass = 'status-partial'; break;
-                                        case 'pending': $statusClass = 'status-pending'; break;
-                                        case 'overdue': $statusClass = 'status-overdue'; break;
-                                        default: $statusClass = 'status-pending';
-                                    }
-                                    ?>
-                                    <span class="status-badge <?php echo $statusClass; ?>">
-                                        <?php echo ucfirst($inv['payment_status']); ?>
-                                    </span>
-                                </td>
-                                <td>
-                                    <a href="view_invoice.php?id=<?php echo $inv['id']; ?>" class="btn btn-view">
-                                        <i class="fas fa-eye"></i> View
-                                    </a>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                <div class="card-body p-0">
+                    <?php if (empty($invoices)): ?>
+                        <div class="bills-empty-state text-center py-4 px-3">
+                            <p class="text-muted small mb-3">No invoices yet.</p>
+                            <a href="queue.php" class="btn btn-sm bills-cta bills-cta--book">Book an Appointment</a>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($invoices as $inv): ?>
+                            <?php
+                            $invBadge = 'bills-badge bills-badge--blue';
+                            switch ($inv['payment_status']) {
+                                case 'paid':
+                                    $invBadge = 'bills-badge bills-badge--green';
+                                    break;
+                                case 'partial':
+                                    $invBadge = 'bills-badge bills-badge--yellow';
+                                    break;
+                                case 'pending':
+                                    $invBadge = 'bills-badge bills-badge--blue';
+                                    break;
+                                case 'overdue':
+                                    $invBadge = 'bills-badge bills-badge--red';
+                                    break;
+                            }
+                            ?>
+                            <div class="bills-dash-row">
+                                <span class="bills-side-id"><?php echo htmlspecialchars($inv['invoice_number']); ?></span>
+                                <div class="bills-dash-col-main">
+                                    <span class="bills-dash-strong"><?php echo htmlspecialchars(formatDate($inv['invoice_date'])); ?></span>
+                                    <span class="bills-dash-muted">Due <?php echo htmlspecialchars(formatDate($inv['due_date'])); ?> · Total <?php echo htmlspecialchars(formatCurrency($inv['total_amount'])); ?> · Paid <?php echo htmlspecialchars(formatCurrency($inv['paid_amount'])); ?></span>
+                                </div>
+                                <div class="bills-dash-actions">
+                                    <span class="bills-dash-balance"><?php echo htmlspecialchars(formatCurrency($inv['balance_due'])); ?> due</span>
+                                    <span class="<?php echo $invBadge; ?>"><?php echo htmlspecialchars(ucfirst($inv['payment_status'])); ?></span>
+                                    <a href="view_invoice.php?id=<?php echo (int) $inv['id']; ?>" class="btn btn-sm btn-primary"><i class="fas fa-eye me-1"></i>View</a>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
-            <?php endif; ?>
-        </div>
-    </div>
+            </div>
 
-    <!-- Subscription Payments Section -->
-    <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white border-0 py-3">
-            <h5 class="card-title mb-0">
-                <i class="fas fa-crown text-warning"></i> Subscription Payments
-            </h5>
-        </div>
-        <div class="card-body p-0">
-            <?php if (empty($subscriptions)): ?>
-                <div class="text-center py-5">
-                    <i class="fas fa-gem fa-4x text-muted mb-3"></i>
-                    <p class="text-muted">No subscription payments yet.</p>
-                    <a href="subscription.php" class="btn btn-primary">Subscribe Now</a>
+            <!-- Subscription Payments -->
+            <div class="card bills-dash-section-card mb-0">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--subscriptions border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-crown me-2" aria-hidden="true"></i>Subscription Payments</h5>
+                        </div>
+                        <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
+                    </div>
                 </div>
-            <?php else: ?>
-                <div class="table-responsive">
-                    <table class="table table-modern">
-                        <thead>
-                            32
-                                <th>Plan</th>
-                                <th>Amount</th>
-                                <th>Payment Method</th>
-                                <th>Date</th>
-                                <th>Status</th>
-                                <th>Reference</th>
-                            </thead>
-                        <tbody>
-                            <?php foreach ($subscriptions as $sub): ?>
-                            <tr>
-                                <td>
-                                    <strong><?php echo ucfirst($sub['subscription_type']); ?> Plan</strong>
-                                </td>
-                                <td><?php echo formatCurrency($sub['amount']); ?></td>
-                                <td>
-                                    <span class="payment-method-icon">
-                                        <?php 
-                                        $icon = 'fa-credit-card';
-                                        if($sub['payment_method'] == 'cash') $icon = 'fa-money-bill';
-                                        if($sub['payment_method'] == 'online') $icon = 'fa-globe';
-                                        if($sub['payment_method'] == 'clinic') $icon = 'fa-building';
-                                        ?>
-                                        <i class="fas <?php echo $icon; ?>"></i>
-                                    </span>
-                                    <?php echo ucfirst(str_replace('_', ' ', $sub['payment_method'])); ?>
-                                </td>
-                                <td><?php echo formatDate($sub['payment_date']); ?></td>
-                                <td>
-                                    <?php
-                                    $subStatusClass = '';
-                                    switch($sub['status']) {
-                                        case 'completed': $subStatusClass = 'status-paid'; break;
-                                        case 'pending': $subStatusClass = 'status-pending'; break;
-                                        case 'failed': $subStatusClass = 'status-overdue'; break;
-                                        default: $subStatusClass = 'status-pending';
-                                    }
-                                    ?>
-                                    <span class="status-badge <?php echo $subStatusClass; ?>">
-                                        <?php echo ucfirst($sub['status']); ?>
-                                    </span>
-                                </td>
-                                <td>
-                                    <code><?php echo htmlspecialchars($sub['payment_reference'] ?? '-'); ?></code>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                <div class="card-body p-0">
+                    <?php if (empty($subscriptions)): ?>
+                        <div class="bills-empty-state text-center py-4 px-3">
+                            <p class="text-muted small mb-3">No subscription payments yet.</p>
+                            <a href="subscription.php" class="btn btn-sm bills-cta bills-cta--subscribe">Subscribe Now</a>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($subscriptions as $sub): ?>
+                            <?php
+                            $subIcon = 'fa-credit-card';
+                            if ($sub['payment_method'] === 'cash') {
+                                $subIcon = 'fa-money-bill';
+                            } elseif ($sub['payment_method'] === 'online') {
+                                $subIcon = 'fa-globe';
+                            } elseif ($sub['payment_method'] === 'clinic') {
+                                $subIcon = 'fa-building';
+                            }
+                            $subBadge = 'bills-badge bills-badge--blue';
+                            switch ($sub['status']) {
+                                case 'completed':
+                                    $subBadge = 'bills-badge bills-badge--green';
+                                    break;
+                                case 'pending':
+                                    $subBadge = 'bills-badge bills-badge--blue';
+                                    break;
+                                case 'failed':
+                                    $subBadge = 'bills-badge bills-badge--red';
+                                    break;
+                            }
+                            $subRef = (string) ($sub['payment_reference'] ?? '');
+                            $subRefDisp = $subRef !== '' ? $subRef : '—';
+                            ?>
+                            <div class="bills-dash-row">
+                                <span class="bills-side-id"><?php echo htmlspecialchars(formatCurrency($sub['amount'])); ?></span>
+                                <div class="bills-dash-col-main">
+                                    <span class="bills-dash-strong"><?php echo htmlspecialchars(ucfirst($sub['subscription_type'])); ?> plan</span>
+                                    <span class="bills-dash-muted"><i class="fas <?php echo htmlspecialchars($subIcon); ?> me-1" aria-hidden="true"></i><?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $sub['payment_method']))); ?> · <?php echo htmlspecialchars(formatDate($sub['payment_date'])); ?></span>
+                                </div>
+                                <div class="bills-dash-actions">
+                                    <span class="<?php echo $subBadge; ?>"><?php echo htmlspecialchars(ucfirst($sub['status'])); ?></span>
+                                    <span class="bills-dash-muted text-end" style="max-width:10rem;">Ref: <?php echo htmlspecialchars($subRefDisp); ?></span>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
-            <?php endif; ?>
+            </div>
         </div>
-    </div>
 
-    <!-- Payment Information -->
-    <div class="row mt-4">
-        <div class="col-md-6">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-0 py-3">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-info-circle text-info"></i> Payment Information
-                    </h5>
+        <div class="col-lg-4">
+            <div class="card bills-dash-section-card bills-sidebar-card mb-3">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--payment border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-info-circle me-2" aria-hidden="true"></i>Payment Information</h5>
+                        </div>
+                        <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <p><strong>Accepted Payment Methods:</strong></p>
+                    <p class="fw-semibold small text-uppercase mb-2" style="color:#64748b;letter-spacing:0.04em;">Accepted methods</p>
                     <div class="d-flex flex-wrap gap-2 mb-3">
-                        <span class="badge bg-light text-dark p-2"><i class="fas fa-money-bill"></i> Cash</span>
-                        <span class="badge bg-light text-dark p-2"><i class="fab fa-cc-visa"></i> Visa</span>
-                        <span class="badge bg-light text-dark p-2"><i class="fab fa-cc-mastercard"></i> Mastercard</span>
-                        <span class="badge bg-light text-dark p-2"><i class="fab fa-cc-amex"></i> American Express</span>
-                        <span class="badge bg-light text-dark p-2"><i class="fas fa-university"></i> Bank Transfer</span>
+                        <span class="bills-method-pill"><i class="fas fa-money-bill" aria-hidden="true"></i> Cash</span>
+                        <span class="bills-method-pill"><i class="fab fa-cc-visa" aria-hidden="true"></i> Visa</span>
+                        <span class="bills-method-pill"><i class="fab fa-cc-mastercard" aria-hidden="true"></i> Mastercard</span>
+                        <span class="bills-method-pill"><i class="fab fa-cc-amex" aria-hidden="true"></i> Amex</span>
+                        <span class="bills-method-pill"><i class="fas fa-university" aria-hidden="true"></i> Bank transfer</span>
                     </div>
-                    <hr>
-                    <p class="small text-muted">
-                        <i class="fas fa-clock"></i> Payments are processed within 2-3 business days.
-                        For questions about your bills, please contact our billing department.
+                    <hr class="my-3 opacity-50">
+                    <p class="small text-muted mb-0">
+                        <i class="fas fa-clock me-1" aria-hidden="true"></i>Payments usually post within 2–3 business days. Contact billing with any questions.
                     </p>
                 </div>
             </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-0 py-3">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-headset text-success"></i> Need Help?
-                    </h5>
+
+            <div class="card bills-dash-section-card bills-sidebar-card mb-0">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--help border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-headset me-2" aria-hidden="true"></i>Need Help?</h5>
+                        </div>
+                        <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <p>If you have any questions about your bills or payments:</p>
-                    <div class="d-flex gap-3">
-                        <a href="tel:+1234567890" class="btn btn-outline-primary">
-                            <i class="fas fa-phone"></i> Call Us
+                    <p class="text-secondary mb-3 small">Questions about bills or payments?</p>
+                    
+                    <!-- WhatsApp button (primary help action) -->
+                    <?php if (!empty($whatsappUrl)): ?>
+                        <a href="<?php echo htmlspecialchars($whatsappUrl); ?>" target="_blank" class="btn btn-bills-outline btn-sm w-100 mb-2" style="background-color: #25D366; border-color: #25D366; color: white;">
+                            <i class="fab fa-whatsapp me-1"></i> Chat with us on WhatsApp
                         </a>
-                        <a href="mailto:billing@dentalclinic.com" class="btn btn-outline-primary">
-                            <i class="fas fa-envelope"></i> Email Billing
+                    <?php else: ?>
+                        <div class="alert alert-warning small p-2 mb-2">Clinic phone number not configured. Please contact reception.</div>
+                    <?php endif; ?>
+                    
+                    <!-- Secondary email contact -->
+                    <div class="text-center mt-2">
+                        <a href="mailto:billing@dentalclinic.com" class="small text-muted">
+                            <i class="fas fa-envelope me-1"></i> Or send an email
                         </a>
                     </div>
-                    <hr>
-                    <div class="alert alert-info mt-3 mb-0">
-                        <i class="fas fa-question-circle"></i>
-                        <strong>Payment Plans Available</strong>
-                        <p class="small mb-0">Ask about our flexible payment plans for major treatments.</p>
+                    
+                    <hr class="my-3 opacity-25">
+                    <div class="bills-alert-soft p-3 mb-0">
+                        <i class="fas fa-question-circle me-1" style="color: var(--bills-accent-deep);" aria-hidden="true"></i>
+                        <strong>Payment plans</strong>
+                        <p class="small mb-0 mt-1 text-secondary">Ask about flexible plans for larger treatments.</p>
                     </div>
                 </div>
             </div>

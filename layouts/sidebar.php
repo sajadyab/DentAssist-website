@@ -5,21 +5,37 @@
 
 if (!function_exists('getClinicSetting')) {
     function getClinicSetting($key, $default = '') {
-        global $db;
+        $db = null;
+
+        if (isset($GLOBALS['db']) && is_object($GLOBALS['db']) && method_exists($GLOBALS['db'], 'fetchOne')) {
+            $db = $GLOBALS['db'];
+        } elseif (class_exists('Database')) {
+            $db = Database::getInstance();
+        }
+
+        if (!$db || !method_exists($db, 'fetchOne')) {
+            return $default;
+        }
+
         $result = $db->fetchOne("SELECT setting_value FROM clinic_settings WHERE setting_key = ?", [$key]);
-        return $result ? $result['setting_value'] : $default;
+        return ($result && array_key_exists('setting_value', $result)) ? $result['setting_value'] : $default;
     }
 }
 
 $currentPage = basename($_SERVER['PHP_SELF']);
 $role = $_SESSION['role'] ?? '';
+$selfPath = str_replace('\\', '/', (string) ($_SERVER['PHP_SELF'] ?? ''));
+$patientNavActive = static function (string $leaf) use ($selfPath): bool {
+    $leaf = ltrim($leaf, '/');
+    return $leaf !== '' && substr($selfPath, -strlen($leaf)) === $leaf;
+};
 
 // Get menu visibility settings
 $showPointsMenu = getClinicSetting('allow_points_view', '1');
 $showReferralsMenu = getClinicSetting('allow_referrals_view', '1');
 $showSubscriptionMenu = getClinicSetting('allow_subscription_view', '1');
 ?>
-<div class="sidebar">
+<div class="sidebar" id="app-sidebar">
     <div class="sidebar-header">
         <h3><?php echo SITE_NAME; ?></h3>
     </div>
@@ -29,7 +45,7 @@ $showSubscriptionMenu = getClinicSetting('allow_subscription_view', '1');
         // Determine profile image source
         $profileImage = '';
         if (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_image'])) {
-            $profileImage = SITE_URL . '/assets/uploads/' . $_SESSION['profile_image'];
+            $profileImage = asset_url('assets/uploads/' . $_SESSION['profile_image']);
         } else {
             // Generate initials from full name
             $fullName = $_SESSION['full_name'] ?? 'User';
@@ -124,12 +140,6 @@ $showSubscriptionMenu = getClinicSetting('allow_subscription_view', '1');
                 </a>
             </li>
             <?php endif; ?>
-            <li class="<?php echo $currentPage == 'manage_points.php ' ? 'active' : ''; ?>">
-                <a href="<?php echo url('manage_points.php'); ?>">
-                    <i class="fas fa-tooth"></i>
-                    <span><?php echo __('manage_points', 'Manage Points'); ?></span>
-                </a>
-            </li>
             <li>
                 <a href="<?php echo url('settings/index.php'); ?>">
                     <i class="fas fa-cog"></i> <span><?php echo __('settings', 'Settings'); ?></span>
@@ -137,39 +147,38 @@ $showSubscriptionMenu = getClinicSetting('allow_subscription_view', '1');
             </li>
         <?php else: ?>
             <!-- Patient Menu -->
-            <li>
+            <li class="<?php echo $patientNavActive('patient/index.php') ? 'active' : ''; ?>">
                 <a href="<?php echo url('patient/index.php'); ?>">
                     <i class="fas fa-home"></i>
                     <span><?php echo __('my_portal', 'My Portal'); ?></span>
                 </a>
             </li>
-            <li>
+            <li class="<?php echo $patientNavActive('patient/profile.php') ? 'active' : ''; ?>">
                 <a href="<?php echo url('patient/profile.php'); ?>">
                     <i class="fas fa-user-edit"></i>
                     <span><?php echo __('profile', 'Profile'); ?></span>
                 </a>
             </li>
-        
-            <li>
+            <li class="<?php echo $patientNavActive('patient/queue.php') ? 'active' : ''; ?>">
                 <a href="<?php echo url('patient/queue.php'); ?>">
-                    <i class="fas fa-clock"></i>
-                    <span><?php echo __('join_queue & book_appointment', 'Join Queue & Book Appointment'); ?></span>
+                    <i class="fas fa-calendar-plus"></i>
+                    <span><?php echo __('book_appointment', 'Book Appointment'); ?></span>
                 </a>
             </li>
-            <li>
+            <li class="<?php echo $patientNavActive('patient/bills.php') ? 'active' : ''; ?>">
                 <a href="<?php echo url('patient/bills.php'); ?>">
                     <i class="fas fa-file-invoice"></i>
                     <span><?php echo __('my_bills', 'My Bills'); ?></span>
                 </a>
             </li>
-            <li>
+            <li class="<?php echo $patientNavActive('patient/teeth.php') ? 'active' : ''; ?>">
                 <a href="<?php echo url('patient/teeth.php'); ?>">
                     <i class="fas fa-tooth"></i>
                     <span><?php echo __('my_teeth', 'My Teeth'); ?></span>
                 </a>
             </li>
             <?php if ($showPointsMenu == '1'): ?>
-            <li>
+            <li class="<?php echo $patientNavActive('patient/points.php') ? 'active' : ''; ?>">
                 <a href="<?php echo url('patient/points.php'); ?>">
                     <i class="fas fa-star"></i>
                     <span><?php echo __('my_points', 'My Points'); ?></span>
@@ -177,7 +186,7 @@ $showSubscriptionMenu = getClinicSetting('allow_subscription_view', '1');
             </li>
             <?php endif; ?>
              <?php if ($showSubscriptionMenu== '1'): ?>
-            <li>
+            <li class="<?php echo $patientNavActive('patient/subscription.php') ? 'active' : ''; ?>">
                 <a href="<?php echo url('patient/subscription.php'); ?>">
                     <i class="fas fa-crown"></i>
                     <span><?php echo __('subscription', 'Subscription'); ?></span>
@@ -185,24 +194,19 @@ $showSubscriptionMenu = getClinicSetting('allow_subscription_view', '1');
             </li>
             <?php endif; ?>
             <?php if ($showReferralsMenu == '1'): ?>
-            <li>
+            <li class="<?php echo $patientNavActive('patient/referrals.php') ? 'active' : ''; ?>">
                 <a href="<?php echo url('patient/referrals.php'); ?>">
                     <i class="fas fa-user-friends"></i>
                     <span><?php echo __('referrals', 'Referrals'); ?></span>
                 </a>
             </li>
             <?php endif; ?>
-            <li>
-                <a href="<?php echo url('settings/index.php'); ?>">
-                    <i class="fas fa-cog"></i> <span><?php echo __('settings', 'Settings'); ?></span>
-                </a>
-            </li>
         <?php endif; ?>
         
         <!-- Language Switcher -->
-        <li class="mt-3">
+        <li class="mt-3 sidebar-lang">
             <div class="px-3 py-2">
-                <label class="form-label text-white-50 small mb-2"><?php echo __('language', 'Language'); ?></label>
+                <label class="form-label sidebar-lang-label small mb-2"><?php echo __('language', 'Language'); ?></label>
                 <select class="form-select form-select-sm" onchange="changeLanguage(this.value)">
                     <option value="en" <?php echo (getLanguage() == 'en') ? 'selected' : ''; ?>>English</option>
                     <option value="ar" <?php echo (getLanguage() == 'ar') ? 'selected' : ''; ?>>العربية</option>
@@ -243,88 +247,3 @@ function changeLanguage(lang) {
     });
 }
 </script>
-
-<style>
-.sidebar {
-    position: fixed;
-    left: 0;
-    top: 0;
-    height: 100vh;
-    width: 250px;
-    background: #2c3e50;
-    color: white;
-    transition: all 0.3s;
-    overflow-y: auto;
-}
-
-.sidebar-header {
-    padding: 20px;
-    background: #1a252f;
-    text-align: center;
-}
-
-.sidebar-header h3 {
-    margin: 0;
-    font-size: 1.2rem;
-    color: white;
-}
-
-.user-info {
-    padding: 20px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    border-bottom: 1px solid #34495e;
-}
-
-.profile-img {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    object-fit: cover;
-}
-
-.nav-menu {
-    list-style: none;
-    padding: 20px 0;
-}
-
-.nav-menu li a {
-    display: flex;
-    align-items: center;
-    padding: 12px 20px;
-    color: #ecf0f1;
-    text-decoration: none;
-    transition: all 0.3s;
-    gap: 10px;
-}
-
-.nav-menu li a i {
-    width: 20px;
-}
-
-.nav-menu li:hover a {
-    background: #34495e;
-    padding-left: 30px;
-}
-
-.nav-menu li.active a {
-    background: #3498db;
-}
-
-.main-content {
-    margin-left: 250px;
-    padding: 20px;
-    min-height: 100vh;
-    background: #f8f9fa;
-}
-
-@media (max-width: 768px) {
-    .sidebar {
-        width: 0;
-    }
-    .main-content {
-        margin-left: 0;
-    }
-}
-</style>

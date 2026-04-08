@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * treatments.php
  * Manage dental treatments: list, add, edit, delete.
@@ -131,68 +131,9 @@ $pageTitle = __('manage_treatments');
 include 'layouts/header.php'; // This should include your HTML head, navbar, etc.
 ?>
 
-<style>
-    .treatments-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 20px;
-        padding: 30px;
-        margin-bottom: 30px;
-        color: white;
-    }
-
-    .form-card {
-        border-radius: 20px;
-        border: none;
-        box-shadow: 0 5px 20px rgba(0,0,0,0.08);
-        overflow: hidden;
-    }
-
-    .form-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 20px 25px;
-    }
-
-    .table-modern {
-        border-radius: 15px;
-        overflow: hidden;
-    }
-
-    .table-modern thead {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-    }
-
-    .table-modern tbody tr:hover {
-        background: #f8f9fa;
-        transition: background 0.3s ease;
-    }
-
-    .cost-badge {
-        font-size: 18px;
-        font-weight: bold;
-        color: #28a745;
-    }
-
-    .btn-action {
-        padding: 5px 12px;
-        border-radius: 8px;
-        font-size: 12px;
-        transition: all 0.3s ease;
-    }
-
-    .btn-action:hover {
-        transform: translateY(-2px);
-    }
-</style>
 
 <div class="container-fluid">
-    <!-- Back button to dashboard -->
-    <div class="mb-3">
-        <a href="dashboard.php" class="btn btn-secondary">
-            <i class="fas fa-arrow-left"></i> <?php echo __('back_to_dashboard'); ?>
-        </a>
-    </div>
+   
 
     <!-- Page Header -->
     <div class="treatments-header">
@@ -232,13 +173,11 @@ include 'layouts/header.php'; // This should include your HTML head, navbar, etc
         <div class="col-md-4">
             <div class="form-card">
                 <div class="form-header">
-                    <h4 class="mb-0">
-                        <i class="fas fa-<?php echo $editTreatment ? 'edit' : 'plus'; ?>"></i>
-                        <?php echo $editTreatment ? __('edit_treatment') : __('add_new_treatment'); ?>
+                    <h4 class="mb-0" style="font-size: 1.24rem;">
+                        
+                        <?php echo $editTreatment ? __('edit_treatment') : __('Add New Treatment'); ?>
                     </h4>
-                    <p class="mb-0 mt-2 opacity-75">
-                        <?php echo $editTreatment ? __('edit_treatment_instruction') : __('add_treatment_instruction'); ?>
-                    </p>
+                   
                 </div>
                 <div class="card-body p-4">
                     <form method="post">
@@ -261,8 +200,7 @@ include 'layouts/header.php'; // This should include your HTML head, navbar, etc
                                        value="<?php echo htmlspecialchars($editTreatment['cost'] ?? ''); ?>"
                                        placeholder="0.00" required>
                             </div>
-                            <small class="text-muted"><?php echo __('cost_instruction'); ?></small>
-                        </div>
+                            </div>
 
                         <div class="mb-4">
                             <label class="form-label fw-bold">
@@ -275,7 +213,7 @@ include 'layouts/header.php'; // This should include your HTML head, navbar, etc
                         </div>
 
                         <div class="d-flex gap-3">
-                            <button type="submit" name="<?php echo $editTreatment ? 'edit_treatment' : 'add_treatment'; ?>"
+                            <button type="submit" style="font-size: 1.2rem; width:120px; border-radius:20px;" name="<?php echo $editTreatment ? 'edit_treatment' : 'add_treatment'; ?>"
                                     class="btn btn-primary btn-lg flex-grow-1">
                                 <i class="fas fa-<?php echo $editTreatment ? 'save' : 'plus'; ?>"></i>
                                 <?php echo $editTreatment ? __('update_treatment') : __('save_treatment'); ?>
@@ -293,71 +231,71 @@ include 'layouts/header.php'; // This should include your HTML head, navbar, etc
 
         <!-- Right column: Treatments list -->
         <div class="col-md-8">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-0 py-3">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-list"></i> <?php echo __('treatments_list'); ?>
-                    </h5>
-                </div>
-                <div class="card-body p-0">
-                    <?php if (empty($treatments)): ?>
-                        <div class="text-center py-5">
-                            <i class="fas fa-tooth fa-4x text-muted mb-3"></i>
-                            <p class="text-muted"><?php echo __('no_treatments'); ?></p>
-                            <p><?php echo __('add_first_treatment'); ?></p>
-                        </div>
-                    <?php else: ?>
-                        <div class="table-responsive">
-                            <table class="table table-modern mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th><?php echo __('treatment_name'); ?></th>
-                                        <th><?php echo __('treatment_cost'); ?></th>
-                                        <th><?php echo __('description'); ?></th>
-                                        <th><?php echo __('actions'); ?></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($treatments as $index => $treatment): ?>
-                                        <tr>
-                                            <td><?php echo $index + 1; ?></td>
-                                            <td>
-                                                <strong><?php echo htmlspecialchars($treatment['name']); ?></strong>
-                                                <br>
-                                                <small class="text-muted">ID: #<?php echo $treatment['id']; ?></small>
-                                            </td>
-                                            <td>
-                                                <span class="cost-badge"><?php echo formatCurrency($treatment['cost']); ?></span>
-                                            </td>
-                                            <td>
-                                                <?php
-                                                $desc = htmlspecialchars($treatment['description'] ?? '');
-                                                echo strlen($desc) > 60 ? substr($desc, 0, 60) . '...' : ($desc ?: '-');
-                                                ?>
-                                            </td>
-                                            <td>
-                                                <div class="btn-group btn-group-sm">
-                                                    <a href="treatments.php?action=edit&id=<?php echo $treatment['id']; ?>"
-                                                       class="btn btn-warning btn-action" title="<?php echo __('edit'); ?>">
-                                                        <i class="fas fa-edit"></i> <?php echo __('edit'); ?>
-                                                    </a>
-                                                    <button type="button" class="btn btn-danger btn-action"
-                                                            onclick="deleteTreatment(<?php echo $treatment['id']; ?>, '<?php echo htmlspecialchars($treatment['name']); ?>')"
-                                                            title="<?php echo __('delete'); ?>">
-                                                        <i class="fas fa-trash"></i> <?php echo __('delete'); ?>
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 py-3">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-list"></i> <?php echo __('treatments_list'); ?>
+            </h5>
         </div>
+        <div class="card-body p-0">
+            <?php if (empty($treatments)): ?>
+                <div class="text-center py-5">
+                    <i class="fas fa-tooth fa-4x text-muted mb-3"></i>
+                    <p class="text-muted"><?php echo __('no_treatments'); ?></p>
+                    <p><?php echo __('add_first_treatment'); ?></p>
+                </div>
+            <?php else: ?>
+                <div class="table-responsive">
+                    <table class="table table-modern mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th><?php echo __('treatment_name'); ?></th>
+                                <th><?php echo __('treatment_cost'); ?></th>
+                                <th><?php echo __('description'); ?></th>
+                                <th><?php echo __('actions'); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($treatments as $index => $treatment): ?>
+                                <tr>
+                                    <td><?php echo $index + 1; ?></td>
+                                    <td>
+                                        <strong><?php echo htmlspecialchars($treatment['name']); ?></strong>
+                                        <!-- ID hidden -->
+                                    </td>
+                                    <td>
+                                        <span class="cost-badge"><?php echo formatCurrency($treatment['cost']); ?></span>
+                                    </td>
+                                    <td>
+                                        <?php
+                                        $desc = htmlspecialchars($treatment['description'] ?? '');
+                                        echo strlen($desc) > 60 ? substr($desc, 0, 60) . '...' : ($desc ?: '-');
+                                        ?>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="treatments.php?action=edit&id=<?php echo $treatment['id']; ?>"
+                                               class="btn btn-warning btn-action" title="<?php echo __('edit'); ?>">
+                                                <i class="fas fa-edit"></i> <?php echo __('edit'); ?>
+                                            </a>
+                                            <button type="button" class="btn btn-danger btn-action"
+                                                    onclick="deleteTreatment(<?php echo $treatment['id']; ?>, '<?php echo htmlspecialchars($treatment['name']); ?>')"
+                                                    title="<?php echo __('delete'); ?>">
+                                                <i class="fas fa-trash"></i> <?php echo __('delete'); ?>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
     </div>
 </div>
 

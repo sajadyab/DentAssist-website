@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
@@ -654,13 +654,6 @@ document.getElementById('allergies_no')?.addEventListener('change', function () 
 </script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@18/build/css/intlTelInput.css">
 <script src="https://cdn.jsdelivr.net/npm/intl-tel-input@18/build/js/intlTelInput.min.js"></script>
-<style>
-  /* Make intl-tel-input align nicely with Bootstrap */
-  .iti { width: 100%; }
-  .iti input.form-control { width: 100%; }
-  .iti--separate-dial-code .iti__selected-flag { background-color: #f8f9fa; border-right: 1px solid #dee2e6; }
-  .iti__country-list { z-index: 2000; } /* keep above modals/cards */
-</style>
 <script>
 const phoneInput = document.querySelector("#phone");
 if (phoneInput) {

@@ -1,23 +1,13 @@
 <?php
-require_once '../includes/config.php';
-require_once '../includes/db.php';
-require_once '../includes/auth.php';
-require_once '../includes/functions.php';
+require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
 
-$db = Database::getInstance();
-$patientId = $_GET['id'] ?? 0;
+$patientId = (int) ($_GET['id'] ?? 0);
 
 // Get patient details (+ linked login username)
-$patient = $db->fetchOne(
-    "SELECT p.*, u.username AS account_username
-     FROM patients p
-     LEFT JOIN users u ON p.user_id = u.id
-     WHERE p.id = ?",
-    [$patientId],
-    "i"
-);
+$patient = repo_patient_find_with_account_username($patientId);
 
 if (!$patient) {
     header('Location: index.php');
@@ -34,24 +24,11 @@ $removeMessage = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_dental_history_xray_id'])) {
     $removeId = (int) ($_POST['remove_dental_history_xray_id'] ?? 0);
     if ($removeId > 0) {
-        $rowToDelete = $db->fetchOne(
-            "SELECT id, file_path FROM xrays
-             WHERE id = ?
-               AND patient_id = ?
-               AND xray_type = 'Other'
-               AND notes LIKE 'Dental history (handwritten)%'
-             LIMIT 1",
-            [$removeId, $patientId],
-            'ii'
-        );
+        $rowToDelete = repo_xray_find_dental_history_handwritten_by_id($removeId, $patientId);
 
         if ($rowToDelete) {
             $path = (string) ($rowToDelete['file_path'] ?? '');
-            $db->execute(
-                "DELETE FROM xrays WHERE id = ? AND patient_id = ? LIMIT 1",
-                [$removeId, $patientId],
-                'ii'
-            );
+            repo_xray_delete_by_id_for_patient($removeId, $patientId);
 
             if ($path !== '' && is_file($path)) {
                 @unlink($path);
@@ -80,15 +57,7 @@ if (is_array($decodedMedical) && (isset($decodedMedical['conditions']) || array_
 }
 
 // Handwritten dental history images (same source as add.php / edit.php)
-$dentalHistoryImages = $db->fetchAll(
-    "SELECT id, file_name, file_path, uploaded_at FROM xrays
-     WHERE patient_id = ?
-       AND xray_type = 'Other'
-       AND notes LIKE 'Dental history (handwritten)%'
-     ORDER BY uploaded_at DESC, id DESC",
-    [$patientId],
-    "i"
-);
+$dentalHistoryImages = repo_xray_list_dental_history_handwritten_images($patientId);
 
 /** Public URL for an xrays row (handles xrays/ vs dental-history/ uploads). */
 function patient_upload_url_for_xray(array $row): string
@@ -102,43 +71,16 @@ function patient_upload_url_for_xray(array $row): string
 }
 
 // Get appointments
-$appointments = $db->fetchAll(
-    "SELECT a.*, u.full_name as doctor_name 
-     FROM appointments a
-     JOIN users u ON a.doctor_id = u.id
-     WHERE a.patient_id = ?
-     ORDER BY a.appointment_date DESC, a.appointment_time DESC",
-    [$patientId],
-    "i"
-);
+$appointments = repo_appointment_list_for_patient($patientId);
 
 // Get treatment plans
-$treatmentPlans = $db->fetchAll(
-    "SELECT * FROM treatment_plans 
-     WHERE patient_id = ?
-     ORDER BY created_at DESC",
-    [$patientId],
-    "i"
-);
+$treatmentPlans = repo_treatment_plan_list_for_patient($patientId);
 
 // Get X-rays
-$xrays = $db->fetchAll(
-    "SELECT * FROM xrays 
-     WHERE patient_id = ?
-       AND NOT (xray_type = 'Other' AND COALESCE(notes, '') LIKE 'Dental history (handwritten)%')
-     ORDER BY uploaded_at DESC",
-    [$patientId],
-    "i"
-);
+$xrays = repo_xray_list_for_patient_excluding_dental_history($patientId);
 
 // Get invoices
-$invoices = $db->fetchAll(
-    "SELECT * FROM invoices 
-     WHERE patient_id = ?
-     ORDER BY invoice_date DESC",
-    [$patientId],
-    "i"
-);
+$invoices = repo_invoice_list_for_patient($patientId);
 
 include '../layouts/header.php';
 ?>

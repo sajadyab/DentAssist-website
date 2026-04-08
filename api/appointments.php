@@ -51,6 +51,10 @@ switch ($method) {
                 $whereClause .= " AND a.patient_id = ?";
                 $params[] = $patientId;
                 $types .= "i";
+            } elseif (Auth::hasRole('doctor')) {
+                $whereClause .= " AND a.doctor_id = ?";
+                $params[] = (int) Auth::userId();
+                $types .= "i";
             }
             
             $appointments = $db->fetchAll(
@@ -68,16 +72,16 @@ switch ($method) {
             
             $events = [];
             foreach ($appointments as $apt) {
-                $color = '#28a745'; // default green
+                $color = '#10b981'; // default green
                 switch ($apt['status']) {
                     case 'cancelled':
-                        $color = '#dc3545';
+                        $color = '#f87171';
                         break;
                     case 'completed':
-                        $color = '#6c757d';
+                        $color = '#64748b';
                         break;
                     case 'in-treatment':
-                        $color = '#ffc107';
+                        $color = '#facc15';
                         break;
                 }
                 
@@ -117,9 +121,15 @@ switch ($method) {
         error_log('Appointment API POST data: ' . json_encode($data));
         
         if (isset($data['id'])) {
-            // Check if this is just a status update
-            if (count($data) === 2 && isset($data['status'])) {
+            // Status-only updates from the UI send { id, status }. Full saves include patient_id, etc.
+            $isStatusOnlyUpdate = isset($data['status']) && !array_key_exists('patient_id', $data);
+            if ($isStatusOnlyUpdate) {
                 // Status update only
+                $previous = $db->fetchOne(
+                    'SELECT status FROM appointments WHERE id = ?',
+                    [$data['id']],
+                    'i'
+                );
                 $result = $db->execute(
                     "UPDATE appointments SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                     [$data['status'], $data['id']],
@@ -127,10 +137,28 @@ switch ($method) {
                 );
                 
                 logAction('UPDATE', 'appointments', $data['id'], null, ['status' => $data['status']]);
+
+                $postTreatmentWhatsapp = null;
+                if (
+                    $result !== false
+                    && $data['status'] === 'completed'
+                    && ($previous['status'] ?? '') !== 'completed'
+                ) {
+                    $postTreatmentWhatsapp = notifyPatientPostTreatmentInstructionsOnCompleted((int) $data['id']);
+                }
                 
-                echo json_encode(['success' => true, 'message' => 'Status updated']);
+                $payload = ['success' => true, 'message' => 'Status updated'];
+                if ($postTreatmentWhatsapp !== null) {
+                    $payload['post_treatment_whatsapp'] = $postTreatmentWhatsapp;
+                }
+                echo json_encode($payload);
             } else {
                 // Full update
+                $previous = $db->fetchOne(
+                    'SELECT status FROM appointments WHERE id = ?',
+                    [$data['id']],
+                    'i'
+                );
                 $sql = "UPDATE appointments SET 
                         patient_id = ?, doctor_id = ?, appointment_date = ?,
                         appointment_time = ?, duration = ?, treatment_type = ?,
@@ -156,8 +184,22 @@ switch ($method) {
                 );
                 
                 logAction('UPDATE', 'appointments', $data['id'], null, $data);
+
+                $newStatus = $data['status'] ?? 'scheduled';
+                $postTreatmentWhatsapp = null;
+                if (
+                    $result !== false
+                    && $newStatus === 'completed'
+                    && ($previous['status'] ?? '') !== 'completed'
+                ) {
+                    $postTreatmentWhatsapp = notifyPatientPostTreatmentInstructionsOnCompleted((int) $data['id']);
+                }
                 
-                echo json_encode(['success' => true, 'message' => 'Appointment updated']);
+                $payload = ['success' => true, 'message' => 'Appointment updated'];
+                if ($postTreatmentWhatsapp !== null) {
+                    $payload['post_treatment_whatsapp'] = $postTreatmentWhatsapp;
+                }
+                echo json_encode($payload);
             }
         } else {
             // Create
@@ -184,7 +226,15 @@ switch ($method) {
                 
                 if ($id) {
                     logAction('CREATE', 'appointments', $id, null, $data);
-                    echo json_encode(['success' => true, 'message' => 'Appointment created', 'id' => $id]);
+                    $postTreatmentWhatsapp = null;
+                    if (($data['status'] ?? 'scheduled') === 'completed') {
+                        $postTreatmentWhatsapp = notifyPatientPostTreatmentInstructionsOnCompleted((int) $id);
+                    }
+                    $payload = ['success' => true, 'message' => 'Appointment created', 'id' => $id];
+                    if ($postTreatmentWhatsapp !== null) {
+                        $payload['post_treatment_whatsapp'] = $postTreatmentWhatsapp;
+                    }
+                    echo json_encode($payload);
                 } else {
                     error_log('Failed to insert appointment: ' . json_encode($data));
                     echo json_encode(['success' => false, 'message' => 'Failed to create appointment']);
@@ -197,17 +247,61 @@ switch ($method) {
         break;
         
     case 'DELETE':
-        // Cancel appointment
         $data = json_decode(file_get_contents('php://input'), true);
-        
+        if (!is_array($data) || empty($data['id'])) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Invalid request']);
+            break;
+        }
+
+        $id = (int) $data['id'];
+
+        if (Auth::hasRole('patient')) {
+            $patientId = getPatientIdFromUserId(Auth::userId());
+            if (!$patientId) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Forbidden']);
+                break;
+            }
+            $apt = $db->fetchOne(
+                'SELECT id, status, appointment_date FROM appointments WHERE id = ? AND patient_id = ?',
+                [$id, $patientId],
+                'ii'
+            );
+            if (!$apt) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'Appointment not found']);
+                break;
+            }
+            if (!in_array($apt['status'], ['scheduled', 'checked-in'], true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'This appointment cannot be removed online.']);
+                break;
+            }
+            if ($apt['appointment_date'] < date('Y-m-d')) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Past appointments cannot be removed.']);
+                break;
+            }
+            $ok = $db->execute('DELETE FROM appointments WHERE id = ? AND patient_id = ?', [$id, $patientId], 'ii');
+            if ($ok === false) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Could not remove appointment']);
+                break;
+            }
+            logAction('DELETE', 'appointments', $id, $apt, ['patient_self_cancel' => true]);
+            echo json_encode(['success' => true, 'message' => 'Appointment removed']);
+            break;
+        }
+
         $result = $db->execute(
             "UPDATE appointments SET status = 'cancelled', cancellation_reason = ? WHERE id = ?",
-            [$data['reason'] ?? null, $data['id']],
-            "si"
+            [$data['reason'] ?? null, $id],
+            'si'
         );
-        
-        logAction('DELETE', 'appointments', $data['id']);
-        
+
+        logAction('DELETE', 'appointments', $id);
+
         echo json_encode(['success' => true, 'message' => 'Appointment cancelled']);
         break;
         

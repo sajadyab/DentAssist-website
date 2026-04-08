@@ -1,6 +1,6 @@
 <?php
-require_once 'db.php';
-require_once 'auth.php';
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/auth.php';
 // Global helper functions
 
 // Generate absolute URL for internal paths (keeps views/pages consistent)
@@ -334,6 +334,43 @@ function parsePatientMedicalHistoryStructured($medicalHistory): array
     $notes = trim((string) ($decoded['notes'] ?? ''));
 
     return ['conditions' => $conds, 'notes' => $notes];
+}
+
+/**
+ * Human-readable HTML for patients.medical_history (structured JSON or legacy plain text).
+ * Structured: "Conditions: A B C" with a Notes line or "(No notes)" when empty.
+ */
+function formatPatientMedicalHistoryForDisplay($medicalHistory): string
+{
+    $raw = $medicalHistory === null ? '' : trim((string) $medicalHistory);
+    if ($raw === '') {
+        return '';
+    }
+
+    $parsed = parsePatientMedicalHistoryStructured($medicalHistory);
+    $conds = $parsed['conditions'];
+    $notes = trim($parsed['notes']);
+
+    if (!empty($conds)) {
+        $lines = [];
+        $condParts = array_map(static function ($c) {
+            return htmlspecialchars((string) $c, ENT_QUOTES, 'UTF-8');
+        }, $conds);
+        $lines[] = 'Conditions: ' . implode(', ', $condParts);
+        if ($notes !== '') {
+            $lines[] = 'Notes: ' . htmlspecialchars($notes, ENT_QUOTES, 'UTF-8');
+        } else {
+            $lines[] = '(No notes)';
+        }
+
+        return implode('<br>', $lines);
+    }
+
+    if ($notes !== '') {
+        return nl2br(htmlspecialchars($notes, ENT_QUOTES, 'UTF-8'));
+    }
+
+    return '';
 }
 
 /**
@@ -972,4 +1009,46 @@ function notifyPatientPostTreatmentInstructionsOnCompleted(int $appointmentId): 
         'message' => 'Could not send post-treatment WhatsApp.',
         'error' => $err,
     ];
+
+    /**
+ * Get all active subscription plans
+ * @return array
+ */
+function getSubscriptionPlans() {
+    global $db;
+    return $db->fetchAll(
+        "SELECT * FROM subscription_plans WHERE is_active = 1 ORDER BY display_order, monthly_price"
+    );
+}
+
+/**
+ * Get a single subscription plan by key
+ * @param string $planKey
+ * @return array|null
+ */
+function getSubscriptionPlan($planKey) {
+    global $db;
+    return $db->fetchOne("SELECT * FROM subscription_plans WHERE plan_key = ? AND is_active = 1", [$planKey]);
+}
+
+/**
+ * Update subscription plan (admin only)
+ */
+function updateSubscriptionPlan($planKey, $data) {
+    global $db;
+    return $db->execute(
+        "UPDATE subscription_plans SET plan_name = ?, monthly_price = ?, annual_price = ?, features = ?, is_active = ?, display_order = ? WHERE plan_key = ?",
+        [
+            $data['plan_name'],
+            $data['monthly_price'],
+            $data['annual_price'],
+            $data['features'],
+            $data['is_active'],
+            $data['display_order'],
+            $planKey
+        ],
+        "sddssis"
+    );
+}
+
 }

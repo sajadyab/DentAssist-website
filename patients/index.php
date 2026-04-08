@@ -1,41 +1,22 @@
-<?php
-require_once '../includes/config.php';
-require_once '../includes/db.php';
-require_once '../includes/auth.php';
-require_once '../includes/functions.php';
+﻿<?php
+require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
 $pageTitle = 'Patients';
 
-$db = Database::getInstance();
-
 // Search and pagination
 $search = $_GET['search'] ?? '';
-$page = $_GET['page'] ?? 1;
+$page = (int) ($_GET['page'] ?? 1);
+if ($page < 1) {
+    $page = 1;
+}
 $limit = 10;
 $offset = ($page - 1) * $limit;
 
-$where = '';
-$params = [];
-$types = '';
-
-if (!empty($search)) {
-    $where = "WHERE full_name LIKE ? OR email LIKE ? OR phone LIKE ?";
-    $params = ["%$search%", "%$search%", "%$search%"];
-    $types = "sss";
-}
-
-// Get total count
-$totalQuery = "SELECT COUNT(*) as count FROM patients $where";
-$totalResult = $db->fetchOne($totalQuery, $params, $types);
-$total = $totalResult['count'];
+$total = repo_patient_count_by_search((string) $search);
 $totalPages = ceil($total / $limit);
-
-// Get patients
-$query = "SELECT * FROM patients $where ORDER BY created_at DESC LIMIT ? OFFSET ?";
-$allParams = array_merge($params, [$limit, $offset]);
-$allTypes = $types . "ii";
-$patients = $db->fetchAll($query, $allParams, $allTypes);
+$patients = repo_patient_search((string) $search, $limit, $offset);
 
 include '../layouts/header.php';
 ?>
@@ -176,5 +157,4 @@ function deletePatient(id) {
     }
 }
 </script>
-
 <?php include '../layouts/footer.php'; ?>

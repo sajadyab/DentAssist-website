@@ -15,25 +15,21 @@ $userId = Auth::userId();
 $patientId = getPatientIdFromUserId($userId);
 
 if (!$patientId) {
-    die("Patient record not found.");
+    die('Patient record not found.');
 }
 
-$patient = $db->fetchOne("SELECT full_name, referral_code, points FROM patients WHERE id = ?", [$patientId], "i");
+$patient = $db->fetchOne('SELECT full_name, referral_code, points FROM patients WHERE id = ?', [$patientId], 'i');
 
-// Generate referral code if it doesn't exist
 if (empty($patient['referral_code'])) {
-    // Generate a unique referral code
     $newCode = strtoupper(substr(md5($patientId . uniqid()), 0, 8));
-    $db->execute("UPDATE patients SET referral_code = ? WHERE id = ?", [$newCode, $patientId], "si");
-    // Refresh patient data
-    $patient = $db->fetchOne("SELECT full_name, referral_code, points FROM patients WHERE id = ?", [$patientId], "i");
+    $db->execute('UPDATE patients SET referral_code = ? WHERE id = ?', [$newCode, $patientId], 'si');
+    $patient = $db->fetchOne('SELECT full_name, referral_code, points FROM patients WHERE id = ?', [$patientId], 'i');
 }
 
-// Get referred patients
 $referred = $db->fetchAll(
-    "SELECT full_name, created_at, email, phone FROM patients WHERE referred_by = ? ORDER BY created_at DESC",
+    'SELECT full_name, created_at, email, phone FROM patients WHERE referred_by = ? ORDER BY created_at DESC',
     [$patientId],
-    "i"
+    'i'
 );
 
 $referralCount = count($referred);
@@ -43,344 +39,163 @@ $pageTitle = 'My Referrals';
 include '../layouts/header.php';
 ?>
 
-<style>
-.referral-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 20px;
-    padding: 30px;
-    margin-bottom: 30px;
-    color: white;
-}
 
-.referral-card {
-    background: white;
-    border-radius: 15px;
-    padding: 20px;
-    text-align: center;
-    transition: all 0.3s ease;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    height: 100%;
-}
+<div class="container-fluid bills-page patient-portal referrals-page">
+ 
 
-.referral-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-}
-
-.referral-number {
-    font-size: 48px;
-    font-weight: bold;
-    color: #667eea;
-    margin-bottom: 10px;
-}
-
-.code-container {
-    background: #f8f9fa;
-    border-radius: 12px;
-    padding: 20px;
-    text-align: center;
-    border: 2px solid #667eea;
-    margin-bottom: 20px;
-}
-
-.referral-code {
-    font-size: 32px;
-    font-weight: bold;
-    letter-spacing: 3px;
-    color: #667eea;
-    font-family: monospace;
-    background: white;
-    padding: 15px;
-    border-radius: 10px;
-    margin-bottom: 15px;
-    border: 2px solid #e0e0e0;
-}
-
-.btn-copy {
-    background: #28a745;
-    border: none;
-    padding: 12px 25px;
-    border-radius: 25px;
-    color: white;
-    font-weight: bold;
-    font-size: 16px;
-    transition: all 0.3s ease;
-    cursor: pointer;
-}
-
-.btn-copy:hover {
-    background: #218838;
-    transform: scale(1.02);
-}
-
-.btn-whatsapp {
-    background: #25D366;
-    border: none;
-    padding: 12px 25px;
-    border-radius: 25px;
-    color: white;
-    font-weight: bold;
-    transition: all 0.3s ease;
-    cursor: pointer;
-}
-
-.btn-whatsapp:hover {
-    background: #128C7E;
-    transform: scale(1.02);
-}
-
-.referred-item {
-    padding: 15px;
-    border-bottom: 1px solid #f0f0f0;
-    transition: all 0.3s ease;
-}
-
-.referred-item:hover {
-    background: #f8f9fa;
-}
-
-.referred-avatar {
-    width: 45px;
-    height: 45px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: bold;
-    font-size: 18px;
-}
-
-.success-message {
-    position: fixed;
-    bottom: 30px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #28a745;
-    color: white;
-    padding: 15px 30px;
-    border-radius: 50px;
-    z-index: 9999;
-    font-weight: bold;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    animation: slideUp 0.3s ease;
-}
-
-@keyframes slideUp {
-    from {
-        opacity: 0;
-        transform: translateX(-50%) translateY(50px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
-    }
-}
-
-.input-group-custom {
-    display: flex;
-    margin-top: 10px;
-}
-
-.input-group-custom input {
-    flex: 1;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 8px 0 0 8px;
-    font-family: monospace;
-    font-size: 12px;
-}
-
-.input-group-custom button {
-    padding: 10px 15px;
-    background: #667eea;
-    color: white;
-    border: none;
-    border-radius: 0 8px 8px 0;
-    cursor: pointer;
-}
-
-.input-group-custom button:hover {
-    background: #5a67d8;
-}
-</style>
-
-<div class="container-fluid">
-    <!-- Back Button -->
-    <div class="mb-3">
-        <a href="index.php" class="btn btn-secondary">
-            <i class="fas fa-arrow-left"></i> Back to Dashboard
-        </a>
-    </div>
-
-    <!-- Referral Header -->
-    <div class="referral-header">
-        <div class="row align-items-center">
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
             <div class="col-md-8">
-                <h2 class="mb-2">
-                    <i class="fas fa-share-alt"></i> My Referrals
+                <h2 class="mb-2 fw-bold">
+                    <i class="fas fa-share-alt me-2 opacity-90" aria-hidden="true"></i>My Referrals
                 </h2>
-                <p class="mb-0">Share your unique code and earn points for every friend who joins!</p>
+                <p class="mb-0 opacity-90">Share your unique code and earn points for every friend who joins!</p>
             </div>
-            <div class="col-md-4 text-md-end mt-3 mt-md-0">
-                <div class="bg-white text-dark rounded p-2">
-                    <small>Total Points Earned</small>
-                    <h3 class="mb-0 text-success">+<?php echo $pointsEarned; ?></h3>
+            <div class="col-md-4 mt-3 mt-md-0">
+                <div class="bills-balance-wrap">
+                    <div class="bills-balance-box">
+                        <small>Points from referrals</small>
+                        <p class="bills-balance-amount">+<?php echo (int) $pointsEarned; ?></p>
+                        <small class="d-block mt-1" style="font-size:0.6rem;text-transform:none;letter-spacing:0;"><?php echo (int) $referralCount; ?> friend<?php echo $referralCount !== 1 ? 's' : ''; ?> · 50 pts each</small>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Stats Cards -->
-    <div class="row mb-4">
-        <div class="col-md-4 mb-3">
-            <div class="referral-card">
-                <div class="referral-number"><?php echo $referralCount; ?></div>
-                <div class="points-label">People Referred</div>
-                <small class="text-muted">Earn 50 points each</small>
+    <div class="row patient-stats-row mb-4 g-3">
+        <div class="col-6 col-md-4 mb-3">
+            <div class="bills-stats-card bills-stats-card--subs">
+                <div class="bills-stats-number"><?php echo (int) $referralCount; ?></div>
+                <div class="bills-stats-label">People referred</div>
             </div>
         </div>
-        <div class="col-md-4 mb-3">
-            <div class="referral-card">
-                <div class="referral-number"><?php echo $pointsEarned; ?></div>
-                <div class="points-label">Points Earned</div>
-                <small class="text-muted">From referrals only</small>
+        <div class="col-6 col-md-4 mb-3">
+            <div class="bills-stats-card bills-stats-card--paid">
+                <div class="bills-stats-number"><?php echo (int) $pointsEarned; ?></div>
+                <div class="bills-stats-label">Points earned</div>
             </div>
         </div>
-        <div class="col-md-4 mb-3">
-            <div class="referral-card">
-                <div class="referral-number"><?php echo floor($pointsEarned / 250); ?></div>
-                <div class="points-label">Rewards Unlocked</div>
-                <small class="text-muted">250 points per reward</small>
+        <div class="col-12 col-md-4 mb-3">
+            <div class="bills-stats-card bills-stats-card--invoices">
+                <div class="bills-stats-number"><?php echo (int) floor($pointsEarned / 250); ?></div>
+                <div class="bills-stats-label">Rewards unlocked</div>
             </div>
         </div>
     </div>
 
-    <div class="row">
-        <div class="col-md-5">
-            <!-- Share Your Code -->
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-white border-0 py-3">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-code"></i> Share Your Referral Code
-                    </h5>
+    <div class="row g-4 align-items-start">
+        <div class="col-lg-5">
+            <div class="card bills-dash-section-card">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--payment border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-code me-2" aria-hidden="true"></i>Share your referral code</h5>
+                        </div>
+                        <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <div class="code-container">
-                        <div class="referral-code" id="referralCodeText">
-                            <?php echo $patient['referral_code']; ?>
-                        </div>
-                        <button class="btn-copy" id="copyCodeBtn">
-                            <i class="fas fa-copy"></i> Copy Code
+                    <div class="ref-code-panel">
+                        <div class="ref-code-display" id="referralCodeText"><?php echo htmlspecialchars($patient['referral_code']); ?></div>
+                        <button type="button" class="btn btn-sm bills-cta bills-cta--book w-100" id="copyCodeBtn">
+                            <i class="fas fa-copy me-1"></i>Copy code
                         </button>
-                        <div class="input-group-custom mt-3">
-                            <input type="text" id="referralLink" readonly 
-                                   value="<?php echo url('register.php?ref=' . $patient['referral_code']); ?>">
-                            <button id="copyLinkBtn">
-                                <i class="fas fa-copy"></i>
-                            </button>
+                        <div class="ref-link-input-group">
+                            <input type="text" id="referralLink" readonly value="<?php echo htmlspecialchars(url('register.php?ref=' . $patient['referral_code'])); ?>">
+                            <button type="button" id="copyLinkBtn" title="Copy link"><i class="fas fa-copy"></i></button>
                         </div>
                         <small class="text-muted d-block mt-3">
-                            <i class="fas fa-info-circle"></i> Your referral code: <strong><?php echo $patient['referral_code']; ?></strong>
+                            <i class="fas fa-info-circle me-1"></i>Code <strong><?php echo htmlspecialchars($patient['referral_code']); ?></strong> is yours to share.
                         </small>
                     </div>
-                    
-                    <div class="d-grid gap-2">
-                        <button class="btn-whatsapp" id="whatsappBtn">
-                            <i class="fab fa-whatsapp"></i> Share via WhatsApp
-                        </button>
-                    </div>
+                    <button type="button" class="btn btn-whatsapp-ref w-100" id="whatsappBtn">
+                        <i class="fab fa-whatsapp me-2"></i>Share via WhatsApp
+                    </button>
                 </div>
             </div>
 
-            <!-- How It Works -->
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-0 py-3">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-info-circle"></i> How It Works
-                    </h5>
+            <div class="card bills-dash-section-card mb-0">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--help border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-info-circle me-2" aria-hidden="true"></i>How it works</h5>
+                        </div>
+                        <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="d-flex mb-3">
-                        <div class="me-3">
-                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 30px; height: 30px;">1</div>
-                        </div>
+                        <div class="me-3"><span class="ref-step-num">1</span></div>
                         <div>
-                            <strong>Share Your Code</strong>
-                            <p class="small text-muted mb-0">Share your unique referral code with friends and family</p>
+                            <strong>Share your code</strong>
+                            <p class="small text-muted mb-0">Send your link or code to friends and family.</p>
                         </div>
                     </div>
                     <div class="d-flex mb-3">
-                        <div class="me-3">
-                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 30px; height: 30px;">2</div>
-                        </div>
+                        <div class="me-3"><span class="ref-step-num">2</span></div>
                         <div>
-                            <strong>Friend Signs Up</strong>
-                            <p class="small text-muted mb-0">They use your code when creating their account</p>
+                            <strong>They sign up</strong>
+                            <p class="small text-muted mb-0">They use your code when creating an account.</p>
                         </div>
                     </div>
                     <div class="d-flex mb-3">
-                        <div class="me-3">
-                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 30px; height: 30px;">3</div>
-                        </div>
+                        <div class="me-3"><span class="ref-step-num">3</span></div>
                         <div>
-                            <strong>Earn Points</strong>
-                            <p class="small text-muted mb-0">You get 50 points, they get 50 bonus points on first visit!</p>
+                            <strong>You earn points</strong>
+                            <p class="small text-muted mb-0">50 points per referral; they get a welcome bonus on their first visit.</p>
                         </div>
                     </div>
-                    <div class="alert alert-success mt-3">
-                        <i class="fas fa-gift"></i> <strong>No limits!</strong> Refer as many friends as you want!
+                    <div class="bills-alert-soft p-3 mb-0">
+                        <i class="fas fa-gift me-1" style="color:var(--bills-accent-deep);" aria-hidden="true"></i>
+                        <strong>No limits</strong> — refer as many friends as you like.
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-md-7">
-            <!-- Referred Friends List -->
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-users"></i> Your Referred Friends
-                    </h5>
-                    <span class="badge bg-primary"><?php echo $referralCount; ?> Total</span>
+        <div class="col-lg-7">
+            <div class="card bills-dash-section-card mb-0">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--invoices border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-users me-2" aria-hidden="true"></i>Your referred friends</h5>
+                        </div>
+                        <span class="bills-badge bills-badge--blue"><?php echo (int) $referralCount; ?> total</span>
+                    </div>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-0">
                     <?php if (empty($referred)): ?>
-                        <div class="text-center py-5">
-                            <i class="fas fa-user-plus fa-4x text-muted mb-3"></i>
-                            <p class="text-muted">You haven't referred anyone yet.</p>
-                            <p>Share your referral code to earn 50 points per signup!</p>
-                            <button class="btn-copy mt-2" id="emptyCopyBtn">
-                                <i class="fas fa-copy"></i> Copy Your Code
+                        <div class="bills-empty-state text-center py-4 px-3">
+                            <p class="text-muted small mb-3">You haven’t referred anyone yet.</p>
+                            <p class="text-muted small mb-3">Share your code to earn 50 points per signup.</p>
+                            <button type="button" class="btn btn-sm bills-cta bills-cta--book" id="emptyCopyBtn">
+                                <i class="fas fa-copy me-1"></i>Copy your code
                             </button>
                         </div>
                     <?php else: ?>
-                        <div class="referred-list">
-                            <?php foreach ($referred as $ref): ?>
-                            <div class="referred-item d-flex align-items-center">
-                                <div class="referred-avatar me-3">
-                                    <?php echo strtoupper(substr($ref['full_name'], 0, 1)); ?>
+                        <?php foreach ($referred as $ref): ?>
+                            <div class="bills-dash-row">
+                                <span class="bills-side-id"><?php echo htmlspecialchars(formatDate($ref['created_at'])); ?></span>
+                                <div class="bills-dash-col-main">
+                                    <span class="bills-dash-strong"><?php echo htmlspecialchars($ref['full_name']); ?></span>
+                                    <?php
+                                    $refMeta = array_filter([(string) ($ref['email'] ?? ''), (string) ($ref['phone'] ?? '')]);
+                                    $refMetaStr = implode(' · ', $refMeta);
+                                    ?>
+                                    <span class="bills-dash-muted"><?php echo $refMetaStr !== '' ? htmlspecialchars($refMetaStr) : '—'; ?></span>
                                 </div>
-                                <div class="flex-grow-1">
-                                    <h6 class="mb-0"><?php echo htmlspecialchars($ref['full_name']); ?></h6>
-                                    <small class="text-muted">
-                                        <i class="fas fa-calendar"></i> Joined <?php echo formatDate($ref['created_at']); ?>
-                                    </small>
-                                </div>
-                                <div class="text-end">
-                                    <span class="badge bg-success">
-                                        <i class="fas fa-star"></i> +50 pts
-                                    </span>
+                                <div class="bills-dash-actions">
+                                    <span class="bills-badge bills-badge--green"><i class="fas fa-star me-1" aria-hidden="true"></i>+50 pts</span>
                                 </div>
                             </div>
-                            <?php endforeach; ?>
-                        </div>
-                        
-                        <div class="alert alert-info mt-3">
-                            <i class="fas fa-chart-line"></i> 
-                            <strong><?php echo $referralCount; ?> referral<?php echo $referralCount > 1 ? 's' : ''; ?></strong> earned you 
-                            <strong><?php echo $pointsEarned; ?> points</strong>!
+                        <?php endforeach; ?>
+                        <div class="p-3">
+                            <div class="bills-alert-soft mb-0">
+                                <i class="fas fa-chart-line me-1" style="color:var(--bills-accent-deep);" aria-hidden="true"></i>
+                                <strong><?php echo (int) $referralCount; ?> referral<?php echo $referralCount !== 1 ? 's' : ''; ?></strong> earned you
+                                <strong><?php echo (int) $pointsEarned; ?> points</strong>.
+                            </div>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -390,103 +205,89 @@ include '../layouts/header.php';
 </div>
 
 <script>
-// Get the referral code from PHP
-const referralCode = '<?php echo $patient['referral_code']; ?>';
-const fullLink = '<?php echo url('register.php?ref=' . $patient['referral_code']); ?>';
+const referralCode = <?php echo json_encode($patient['referral_code']); ?>;
+const fullLink = <?php echo json_encode(url('register.php?ref=' . $patient['referral_code'])); ?>;
 
-// Debug - check if code exists
-console.log('Referral Code:', referralCode);
-console.log('Full Link:', fullLink);
-
-// Function to show success message
 function showMessage(message) {
-    const existing = document.querySelector('.success-message');
-    if (existing) existing.remove();
-    
+    const existing = document.querySelector('.ref-success-toast');
+    if (existing) {
+        existing.remove();
+    }
     const msg = document.createElement('div');
-    msg.className = 'success-message';
-    msg.innerHTML = '<i class="fas fa-check-circle"></i> ' + message;
+    msg.className = 'ref-success-toast';
+    msg.innerHTML = '<i class="fas fa-check-circle me-2"></i>' + message;
     document.body.appendChild(msg);
-    
-    setTimeout(() => {
-        msg.remove();
-    }, 2000);
+    setTimeout(() => msg.remove(), 2200);
 }
 
-// Simple copy function
 function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text).then(() => true).catch(() => false);
+    }
     const textarea = document.createElement('textarea');
     textarea.value = text;
     textarea.style.position = 'fixed';
     textarea.style.top = '-9999px';
-    textarea.style.left = '-9999px';
     document.body.appendChild(textarea);
-    
     textarea.select();
-    textarea.setSelectionRange(0, 99999);
-    
-    let success = false;
+    let ok = false;
     try {
-        success = document.execCommand('copy');
-    } catch (err) {
-        console.error('Copy failed:', err);
+        ok = document.execCommand('copy');
+    } catch (e) {
+        ok = false;
     }
-    
     document.body.removeChild(textarea);
-    return success;
+    return Promise.resolve(ok);
 }
 
-// Copy code function
 function copyCode() {
-    if (!referralCode || referralCode === '') {
-        alert('Error: Referral code not found. Please refresh the page.');
+    if (!referralCode) {
+        alert('Referral code not found. Please refresh the page.');
         return;
     }
-    
-    const success = copyToClipboard(referralCode);
-    if (success) {
-        showMessage('Referral code copied: ' + referralCode);
-    } else {
-        alert('Please copy manually: ' + referralCode);
-    }
-}
-
-// Share via WhatsApp
-function shareWhatsApp() {
-    if (!referralCode || referralCode === '') {
-        alert('Error: Referral code not found. Please refresh the page.');
-        return;
-    }
-    
-    const text = `Join me at Dental Clinic! Use my referral code: ${referralCode} to get 50 bonus points on your first visit!`;
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    console.log('WhatsApp URL:', url);
-    window.open(url, '_blank');
-}
-
-// Add event listeners when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    // Check if code exists
-    if (!referralCode || referralCode === '') {
-        console.error('Referral code is empty!');
-        const codeElement = document.getElementById('referralCodeText');
-        if (codeElement) {
-            codeElement.style.color = 'red';
-            codeElement.innerHTML = 'ERROR: No referral code. Please contact support.';
-        }
-    } else {
-        console.log('Referral code loaded successfully:', referralCode);
-    }
-    
-    // Copy code buttons
-    const copyBtns = document.querySelectorAll('#copyCodeBtn, #emptyCopyBtn');
-    copyBtns.forEach(btn => {
-        if (btn) {
-            btn.addEventListener('click', copyCode);
+    copyToClipboard(referralCode).then((ok) => {
+        if (ok) {
+            showMessage('Code copied');
+        } else {
+            alert('Copy manually: ' + referralCode);
         }
     });
-    
-    // WhatsApp button
+}
+
+function copyLink() {
+    copyToClipboard(fullLink).then((ok) => {
+        if (ok) {
+            showMessage('Link copied');
+        } else {
+            alert('Copy manually: ' + fullLink);
+        }
+    });
+}
+
+function shareWhatsApp() {
+    if (!referralCode) {
+        alert('Referral code not found.');
+        return;
+    }
+    const text = 'Join me at Dental Clinic! Use my referral code: ' + referralCode + ' to get bonus points on your first visit!';
+    window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    if (!referralCode) {
+        const el = document.getElementById('referralCodeText');
+        if (el) {
+            el.style.color = '#b91c1c';
+            el.textContent = 'No code — contact support.';
+        }
+        return;
+    }
+
+    document.querySelectorAll('#copyCodeBtn, #emptyCopyBtn').forEach((btn) => btn.addEventListener('click', copyCode));
+    const linkBtn = document.getElementById('copyLinkBtn');
+    if (linkBtn) {
+        linkBtn.addEventListener('click', copyLink);
+    }
     const whatsappBtn = document.getElementById('whatsappBtn');
     if (whatsappBtn) {
         whatsappBtn.addEventListener('click', shareWhatsApp);

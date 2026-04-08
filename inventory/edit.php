@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
@@ -56,67 +56,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 include '../layouts/header.php';
 ?>
 
-<style>
-    .inventory-card {
-        max-width: 75%;
-        margin: 0 auto 1rem;
-    }
-
-    .inventory-card select.form-select:hover,
-    .inventory-card select.form-select:focus {
-        border-color: var(--primary-color);
-        box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
-    }
-
-    .cancel-btn {
-        background-color: #dc3545;
-        border-color: #dc3545;
-        padding: 0.375rem 0.65rem;
-        width: auto;
-        min-width: 4.25rem;
-    }
-
-    .cancel-btn:hover {
-        background-color: #c82333;
-        border-color: #bd2130;
-    }
-
-    @media (max-width: 992px) {
-        .inventory-card {
-            max-width: 90%;
-        }
-    }
-
-    @media (max-width: 768px) {
-        .inventory-add-title {
-            font-size: 1.15rem;
-        }
-
-        .inventory-card {
-            max-width: 100%;
-            border-radius: 12px;
-        }
-
-        .inventory-card .card-body {
-            padding: 1rem;
-        }
-
-        .inventory-card .form-control,
-        .inventory-card .form-select {
-            padding: 0.6rem 0.75rem;
-            font-size: 14px;
-        }
-
-        .inventory-card .form-label {
-            font-size: 14px;
-        }
-
-        .inventory-card .btn {
-            padding: 0.55rem 0.85rem;
-            font-size: 14px;
-        }
-    }
-</style>
 
 <div class="container-fluid">
     <h1 class="h3 mb-4 inventory-add-title">Edit Inventory Item</h1>

@@ -1,108 +1,17 @@
-<!DOCTYPE html>
-<html lang="en">
+<?php
+require_once __DIR__ . '/includes/config.php';
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-    <title>Reset Password - DentAssist</title>
-
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@18/build/css/intlTelInput.css" />
-
-    <style>
-        body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0;
-            padding: 16px;
-        }
-
-        .reset-card {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-            padding: 36px;
-            width: 100%;
-            max-width: 420px;
-        }
-
-        .reset-header {
-            text-align: center;
-            margin-bottom: 18px;
-        }
-
-        .reset-header p {
-            color: #666;
-            font-size: 13px;
-        }
-
-        .form-control {
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 14px;
-        }
-
-        .btn-reset {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            padding: 12px;
-            width: 100%;
-            cursor: pointer;
-        }
-
-        .btn-reset:hover {
-            transform: translateY(-2px);
-        }
-
-        .btn-reset:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        @media (max-width: 768px) {
-            .reset-card {
-                padding: 25px;
-                max-width: 320px;
-                border-radius: 12px;
-            }
-
-            .reset-header h4 {
-                font-size: 1.2rem;
-                margin-bottom: 8px;
-            }
-
-            .form-control {
-                padding: 10px;
-                font-size: 14px;
-            }
-
-            label {
-                font-size: 0.95rem;
-                font-weight: 600;
-            }
-
-            .btn-reset {
-                padding: 10px;
-                font-size: 14px;
-            }
-        }
-    </style>
-</head>
-
-<body>
+$pageTitle = 'Forgot password';
+$authBodyClass = 'auth-shell--forgot';
+$authNavActive = '';
+include __DIR__ . '/layouts/auth_header.php';
+?>
 
     <div class="reset-card">
 
         <div class="reset-header">
-            <h4>DentAssist Password Reset</h4>
-            <p>Please enter your <strong>username</strong> and your registered <strong>email</strong> (today) or phone number.</p>
+            <h4><?php echo htmlspecialchars($authBrandPlain); ?> — password reset</h4>
+            <p>Please enter your username. A reset link will be sent to your <strong>registered</strong> phone number via <strong>WhatsApp</strong>.</p>
         </div>
 
         <div id="message"></div>
@@ -119,6 +28,9 @@
 
     </div>
 
+<?php
+ob_start();
+?>
     <script>
         document.getElementById("resetForm").addEventListener("submit", function(e) {
             e.preventDefault();
@@ -136,7 +48,7 @@
 
             btn.disabled = true;
             btn.textContent = "Sending…";
-            
+
             const body = new URLSearchParams();
             body.append("username", username);
 
@@ -168,7 +80,6 @@
                 });
         });
     </script>
-
-</body>
-
-</html>
+<?php
+$authFooterExtra = ob_get_clean();
+include __DIR__ . '/layouts/auth_footer.php';

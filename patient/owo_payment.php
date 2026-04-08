@@ -34,64 +34,6 @@ $pageTitle = 'Online Payment';
 include '../layouts/header.php';
 ?>
 
-<style>
-.payment-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 20px;
-    padding: 30px;
-    margin-bottom: 30px;
-    color: white;
-}
-
-.owo-instructions {
-    background: #f8f9fa;
-    border-radius: 15px;
-    padding: 25px;
-    margin-bottom: 20px;
-}
-
-.clinic-number {
-    font-size: 28px;
-    font-weight: bold;
-    color: #667eea;
-    font-family: monospace;
-    background: white;
-    padding: 15px;
-    border-radius: 10px;
-    text-align: center;
-    border: 2px dashed #667eea;
-    margin: 20px 0;
-}
-
-.btn-owo {
-    background: #25D366;
-    color: white;
-    padding: 15px 30px;
-    border-radius: 50px;
-    font-size: 18px;
-    font-weight: bold;
-    border: none;
-    transition: all 0.3s ease;
-}
-
-.btn-owo:hover {
-    transform: scale(1.05);
-    background: #128C7E;
-}
-
-.step-circle {
-    width: 40px;
-    height: 40px;
-    background: #667eea;
-    color: white;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    margin-right: 15px;
-}
-</style>
 
 <div class="container-fluid">
     <!-- Back Button -->

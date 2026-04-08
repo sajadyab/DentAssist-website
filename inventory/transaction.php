@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
@@ -75,67 +75,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 include '../layouts/header.php';
 ?>
 
-<style>
-    .transaction-card {
-        max-width: 520px;
-        margin: 0 auto 1rem;
-    }
-
-    .transaction-page-inner {
-        max-width: 720px;
-        margin: 0 auto;
-    }
-
-    @media (max-width: 768px) {
-        .transaction-mobile-wrap {
-            min-height: calc(100vh - 7rem);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 1rem 0.75rem 1.5rem;
-            box-sizing: border-box;
-        }
-
-        .transaction-page-inner {
-            width: 100%;
-            max-width: 380px;
-        }
-
-        .transaction-page-title {
-            font-size: 1.05rem;
-            text-align: center;
-            margin-bottom: 1rem !important;
-            line-height: 1.35;
-        }
-
-        .transaction-card {
-            max-width: 100%;
-            margin-bottom: 0;
-            border-radius: 12px;
-            width: 100%;
-        }
-
-        .transaction-card .card-body {
-            padding: 1rem;
-        }
-
-        .transaction-card .form-control,
-        .transaction-card .form-select {
-            padding: 0.6rem 0.75rem;
-            font-size: 14px;
-        }
-
-        .transaction-card .form-label {
-            font-size: 14px;
-        }
-
-        .transaction-card .btn {
-            padding: 0.55rem 0.85rem;
-            font-size: 14px;
-        }
-    }
-</style>
 
 <div class="container-fluid transaction-mobile-wrap">
     <div class="transaction-page-inner">

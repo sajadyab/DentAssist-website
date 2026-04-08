@@ -13,388 +13,266 @@ if ($_SESSION['role'] != 'patient') {
 $db = Database::getInstance();
 $userId = Auth::userId();
 $patientId = getPatientIdFromUserId($userId);
-$patient = $db->fetchOne("SELECT points, full_name FROM patients WHERE id = ?", [$patientId], "i");
 
-$points = $patient['points'] ?? 0;
+if (!$patientId) {
+    die('Patient record not found.');
+}
 
-// Get referral count
-$referralCount = $db->fetchOne(
-    "SELECT COUNT(*) as count FROM patients WHERE referred_by = ?",
+$patient = $db->fetchOne('SELECT points, full_name FROM patients WHERE id = ?', [$patientId], 'i');
+$points = (int) ($patient['points'] ?? 0);
+
+$referralCount = (int) $db->fetchOne(
+    'SELECT COUNT(*) as count FROM patients WHERE referred_by = ?',
     [$patientId],
-    "i"
+    'i'
 )['count'];
 
-// Get points history from appointments and referrals
 $appointmentPoints = $db->fetchAll(
     "SELECT appointment_date, treatment_type, 'appointment' as source FROM appointments WHERE patient_id = ? AND status = 'completed' ORDER BY appointment_date DESC LIMIT 10",
     [$patientId],
-    "i"
+    'i'
 );
+
+$historyItems = [];
+foreach ($appointmentPoints as $apt) {
+    $historyItems[] = [
+        'side' => formatDate($apt['appointment_date']),
+        'title' => 'Completed visit',
+        'muted' => (string) $apt['treatment_type'],
+        'badgeClass' => 'bills-badge bills-badge--green',
+        'pointsLabel' => '+50',
+    ];
+}
+if ($referralCount > 0) {
+    $historyItems[] = [
+        'side' => 'Referral',
+        'title' => $referralCount . ' friend' . ($referralCount > 1 ? 's' : '') . ' joined',
+        'muted' => 'Referral bonus',
+        'badgeClass' => 'bills-badge bills-badge--green',
+        'pointsLabel' => '+' . ($referralCount * 50),
+    ];
+}
+if (empty($historyItems) && $points > 0) {
+    $historyItems[] = [
+        'side' => '—',
+        'title' => 'Points balance',
+        'muted' => 'Your current total',
+        'badgeClass' => 'bills-badge bills-badge--blue',
+        'pointsLabel' => (string) $points,
+    ];
+}
+
+$ptsMod = $points % 250;
+$toNextReward = $points === 0 ? 250 : ($ptsMod === 0 ? 250 : 250 - $ptsMod);
 
 $pageTitle = 'My Points';
 include '../layouts/header.php';
 ?>
 
-<style>
-.points-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 20px;
-    padding: 30px;
-    margin-bottom: 30px;
-    color: white;
-}
 
-.points-card {
-    background: white;
-    border-radius: 15px;
-    padding: 20px;
-    text-align: center;
-    transition: all 0.3s ease;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    height: 100%;
-}
+<div class="container-fluid bills-page patient-portal points-page">
+   
 
-.points-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-}
-
-.points-number {
-    font-size: 48px;
-    font-weight: bold;
-    color: #667eea;
-    margin-bottom: 10px;
-}
-
-.points-label {
-    font-size: 14px;
-    color: #6c757d;
-}
-
-.points-progress {
-    background: rgba(255,255,255,0.2);
-    border-radius: 10px;
-    height: 10px;
-    overflow: hidden;
-}
-
-.points-progress-bar {
-    background: #ffc107;
-    height: 100%;
-    border-radius: 10px;
-    transition: width 0.5s ease;
-}
-
-.earning-item {
-    padding: 12px 0;
-    border-bottom: 1px solid #f0f0f0;
-    transition: all 0.3s ease;
-}
-
-.earning-item:hover {
-    background: #f8f9fa;
-    transform: translateX(5px);
-}
-
-.earning-icon {
-    width: 40px;
-    height: 40px;
-    background: #f8f9fa;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 15px;
-}
-
-.points-badge {
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: bold;
-}
-
-.points-earned { background: #d4edda; color: #155724; }
-.points-spent { background: #f8d7da; color: #721c24; }
-
-.reward-card {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    border-radius: 12px;
-    padding: 15px;
-    margin-bottom: 15px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.reward-card:hover {
-    transform: scale(1.02);
-    background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
-}
-
-.reward-points {
-    font-size: 20px;
-    font-weight: bold;
-    color: #667eea;
-}
-
-.btn-redeem {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border: none;
-    padding: 8px 20px;
-    border-radius: 20px;
-    color: white;
-    font-weight: bold;
-    transition: all 0.3s ease;
-}
-
-.btn-redeem:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(102,126,234,0.4);
-}
-</style>
-
-<div class="container-fluid">
-    <!-- Back Button -->
-    <div class="mb-3">
-        <a href="index.php" class="btn btn-secondary">
-            <i class="fas fa-arrow-left"></i> Back to Dashboard
-        </a>
-    </div>
-
-    <!-- Points Header -->
-    <div class="points-header">
-        <div class="row align-items-center">
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
             <div class="col-md-8">
-                <h2 class="mb-2">
-                    <i class="fas fa-star"></i> My Reward Points
+                <h2 class="mb-2 fw-bold">
+                    <i class="fas fa-star me-2 opacity-90" aria-hidden="true"></i>My Reward Points
                 </h2>
-                <p class="mb-0">Earn points with every visit and referral. Redeem them for exciting rewards!</p>
+                <p class="mb-0 opacity-90">Earn points with every visit and referral. Redeem them for rewards!</p>
             </div>
-            <div class="col-md-4 text-md-end mt-3 mt-md-0">
-                <div class="points-progress mb-2">
-                    <div class="points-progress-bar" style="width: <?php echo ($points % 250) / 250 * 100; ?>%"></div>
+            <div class="col-md-4 mt-3 mt-md-0">
+                <div class="bills-balance-wrap">
+                    <div class="bills-balance-box">
+                        <small>Your points</small>
+                        <p class="bills-balance-amount"><?php echo (int) $points; ?></p>
+                        <small class="d-block mt-1" style="font-size:0.6rem;text-transform:none;letter-spacing:0;"><?php echo (int) $toNextReward; ?> pts to next reward</small>
+                    </div>
                 </div>
-                <small><?php echo 250 - ($points % 250); ?> points to next reward</small>
             </div>
         </div>
     </div>
 
-    <!-- Points Stats Cards -->
-    <div class="row mb-4">
-        <div class="col-md-4 mb-3">
-            <div class="points-card">
-                <div class="points-number"><?php echo $points; ?></div>
-                <div class="points-label">Total Points</div>
+    <div class="row patient-stats-row mb-4 g-3">
+        <div class="col-6 col-md-4 mb-3">
+            <div class="bills-stats-card bills-stats-card--paid">
+                <div class="bills-stats-number"><?php echo (int) $points; ?></div>
+                <div class="bills-stats-label">Total Points</div>
             </div>
         </div>
-        <div class="col-md-4 mb-3">
-            <div class="points-card">
-                <div class="points-number"><?php echo floor($points / 250); ?></div>
-                <div class="points-label">Rewards Available</div>
+        <div class="col-6 col-md-4 mb-3">
+            <div class="bills-stats-card bills-stats-card--invoices">
+                <div class="bills-stats-number"><?php echo (int) floor($points / 250); ?></div>
+                <div class="bills-stats-label">Rewards Available</div>
             </div>
         </div>
-        <div class="col-md-4 mb-3">
-            <div class="points-card">
-                <div class="points-number"><?php echo $referralCount * 50; ?></div>
-                <div class="points-label">Points from Referrals</div>
+        <div class="col-12 col-md-4 mb-3">
+            <div class="bills-stats-card bills-stats-card--subs">
+                <div class="bills-stats-number"><?php echo (int) ($referralCount * 50); ?></div>
+                <div class="bills-stats-label">Points from Referrals</div>
             </div>
         </div>
     </div>
 
-    <div class="row">
-        <div class="col-md-7">
-            <!-- How to Earn Points -->
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-white border-0 py-3">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-chart-line text-success"></i> How to Earn Points
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="earning-item d-flex align-items-center">
-                        <div class="earning-icon">
-                            <i class="fas fa-calendar-check text-primary fa-lg"></i>
+    <div class="points-cards-grid">
+        <div class="points-area-history">
+            <div class="card bills-dash-section-card">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--invoices border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-history me-2" aria-hidden="true"></i>Points History</h5>
                         </div>
-                        <div class="flex-grow-1">
-                            <h6 class="mb-0">Complete an Appointment</h6>
-                            <small class="text-muted">Earn points for every completed dental visit</small>
-                        </div>
-                        <div class="points-badge points-earned">+50 points</div>
-                    </div>
-                    <div class="earning-item d-flex align-items-center">
-                        <div class="earning-icon">
-                            <i class="fas fa-users text-success fa-lg"></i>
-                        </div>
-                        <div class="flex-grow-1">
-                            <h6 class="mb-0">Refer a Friend</h6>
-                            <small class="text-muted">Share your referral code and earn points</small>
-                        </div>
-                        <div class="points-badge points-earned">+50 points</div>
-                    </div>
-                    <div class="earning-item d-flex align-items-center">
-                        <div class="earning-icon">
-                            <i class="fas fa-gem text-warning fa-lg"></i>
-                        </div>
-                        <div class="flex-grow-1">
-                            <h6 class="mb-0">Subscribe to Premium Plan</h6>
-                            <small class="text-muted">One-time bonus for upgrading</small>
-                        </div>
-                        <div class="points-badge points-earned">+200 points</div>
-                    </div>
-                    <div class="earning-item d-flex align-items-center">
-                        <div class="earning-icon">
-                            <i class="fas fa-birthday-cake text-info fa-lg"></i>
-                        </div>
-                        <div class="flex-grow-1">
-                            <h6 class="mb-0">First Appointment Bonus</h6>
-                            <small class="text-muted">Welcome bonus for new patients</small>
-                        </div>
-                        <div class="points-badge points-earned">+100 points</div>
+                        <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Points History -->
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-0 py-3">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-history text-info"></i> Points History
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <?php if ($points == 0 && $referralCount == 0 && empty($appointmentPoints)): ?>
-                        <div class="text-center py-4">
-                            <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
-                            <p class="text-muted">No points earned yet.</p>
-                            <a href="book.php" class="btn btn-primary">Book Your First Appointment</a>
+                <div class="card-body p-0">
+                    <?php if (empty($historyItems)): ?>
+                        <div class="bills-empty-state text-center py-4 px-3">
+                            <p class="text-muted small mb-3">No points yet.</p>
+                            <a href="queue.php" class="btn btn-sm bills-cta bills-cta--book">Book an Appointment</a>
                         </div>
                     <?php else: ?>
-                        <div class="table-responsive">
-                            <table class="table table-modern">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Description</th>
-                                        <th class="text-end">Points</th>
-                                    </thead>
-                                <tbody>
-                                    <?php if ($points > 0 && $points == ($referralCount * 50)): ?>
-                                    <tr>
-                                        <td>Ongoing</td>
-                                        <td>Current balance from referrals</td>
-                                        <td class="text-end text-success">+<?php echo $points; ?></td>
-                                    </tr>
-                                    <?php endif; ?>
-                                    <?php foreach ($appointmentPoints as $apt): ?>
-                                    <tr>
-                                        <td><?php echo formatDate($apt['appointment_date']); ?></td>
-                                        <td>Completed: <?php echo $apt['treatment_type']; ?></td>
-                                        <td class="text-end text-success">+50</td>
-                                    </tr>
-                                    <?php endforeach; ?>
-                                    <?php if ($referralCount > 0): ?>
-                                    <tr>
-                                        <td>From referrals</td>
-                                        <td><?php echo $referralCount; ?> friend<?php echo $referralCount > 1 ? 's' : ''; ?> joined</td>
-                                        <td class="text-end text-success">+<?php echo $referralCount * 50; ?></td>
-                                    </tr>
-                                    <?php endif; ?>
-                                </tbody>
-                             </table>
-                        </div>
+                        <?php foreach ($historyItems as $row): ?>
+                            <div class="bills-dash-row">
+                                <span class="bills-side-id"><?php echo htmlspecialchars($row['side']); ?></span>
+                                <div class="bills-dash-col-main">
+                                    <span class="bills-dash-strong"><?php echo htmlspecialchars($row['title']); ?></span>
+                                    <span class="bills-dash-muted"><?php echo htmlspecialchars($row['muted']); ?></span>
+                                </div>
+                                <div class="bills-dash-actions">
+                                    <span class="<?php echo htmlspecialchars($row['badgeClass']); ?>"><?php echo htmlspecialchars($row['pointsLabel']); ?></span>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
                     <?php endif; ?>
                 </div>
             </div>
         </div>
 
-        <div class="col-md-5">
-            <!-- Available Rewards -->
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-white border-0 py-3">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-gift text-warning"></i> Available Rewards
-                    </h5>
+        <div class="points-area-earn">
+            <div class="card bills-dash-section-card">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--subscriptions border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-chart-line me-2" aria-hidden="true"></i>How to Earn Points</h5>
+                        </div>
+                        <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="reward-card" onclick="alert('Contact clinic to redeem this reward')">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="mb-1">Free Teeth Whitening</h6>
-                                <small class="text-muted">Professional whitening session</small>
-                            </div>
-                            <div class="text-end">
-                                <div class="reward-points">500 points</div>
-                                <button class="btn-redeem btn-sm mt-1">Redeem</button>
-                            </div>
+                <div class="card-body p-0">
+                    <div class="bills-dash-row points-earn-row">
+                        <div class="bills-dash-col-main">
+                            <span class="bills-dash-strong">Complete an appointment</span>
+                            <span class="bills-dash-muted">Earn points for every completed dental visit</span>
+                        </div>
+                        <div class="bills-dash-actions">
+                            <span class="bills-badge bills-badge--green">+50 pts</span>
                         </div>
                     </div>
-                    <div class="reward-card" onclick="alert('Contact clinic to redeem this reward')">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="mb-1">Free Dental Cleaning</h6>
-                                <small class="text-muted">One free cleaning session</small>
-                            </div>
-                            <div class="text-end">
-                                <div class="reward-points">250 points</div>
-                                <button class="btn-redeem btn-sm mt-1">Redeem</button>
-                            </div>
+                    <div class="bills-dash-row points-earn-row">
+                        <div class="bills-dash-col-main">
+                            <span class="bills-dash-strong">Refer a friend</span>
+                            <span class="bills-dash-muted">Share your referral code and earn points</span>
+                        </div>
+                        <div class="bills-dash-actions">
+                            <span class="bills-badge bills-badge--green">+50 pts</span>
                         </div>
                     </div>
-                    <div class="reward-card" onclick="alert('Contact clinic to redeem this reward')">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="mb-1">$50 Treatment Discount</h6>
-                                <small class="text-muted">Off any dental treatment</small>
-                            </div>
-                            <div class="text-end">
-                                <div class="reward-points">300 points</div>
-                                <button class="btn-redeem btn-sm mt-1">Redeem</button>
-                            </div>
+                    <div class="bills-dash-row points-earn-row">
+                        <div class="bills-dash-col-main">
+                            <span class="bills-dash-strong">Subscribe to Premium</span>
+                            <span class="bills-dash-muted">One-time bonus for upgrading</span>
+                        </div>
+                        <div class="bills-dash-actions">
+                            <span class="bills-badge bills-badge--yellow">+200 pts</span>
                         </div>
                     </div>
-                    <div class="reward-card" onclick="alert('Contact clinic to redeem this reward')">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="mb-1">Dental Care Kit</h6>
-                                <small class="text-muted">Premium toothbrush, toothpaste, floss</small>
-                            </div>
-                            <div class="text-end">
-                                <div class="reward-points">150 points</div>
-                                <button class="btn-redeem btn-sm mt-1">Redeem</button>
-                            </div>
+                    <div class="bills-dash-row points-earn-row">
+                        <div class="bills-dash-col-main">
+                            <span class="bills-dash-strong">First appointment bonus</span>
+                            <span class="bills-dash-muted">Welcome bonus for new patients</span>
+                        </div>
+                        <div class="bills-dash-actions">
+                            <span class="bills-badge bills-badge--blue">+100 pts</span>
                         </div>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Tips Card -->
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-0 py-3">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-lightbulb text-warning"></i> Pro Tips
-                    </h5>
+        <div class="points-area-rewards">
+            <div class="card bills-dash-section-card">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--payment border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-gift me-2" aria-hidden="true"></i>Available Rewards</h5>
+                        </div>
+                        <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <?php
+                    $rewards = [
+                        ['title' => 'Free Teeth Whitening', 'muted' => 'Professional whitening session', 'cost' => '500'],
+                        ['title' => 'Free Dental Cleaning', 'muted' => 'One free cleaning session', 'cost' => '250'],
+                        ['title' => '$50 Treatment Discount', 'muted' => 'Off any dental treatment', 'cost' => '300'],
+                        ['title' => 'Dental Care Kit', 'muted' => 'Premium toothbrush, toothpaste, floss', 'cost' => '150'],
+                    ];
+                    foreach ($rewards as $rw):
+                    ?>
+                        <div class="bills-dash-row points-row-three-col-mobile">
+                            <span class="bills-side-id"><?php echo htmlspecialchars($rw['cost']); ?> pts</span>
+                            <div class="bills-dash-col-main">
+                                <span class="bills-dash-strong"><?php echo htmlspecialchars($rw['title']); ?></span>
+                                <span class="bills-dash-muted"><?php echo htmlspecialchars($rw['muted']); ?></span>
+                            </div>
+                            <div class="bills-dash-actions">
+                                <button type="button" class="btn btn-sm btn-primary" onclick="alert('Contact the clinic to redeem this reward.')">Redeem</button>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+
+        <div class="points-area-tips">
+            <div class="card bills-dash-section-card">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--help border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-lightbulb me-2" aria-hidden="true"></i>Pro Tips</h5>
+                        </div>
+                        <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
+                    </div>
                 </div>
                 <div class="card-body">
+                    <p class="fw-semibold small text-uppercase mb-2" style="color:#475569;letter-spacing:0.04em;">Get more from your points</p>
                     <div class="d-flex mb-3">
-                        <i class="fas fa-share-alt text-primary fa-lg me-3"></i>
+                        <i class="fas fa-share-alt fa-lg me-3" style="color:var(--bills-accent-deep);" aria-hidden="true"></i>
                         <div>
                             <strong>Share your referral code</strong>
-                            <p class="small text-muted mb-0">Earn 50 points for each friend who joins!</p>
+                            <p class="small text-muted mb-0">Earn 50 points for each friend who joins.</p>
                         </div>
                     </div>
                     <div class="d-flex mb-3">
-                        <i class="fas fa-calendar-check text-success fa-lg me-3"></i>
+                        <i class="fas fa-calendar-check fa-lg me-3" style="color:var(--bills-accent-deep);" aria-hidden="true"></i>
                         <div>
-                            <strong>Don't miss appointments</strong>
-                            <p class="small text-muted mb-0">Complete all scheduled appointments to earn points</p>
+                            <strong>Keep appointments</strong>
+                            <p class="small text-muted mb-0">Complete visits to keep earning points.</p>
                         </div>
                     </div>
                     <div class="d-flex">
-                        <i class="fas fa-crown text-warning fa-lg me-3"></i>
+                        <i class="fas fa-crown fa-lg me-3" style="color:var(--bills-accent-deep);" aria-hidden="true"></i>
                         <div>
                             <strong>Upgrade to Premium</strong>
-                            <p class="small text-muted mb-0">Get 200 bonus points and more benefits!</p>
+                            <p class="small text-muted mb-0">Bonus points and extra benefits.</p>
                         </div>
+                    </div>
+                    <hr class="my-3 opacity-50">
+                    <div class="bills-alert-soft p-3 mb-0">
+                        <i class="fas fa-info-circle me-1" style="color: var(--bills-accent-deep);" aria-hidden="true"></i>
+                        <strong>Questions?</strong>
+                        <p class="small mb-0 mt-1 text-secondary">Ask the front desk about redemption and balances.</p>
                     </div>
                 </div>
             </div>

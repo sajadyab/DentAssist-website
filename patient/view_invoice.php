@@ -51,7 +51,8 @@ $pageTitle = 'Invoice #' . $invoice['invoice_number'];
 include '../layouts/header.php';
 ?>
 
-<div class="container-fluid">
+
+<div class="container-fluid patient-invoice-print-root">
     <!-- Back Button -->
     <div class="mb-3">
         <a href="bills.php" class="btn btn-secondary">
@@ -254,19 +255,5 @@ include '../layouts/header.php';
         </div>
     </div>
 </div>
-
-<style media="print">
-    .btn, .mb-3 a, .card-header .btn {
-        display: none !important;
-    }
-    .container-fluid {
-        padding: 0;
-        margin: 0;
-    }
-    .card {
-        border: none;
-        box-shadow: none;
-    }
-</style>
 
 <?php include '../layouts/footer.php'; ?>

@@ -1,8 +1,6 @@
-<?php
-require_once '../includes/config.php';
-require_once '../includes/db.php';
-require_once '../includes/auth.php';
-require_once '../includes/functions.php';
+﻿<?php
+require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
 
@@ -138,6 +136,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_appointment_r
     ]);
 
     $_SESSION['queue_flash_ok'] = 'Appointment saved and the patient was notified (WhatsApp when a phone number is on file).';
+    $returnTo = trim((string) ($_POST['return_url'] ?? ''));
+    if ($returnTo !== '' && preg_match('#^(?:\.\./)*dashboard\.php(?:\?[-\w.&=%]*)?$#i', $returnTo)) {
+        header('Location: ' . $returnTo);
+        exit;
+    }
     header('Location: index.php');
     exit;
 }
@@ -223,6 +226,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deny_appointment_requ
     }
 
     $_SESSION['queue_flash_ok'] = 'Request removed and the patient was notified (WhatsApp when a phone number is on file).';
+    $returnTo = trim((string) ($_POST['return_url'] ?? ''));
+    if ($returnTo !== '' && preg_match('#^(?:\.\./)*dashboard\.php(?:\?[-\w.&=%]*)?$#i', $returnTo)) {
+        header('Location: ' . $returnTo);
+        exit;
+    }
     header('Location: index.php');
     exit;
 }
@@ -257,6 +265,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resolve_weekly_queue'
     $db->execute('DELETE FROM waiting_queue WHERE id = ?', [$wid], 'i');
     logAction('DELETE', 'waiting_queue', $wid, $wq, null);
     $_SESSION['queue_flash_ok'] = 'Weekly request resolved and removed from the list.';
+    $returnTo = trim((string) ($_POST['return_url'] ?? ''));
+    if ($returnTo !== '' && preg_match('#^(?:\.\./)*dashboard\.php(?:\?[-\w.&=%]*)?$#i', $returnTo)) {
+        header('Location: ' . $returnTo);
+        exit;
+    }
     header('Location: index.php');
     exit;
 }
@@ -403,10 +416,8 @@ if ($role === 'doctor') {
     );
 }
 
-$doctorSelectList = $db->fetchAll(
-    "SELECT id, full_name FROM users WHERE role = 'doctor' AND COALESCE(is_active, 1) = 1 ORDER BY full_name"
-);
-$allPatientsForQueue = $db->fetchAll('SELECT id, full_name FROM patients ORDER BY full_name');
+$doctorSelectList = repo_user_list_doctors(true);
+$allPatientsForQueue = repo_patient_list_for_select();
 
 $staffWeeklyVisitTypeOptions = [
     'Check-up / cleaning',
@@ -427,113 +438,6 @@ include '../layouts/header.php';
 ?>
 
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
-<style>
-.queue-add-patient-ts .ts-control { min-height: 38px; padding: 0.35rem 0.5rem; }
-.appointments-table-wrap .table {
-    font-size: 0.875rem;
-}
-.appointments-table-wrap .table thead th {
-    padding: 0.45rem 0.5rem;
-    vertical-align: middle;
-    white-space: nowrap;
-}
-.appointments-table-wrap .table tbody td {
-    padding: 0.35rem 0.5rem;
-    vertical-align: middle;
-}
-.appointments-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.35rem;
-    max-width: 200px;
-}
-.appointments-actions form {
-    display: contents;
-}
-.appointments-actions .btn {
-    padding: 0.2rem 0.35rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-.form-card {
-    border-radius: 20px;
-    border: none;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
-    overflow: hidden;
-}
-.queue-registration-card {
-    border-radius: 20px;
-    border: none;
-    box-shadow: 0 8px 28px rgba(31, 105, 216, 0.12);
-    overflow: hidden;
-    --queue-registration-field-icon: rgb(245, 233, 85);
-    --queue-registration-label-color: rgb(8, 9, 10);
-}
-.queue-registration-card .card-body .form-label-modern {
-    color: var(--queue-registration-label-color);
-}
-.queue-registration-card .card-body .form-label-modern > i {
-    color: var(--queue-registration-field-icon) !important;
-}
-.queue-registration-card .queue-notes-field {
-    min-height: 2.75rem;
-    max-height: 5rem;
-    resize: vertical;
-    font-size: 0.875rem;
-    line-height: 1.4;
-    padding-top: 0.4rem;
-    padding-bottom: 0.4rem;
-}
-.queue-panel-card-header {
-    background: #fff !important;
-    border-bottom: none !important;
-    padding-top: 1rem !important;
-    padding-bottom: 1rem !important;
-}
-.queue-panel-card-header .card-title {
-    font-size: 1.25rem;
-    font-weight: 500;
-    color: #212529;
-    line-height: 1.2;
-}
-.queue-registration-card .queue-panel-card-header {
-    border-radius: 20px 20px 0 0;
-}
-.queue-registration-card .form-control-modern:focus,
-.queue-registration-card .form-select:focus {
-    border-color: rgb(108, 163, 245);
-    box-shadow: 0 0 0 3px rgba(108, 163, 245, 0.2);
-}
-.queue-registration-card .btn-queue-reg {
-    background: linear-gradient(135deg, rgb(142, 203, 244) 0%, rgb(85, 189, 245) 100%);
-    border: none;
-    padding: 11px 26px;
-    border-radius: 25px;
-    color: #fff !important;
-    font-weight: 600;
-    transition: opacity 0.2s ease;
-}
-.queue-registration-card .btn-queue-reg:hover {
-    color: #fff !important;
-    opacity: 0.92;
-}
-.form-control-modern {
-    border-radius: 10px;
-    border: 1px solid #e0e0e0;
-    padding: 12px 15px;
-    transition: all 0.3s ease;
-}
-.form-label-modern {
-    font-weight: 600;
-    color:rgb(5, 9, 12);
-    margin-bottom: 8px;
-    display: block;
-}
-select.form-control-modern {
-    cursor: pointer;
-}
-</style>
 
 <div class="container-fluid">
     <h1 class="h3 mb-4">Requests &amp; Queue</h1>

@@ -25,83 +25,30 @@ $pageTitle = 'My Teeth';
 include '../layouts/header.php';
 ?>
 
-<style>
-.teeth-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 20px;
-    padding: 30px;
-    margin-bottom: 30px;
-    color: white;
-}
 
-.tooth-chart-container {
-    background: white;
-    border-radius: 15px;
-    padding: 20px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-}
+<div class="container-fluid bills-page">
+  
 
-.info-card {
-    background: #f8f9fa;
-    border-radius: 12px;
-    padding: 15px;
-    margin-bottom: 15px;
-}
-
-.legend-item {
-    display: inline-flex;
-    align-items: center;
-    margin-right: 15px;
-    margin-bottom: 10px;
-}
-
-.legend-color {
-    width: 20px;
-    height: 20px;
-    border-radius: 4px;
-    margin-right: 8px;
-}
-
-.legend-healthy { background: #28a745; }
-.legend-cavity { background: #dc3545; }
-.legend-filled { background: #ffc107; }
-.legend-crown { background: #17a2b8; }
-.legend-root-canal { background: #6f42c1; }
-.legend-missing { background: #6c757d; }
-.legend-implant { background: #20c997; }
-</style>
-
-<div class="container-fluid">
-    <!-- Back Button -->
-    <div class="mb-3">
-        <a href="index.php" class="btn btn-secondary">
-            <i class="fas fa-arrow-left"></i> Back to Dashboard
-        </a>
-    </div>
-
-    <!-- Teeth Header -->
-    <div class="teeth-header">
-        <div class="row align-items-center">
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
             <div class="col-md-8">
-                <h2 class="mb-2">
-                    <i class="fas fa-tooth"></i> My Dental Chart
+                <h2 class="mb-2 fw-bold">
+                    <i class="fas fa-tooth me-2 opacity-90" aria-hidden="true"></i>My Dental Chart
                 </h2>
-                <p class="mb-0">View your complete dental history and treatment records</p>
+                <p class="mb-0 opacity-90">View your complete dental history and treatment records</p>
             </div>
-            <div class="col-md-4 text-md-end mt-3 mt-md-0">
-                <div class="bg-white text-dark rounded p-2">
-                    <small>Patient</small>
-                    <h5 class="mb-0"><?php echo htmlspecialchars($patient['full_name']); ?></h5>
+            <div class="col-md-4 mt-3 mt-md-0">
+                <div class="bills-balance-wrap">
+                    <div class="bills-balance-box">
+                        <small>Patient</small>
+                        <p class="bills-balance-amount mb-0"><?php echo htmlspecialchars($patient['full_name']); ?></p>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Info Alert -->
-    <div class="alert alert-info alert-custom mb-4">
-        <i class="fas fa-info-circle"></i> 
-        <strong>View Only Mode</strong> - This chart shows your dental records. For updates, please consult with your dentist during your next visit.
-    </div>
+   
 
     <div class="row">
         <div class="col-lg-9">

@@ -1,11 +1,27 @@
-<?php
+﻿<?php
 require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
 
-
-
+/**
+ * Short labels for profile UI: no underscores, leading letter uppercased, and "password"/"passwords" get a capital P.
+ */
+if (!function_exists('profile_pretty_label')) {
+    function profile_pretty_label(string $key, string $fallback = ''): string {
+        $s = trim(__($key, $fallback !== '' ? $fallback : $key));
+        $s = str_replace('_', ' ', $s);
+        $s = str_ireplace('passwords', 'Passwords', $s);
+        $s = str_ireplace('password', 'Password', $s);
+        if ($s === '') {
+            return '';
+        }
+        if (function_exists('mb_substr')) {
+            return mb_strtoupper(mb_substr($s, 0, 1, 'UTF-8')) . mb_substr($s, 1, null, 'UTF-8');
+        }
+        return ucfirst($s);
+    }
+}
 
 Auth::requireLogin();
 if ($_SESSION['role'] !== 'patient') {
@@ -60,517 +76,271 @@ $patient = $db->fetchOne("SELECT * FROM patients WHERE id = ?", [$patientId], "i
 $user = $db->fetchOne("SELECT * FROM users WHERE id = ?", [$userId], "i");
 
 $pageTitle = 'My Profile';
-$error = '';
-$success = '';
-
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $newUsername = trim((string) ($_POST['username'] ?? ''));
-
-    if ($newUsername === '') {
-        $error = 'Username is required.';
-    } else {
-        $newUsersEmail = $newUsername . '@patients.local';
-        $usernameTaken = $db->fetchOne(
-            'SELECT id FROM users WHERE username = ? AND id != ?',
-            [$newUsername, $userId],
-            'si'
-        );
-        if ($usernameTaken) {
-            $error = 'That username is already taken. Please choose another.';
-        } else {
-            $emailTaken = $db->fetchOne(
-                'SELECT id FROM users WHERE email = ? AND id != ?',
-                [$newUsersEmail, $userId],
-                'si'
-            );
-            if ($emailTaken) {
-                $error = 'That username is already taken. Please choose another.';
-            }
-        }
-    }
-
-    if ($error === '') {
-        $conn = $db->getConnection();
-        try {
-            $conn->begin_transaction();
-
-            $result = $db->execute(
-                "UPDATE patients SET 
-                    full_name = ?, date_of_birth = ?, gender = ?, phone = ?, email = ?,
-                    emergency_contact_name = ?, emergency_contact_phone = ?, emergency_contact_relation = ?,
-                    address = ?, country = ?
-                 WHERE id = ?",
-                [
-                    $_POST['full_name'],
-                    $_POST['date_of_birth'] ?? null,
-                    $_POST['gender'] ?? null,
-                    $_POST['phone'],
-                    (trim((string) ($_POST['email'] ?? '')) !== '' ? trim((string) $_POST['email']) : null),
-                    $_POST['emergency_contact_name'] ?? null,
-                    $_POST['emergency_contact_phone'] ?? null,
-                    $_POST['emergency_contact_relation'] ?? null,
-                    $_POST['address'] ?? null,
-                    $_POST['country'] ?? 'LB',
-                    $patientId
-                ],
-                "ssssssssssi"
-            );
-
-            if ($result === false) {
-                throw new Exception('Patient update failed.');
-            }
-
-            $userResult = $db->execute(
-                "UPDATE users SET username = ?, email = ?, full_name = ?, phone = ? WHERE id = ? AND role = 'patient'",
-                [
-                    $newUsername,
-                    $newUsersEmail,
-                    $_POST['full_name'],
-                    $_POST['phone'],
-                    $userId
-                ],
-                'ssssi'
-            );
-
-            if ($userResult === false) {
-                throw new Exception('User update failed.');
-            }
-
-            $conn->commit();
-
-            logAction('UPDATE', 'patients', $patientId, $patient, $_POST);
-            $success = 'Profile updated successfully.';
-
-            // Refresh patient and user data
-            $patient = $db->fetchOne("SELECT * FROM patients WHERE id = ?", [$patientId], "i");
-            $user = $db->fetchOne("SELECT * FROM users WHERE id = ?", [$userId], "i");
-            $_SESSION['full_name'] = $user['full_name'];
-            $_SESSION['username'] = $user['username'];
-
-            // // ---------- SYNC TO CLOUD ----------
-            // // Patient data
-            // $cloudPatientId = $patient['cloud_id'] ?? null;
-            // $cloudPatientData = [
-            //     'full_name'                 => $_POST['full_name'],
-            //     'date_of_birth'             => $_POST['date_of_birth'] ?? null,
-            //     'gender'                    => $_POST['gender'] ?? null,
-            //     'phone'                     => $_POST['phone'],
-            //     'email'                     => $_POST['email'],
-            //     'emergency_contact_name'    => $_POST['emergency_contact_name'] ?? null,
-            //     'emergency_contact_phone'   => $_POST['emergency_contact_phone'] ?? null,
-            //     'emergency_contact_relation'=> $_POST['emergency_contact_relation'] ?? null,
-            //     'address'                   => $_POST['address'] ?? null,
-            //     'country'                   => $_POST['country'] ?? 'LB',
-            //     'source'                    => 'cloud'
-            // ];
-
-            // if ($cloudPatientId) {
-            //     // Update existing cloud record
-            //     callSupabaseAPI("/rest/v1/patients?id=eq.$cloudPatientId", $cloudPatientData, 'PATCH');
-            // } else {
-            //     // Insert new cloud record and store its ID locally
-            //     $newCloudId = callSupabaseAPI('/rest/v1/patients', $cloudPatientData, 'POST');
-            //     if ($newCloudId) {
-            //         $db->execute("UPDATE patients SET cloud_id = ? WHERE id = ?", [$newCloudId, $patientId], "ii");
-            //     }
-            // }
-
-            // User data (username, email, full_name, phone)
-            // $cloudUserId = $user['cloud_id'] ?? null;
-            // $cloudUserData = [
-            //     'username'  => $newUsername,
-            //     'email'     => $newUsersEmail,
-            //     'full_name' => $_POST['full_name'],
-            //     'phone'     => $_POST['phone'],
-            //     'source'    => 'cloud'
-            // ];
-
-            // if ($cloudUserId) {
-            //     callSupabaseAPI("/rest/v1/users?id=eq.$cloudUserId", $cloudUserData, 'PATCH');
-            // } else {
-            //     $newCloudUserId = callSupabaseAPI('/rest/v1/users', $cloudUserData, 'POST');
-            //     if ($newCloudUserId) {
-            //         $db->execute("UPDATE users SET cloud_id = ? WHERE id = ?", [$newCloudUserId, $userId], "ii");
-            //     }
-            // }
-            // ---------- END SYNC ----------
-
-        } catch (Exception $e) {
-            try {
-                $conn->rollback();
-            } catch (Exception $rollbackEx) {
-                // ignore
-            }
-            $error = 'Error updating profile: ' . $e->getMessage();
-        }
-    }
-}
 
 include '../layouts/header.php';
+
+/* Feature flags: clinic_settings via canViewPoints() / canViewReferrals() (not $_POST on GET).
+ * If both points and referrals are off, omit "Member since" so the subtitle strip is one row (3 fields). */
+$allowPoints = canViewPoints();
+$allowReferrals = canViewReferrals();
+$referralCodeRaw = trim((string) ($patient['referral_code'] ?? ''));
+
+$profileHeaderItems = [];
+$uName = trim((string) ($user['username'] ?? ''));
+$profileHeaderItems[] = [
+    'icon' => 'fa-at',
+    'label' => __('username', 'Username'),
+    'value' => $uName !== '' ? $uName : '—',
+    'extra' => null,
+    'mono' => false,
+];
+$phoneDisp = trim((string) ($patient['phone'] ?? ''));
+$profileHeaderItems[] = [
+    'icon' => 'fa-phone',
+    'label' => __('phone', 'Phone'),
+    'value' => $phoneDisp !== '' ? $phoneDisp : '—',
+    'extra' => null,
+    'mono' => false,
+];
+$emailDisp = trim((string) ($patient['email'] ?? ''));
+$profileHeaderItems[] = [
+    'icon' => 'fa-envelope',
+    'label' => __('email', 'Email'),
+    'value' => $emailDisp !== '' ? $emailDisp : '—',
+    'extra' => null,
+    'mono' => false,
+];
+if ($allowPoints || $allowReferrals) {
+    $profileHeaderItems[] = [
+        'icon' => 'fa-calendar-check',
+        'label' => __('member_since', 'Member since'),
+        'value' => formatDate($patient['created_at'], 'M d, Y'),
+        'extra' => null,
+        'mono' => false,
+    ];
+}
+if ($allowPoints) {
+    $pts = (int) ($patient['points'] ?? 0);
+    $nextPts = 250 - ($pts % 250);
+    $profileHeaderItems[] = [
+        'icon' => 'fa-star',
+        'label' => __('my_points', 'Reward points'),
+        'value' => (string) $pts,
+        'extra' => 'Next in ' . $nextPts . ' pts',
+        'mono' => false,
+    ];
+}
+if ($allowReferrals) {
+    $profileHeaderItems[] = [
+        'icon' => 'fa-gift',
+        'label' => __('referral_code', 'Referral code'),
+        'value' => $referralCodeRaw !== '' ? $referralCodeRaw : '—',
+        'extra' => null,
+        'mono' => true,
+    ];
+}
+$profileHeaderRow1 = array_slice($profileHeaderItems, 0, 3);
+$profileHeaderRow2 = array_slice($profileHeaderItems, 3);
 ?>
 
-<style>
-.profile-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 20px;
-    padding: 30px;
-    margin-bottom: 30px;
-    color: white;
-}
 
-.profile-avatar {
-    width: 100px;
-    height: 100px;
-    background: rgba(255,255,255,0.2);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 48px;
-    font-weight: bold;
-    margin: 0 auto 15px;
-}
+<div class="container-fluid profile-page">
+    <div id="message"></div>
 
-.profile-section {
-    background: white;
-    border-radius: 15px;
-    padding: 25px;
-    margin-bottom: 25px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    transition: all 0.3s ease;
-}
-
-.profile-section:hover {
-    box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-}
-
-.section-title {
-    font-size: 18px;
-    font-weight: bold;
-    margin-bottom: 20px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid #667eea;
-    display: inline-block;
-}
-
-.section-icon {
-    color: #667eea;
-    margin-right: 10px;
-}
-
-.form-control-modern {
-    border-radius: 10px;
-    border: 1px solid #e0e0e0;
-    padding: 12px 15px;
-    transition: all 0.3s ease;
-}
-
-.form-control-modern:focus {
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
-}
-
-.form-label-modern {
-    font-weight: 500;
-    margin-bottom: 8px;
-    color: #2c3e50;
-}
-
-.info-card {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    border-radius: 12px;
-    padding: 15px;
-    margin-bottom: 15px;
-}
-
-.info-card i {
-    font-size: 24px;
-    color: #667eea;
-    margin-right: 15px;
-}
-
-.info-card .info-label {
-    font-size: 12px;
-    color: #6c757d;
-    margin-bottom: 5px;
-}
-
-.info-card .info-value {
-    font-size: 16px;
-    font-weight: 500;
-    color: #2c3e50;
-}
-
-.btn-save {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border: none;
-    padding: 12px 30px;
-    border-radius: 25px;
-    font-weight: bold;
-    transition: all 0.3s ease;
-}
-
-.btn-save:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(102,126,234,0.4);
-}
-
-.btn-cancel {
-    background: #6c757d;
-    border: none;
-    padding: 12px 30px;
-    border-radius: 25px;
-    font-weight: bold;
-    transition: all 0.3s ease;
-}
-
-.btn-cancel:hover {
-    background: #5a6268;
-    transform: translateY(-2px);
-}
-
-.alert-custom {
-    border-radius: 12px;
-    border: none;
-    padding: 15px 20px;
-}
-
-.profile-badge {
-    background: rgba(255,255,255,0.2);
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    display: inline-block;
-    margin-top: 10px;
-}
-</style>
-
-<div class="container-fluid">
-    <!-- Back Button -->
-    <div class="mb-3">
-        <a href="index.php" class="btn btn-secondary">
-            <i class="fas fa-arrow-left"></i> Back to Dashboard
-        </a>
-    </div>
-
-    <?php if ($error): ?>
-        <div class="alert alert-danger alert-custom alert-dismissible fade show" role="alert">
-            <i class="fas fa-exclamation-circle"></i> <?php echo $error; ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    <?php endif; ?>
-    
-    <?php if ($success): ?>
-        <div class="alert alert-success alert-custom alert-dismissible fade show" role="alert">
-            <i class="fas fa-check-circle"></i> <?php echo $success; ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    <?php endif; ?>
-
-    <!-- Profile Header -->
-    <div class="profile-header">
-        <div class="row align-items-center">
-            <div class="col-md-2 text-center">
-                <div class="profile-avatar">
-                    <i class="fas fa-user-circle"></i>
-                </div>
-            </div>
-            <div class="col-md-7">
-                <h2 class="mb-2"><?php echo htmlspecialchars($patient['full_name']); ?></h2>
-                <p class="mb-2">
-                    <i class="fas fa-envelope"></i> <?php echo htmlspecialchars($patient['email']); ?> &nbsp;&nbsp;
-                    <i class="fas fa-phone"></i> <?php echo htmlspecialchars($patient['phone']); ?>
-                </p>
-                <p class="mb-0">
-                    <i class="fas fa-calendar-alt"></i> Member since <?php echo formatDate($patient['created_at'], 'M d, Y'); ?>
-                </p>
-                <?php if (canViewSubscription() && $patient['subscription_type'] != 'none'): ?>
-                    <div class="profile-badge">
-                        <i class="fas fa-crown"></i> <?php echo ucfirst($patient['subscription_type']); ?> Member
+    <?php
+    $profileHeaderHasSubBadge = canViewSubscription() && ($patient['subscription_type'] ?? 'none') !== 'none';
+    ?>
+    <!-- Profile header: queue-style gradient; centered name; subtitle fields in 2Ã—3 grid -->
+    <div class="profile-header-card">
+        <div class="queue-header">
+            <div class="profile-header-inner">
+                <?php if ($profileHeaderHasSubBadge): ?>
+                    <div class="profile-hero-badge text-white profile-header-subscription-badge">
+                        <i class="fas fa-crown"></i> <?php echo htmlspecialchars(ucfirst((string) $patient['subscription_type'])); ?> <?php echo __('subscription', 'Subscription'); ?>
                     </div>
                 <?php endif; ?>
-            </div>
-            <?php if (canViewPoints()): ?>
-            <div class="col-md-3 text-md-end mt-3 mt-md-0">
-                <div class="info-card text-center">
-                    <div class="stats-number"><?php echo $patient['points'] ?? 0; ?></div>
-                    <div class="stats-label">Reward Points</div>
+                <h2 class="profile-header-name<?php echo $profileHeaderHasSubBadge ? ' profile-header-name--has-badge' : ''; ?>">
+                    <?php echo htmlspecialchars((string) ($patient['full_name'] ?? '')); ?>
+                </h2>
+                <div class="profile-header-meta">
+                    <div class="profile-header-meta-rows">
+                        <div class="profile-header-inline-strip">
+                            <?php foreach ($profileHeaderRow1 as $item): ?>
+                                <div class="profile-header-inline-item">
+                                    <i class="fas <?php echo htmlspecialchars((string) $item['icon'], ENT_QUOTES, 'UTF-8'); ?>" aria-hidden="true"></i>
+                                    <span class="profile-header-inline-label"><?php echo htmlspecialchars((string) $item['label']); ?></span>
+                                    <span class="profile-header-inline-value<?php echo !empty($item['mono']) ? ' profile-header-inline-mono' : ''; ?>"><?php echo htmlspecialchars((string) $item['value']); ?></span>
+                                    <?php if (!empty($item['extra'])): ?>
+                                        <span class="profile-header-inline-extra"><?php echo htmlspecialchars((string) $item['extra']); ?></span>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php if (count($profileHeaderRow2) > 0): ?>
+                        <div class="profile-header-inline-strip">
+                            <?php foreach ($profileHeaderRow2 as $item): ?>
+                                <div class="profile-header-inline-item">
+                                    <i class="fas <?php echo htmlspecialchars((string) $item['icon'], ENT_QUOTES, 'UTF-8'); ?>" aria-hidden="true"></i>
+                                    <span class="profile-header-inline-label"><?php echo htmlspecialchars((string) $item['label']); ?></span>
+                                    <span class="profile-header-inline-value<?php echo !empty($item['mono']) ? ' profile-header-inline-mono' : ''; ?>"><?php echo htmlspecialchars((string) $item['value']); ?></span>
+                                    <?php if (!empty($item['extra'])): ?>
+                                        <span class="profile-header-inline-extra"><?php echo htmlspecialchars((string) $item['extra']); ?></span>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
-            <?php endif; ?>
         </div>
     </div>
 
     <div class="row">
         <div class="col-md-8">
-            <form method="POST" action="">
-                <!-- Personal Information Section -->
-                <div class="profile-section">
-                    <h5 class="section-title">
-                        <i class="fas fa-user section-icon"></i> Personal Information
-                    </h5>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label-modern">Full Name *</label>
-                            <input type="text" class="form-control form-control-modern" name="full_name" 
-                                   value="<?php echo htmlspecialchars($patient['full_name']); ?>" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label-modern">Username *</label>
-                            <input type="text" class="form-control form-control-modern" name="username"
-                                   value="<?php echo htmlspecialchars($user['username'] ?? ''); ?>"
-                                   required autocomplete="username"
-                                   pattern="[a-zA-Z0-9._-]{3,64}"
-                                   title="3–64 characters: letters, numbers, dot, underscore, hyphen">
-                            <small class="text-muted">Used to sign in. Must be unique.</small>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label-modern">Date of Birth</label>
-                            <input type="date" class="form-control form-control-modern" name="date_of_birth" 
-                                   value="<?php echo $patient['date_of_birth']; ?>">
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label-modern">Gender</label>
-                            <select class="form-select form-control-modern" name="gender">
-                                <option value="">Select</option>
-                                <option value="male" <?php echo $patient['gender'] == 'male' ? 'selected' : ''; ?>>Male</option>
-                                <option value="female" <?php echo $patient['gender'] == 'female' ? 'selected' : ''; ?>>Female</option>
-                                <option value="other" <?php echo $patient['gender'] == 'other' ? 'selected' : ''; ?>>Other</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Contact Information Section -->
-                <div class="profile-section">
-                    <h5 class="section-title">
-                        <i class="fas fa-address-card section-icon"></i> Contact Information
-                    </h5>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label-modern">Phone Number *</label>
-                            <input type="tel" class="form-control form-control-modern" name="phone" 
-                                   value="<?php echo htmlspecialchars($patient['phone']); ?>" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label-modern">Email Address *</label>
-                            <input type="email" class="form-control form-control-modern" name="email" 
-                                   value="<?php echo htmlspecialchars($patient['email']); ?>" required>
+            <!-- PROFILE UPDATE FORM (personal, contact, emergency, username) -->
+            <form method="POST" action="<?php echo url('api/patient_profile.php'); ?>" data-api="<?php echo url('api/patient_profile.php'); ?>" data-message-target="#message" autocomplete="off">
+                <div class="profile-section profile-section--unified">
+                    <div class="profile-form-subsection">
+                        <h5 class="section-title section-title--subsection section-title--personal">
+                            <i class="fas fa-user section-icon"></i> Personal Information
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label-modern">Full Name *</label>
+                                <input type="text" class="form-control form-control-modern" name="full_name" 
+                                       value="<?php echo htmlspecialchars($patient['full_name']); ?>" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label-modern">Username *</label>
+                                <input type="text" class="form-control form-control-modern" name="username"
+                                       value="<?php echo htmlspecialchars($user['username'] ?? ''); ?>"
+                                       required autocomplete="username"
+                                       pattern="[a-zA-Z0-9._-]{3,64}"
+                                       title="3–64 characters: letters, numbers, dot, underscore, hyphen">
+                                <small class="text-muted">Used to sign in. Must be unique.</small>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label-modern">Date of Birth</label>
+                                <input type="date" class="form-control form-control-modern" name="date_of_birth" 
+                                       value="<?php echo $patient['date_of_birth']; ?>">
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label-modern">Gender</label>
+                                <select class="form-select form-control-modern" name="gender">
+                                    <option value="">Select</option>
+                                    <option value="male" <?php echo $patient['gender'] == 'male' ? 'selected' : ''; ?>>Male</option>
+                                    <option value="female" <?php echo $patient['gender'] == 'female' ? 'selected' : ''; ?>>Female</option>
+                                    <option value="other" <?php echo $patient['gender'] == 'other' ? 'selected' : ''; ?>>Other</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Emergency Contact Section -->
-                <div class="profile-section">
-                    <h5 class="section-title">
-                        <i class="fas fa-ambulance section-icon"></i> Emergency Contact
-                    </h5>
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label-modern">Contact Name</label>
-                            <input type="text" class="form-control form-control-modern" name="emergency_contact_name" 
-                                   value="<?php echo htmlspecialchars($patient['emergency_contact_name'] ?? ''); ?>"
-                                   placeholder="Full name">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label-modern">Contact Phone</label>
-                            <input type="tel" class="form-control form-control-modern" name="emergency_contact_phone" 
-                                   value="<?php echo htmlspecialchars($patient['emergency_contact_phone'] ?? ''); ?>"
-                                   placeholder="Phone number">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label-modern">Relationship</label>
-                            <input type="text" class="form-control form-control-modern" name="emergency_contact_relation" 
-                                   value="<?php echo htmlspecialchars($patient['emergency_contact_relation'] ?? ''); ?>"
-                                   placeholder="e.g., Spouse, Parent, Sibling">
+                    <div class="profile-form-subsection">
+                        <h5 class="section-title section-title--subsection section-title--contact">
+                            <i class="fas fa-address-card section-icon"></i> Contact Information
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label-modern">Phone Number *</label>
+                                <input type="tel" class="form-control form-control-modern" name="phone" 
+                                       value="<?php echo htmlspecialchars($patient['phone']); ?>" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label-modern">Email Address *</label>
+                                <input type="email" class="form-control form-control-modern" name="email" 
+                                       value="<?php echo htmlspecialchars($patient['email']); ?>" required>
+                            </div>
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label-modern">Address</label>
+                                <input type="text" class="form-control form-control-modern" name="address"
+                                       value="<?php echo htmlspecialchars($patient['address'] ?? ''); ?>"
+                                       placeholder="Full address">
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Address Section -->
-                <div class="profile-section">
-                    <h5 class="section-title">
-                        <i class="fas fa-home section-icon"></i> Address Information
-                    </h5>
-                    <div class="row">
-                        <div class="col-md-12 mb-3">
-                            <label class="form-label-modern">Address</label>
-                            <input type="text" class="form-control form-control-modern" name="address"
-                                   value="<?php echo htmlspecialchars($patient['address'] ?? ''); ?>"
-                                   placeholder="Full address">
+                    <div class="profile-form-subsection">
+                        <h5 class="section-title section-title--subsection section-title--emergency">
+                            <i class="fas fa-ambulance section-icon"></i> Emergency Contact
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label-modern">Contact Name</label>
+                                <input type="text" class="form-control form-control-modern" name="emergency_contact_name" 
+                                       value="<?php echo htmlspecialchars($patient['emergency_contact_name'] ?? ''); ?>"
+                                       placeholder="Full name">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label-modern">Contact Phone</label>
+                                <input type="tel" class="form-control form-control-modern" name="emergency_contact_phone" 
+                                       value="<?php echo htmlspecialchars($patient['emergency_contact_phone'] ?? ''); ?>"
+                                       placeholder="Phone number">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label-modern">Relationship</label>
+                                <input type="text" class="form-control form-control-modern" name="emergency_contact_relation" 
+                                       value="<?php echo htmlspecialchars($patient['emergency_contact_relation'] ?? ''); ?>"
+                                       placeholder="Parent, Sibling...">
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Form Actions -->
-                <div class="d-flex gap-3 mb-4">
-                    <button type="submit" class="btn btn-save text-white">
-                        <i class="fas fa-save"></i> Save Changes
-                    </button>
-                    <a href="index.php" class="btn btn-cancel text-white">
-                        <i class="fas fa-times"></i> Cancel
-                    </a>
+                    <div class="profile-section-card-actions">
+                        <button type="submit" name="save_profile" value="1" class="btn btn-profile-confirm">
+                            <i class="fas fa-save me-1"></i> <?php echo __('save_profile', 'Save Profile'); ?>
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- PASSWORD CHANGE FORM (separate) -->
+            <form method="POST" action="<?php echo url('api/patient_profile.php'); ?>" data-api="<?php echo url('api/patient_profile.php'); ?>" data-message-target="#message" autocomplete="off">
+                <div class="profile-section profile-section--unified">
+                    <div class="profile-form-subsection">
+                        <h5 class="section-title section-title--subsection section-title--password">
+                            <i class="fas fa-key section-icon"></i> <?php echo htmlspecialchars(profile_pretty_label('change_password', 'Change password')); ?>
+                        </h5>
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                <label class="form-label-modern" for="current_password_profile"><?php echo htmlspecialchars(profile_pretty_label('current_password', 'Current password')); ?></label>
+                                <input type="password" class="form-control form-control-modern" name="current_password" id="current_password_profile"
+                                       autocomplete="current-password">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label-modern" for="new_password_profile"><?php echo htmlspecialchars(profile_pretty_label('new_password', 'New password')); ?></label>
+                                <input type="password" class="form-control form-control-modern" name="new_password" id="new_password_profile"
+                                       pattern=".{6,}" title="<?php echo htmlspecialchars(profile_pretty_label('password_minimum_length', 'Minimum 6 characters')); ?>" autocomplete="new-password">
+                                <small class="text-muted"><?php echo htmlspecialchars(profile_pretty_label('password_minimum_length', 'Minimum 6 characters')); ?></small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label-modern" for="confirm_password_profile"><?php echo htmlspecialchars(profile_pretty_label('confirm_password', 'Confirm password')); ?></label>
+                                <input type="password" class="form-control form-control-modern" name="confirm_password" id="confirm_password_profile"
+                                       autocomplete="new-password">
+                            </div>
+                            <div class="col-12 mb-3">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="showPasswords">
+                                    <label class="form-check-label form-label-modern mb-0" for="showPasswords"><?php echo htmlspecialchars(profile_pretty_label('show_passwords', 'Show passwords')); ?></label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="profile-section-card-actions">
+                        <button type="submit" name="change_password" value="1" class="btn btn-profile-confirm">
+                            <i class="fas fa-key me-1"></i> <?php echo __('change_password', 'Change Password'); ?>
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
 
         <div class="col-md-4">
-            <!-- Quick Info Card -->
-            <div class="profile-section">
-                <h5 class="section-title">
-                    <i class="fas fa-info-circle section-icon"></i> Quick Info
-                </h5>
-                
-                <div class="info-card">
-                    <div class="d-flex align-items-center">
-                        <i class="fas fa-user"></i>
-                        <div class="ms-3">
-                            <div class="info-label">Username</div>
-                            <div class="info-value"><?php echo htmlspecialchars($user['username'] ?? ''); ?></div>
-                        </div>
-                    </div>
-                </div>
-
-                <?php if (canViewPoints()): ?>
-                <div class="info-card">
-                    <div class="d-flex align-items-center">
-                        <i class="fas fa-star"></i>
-                        <div class="ms-3">
-                            <div class="info-label">Reward Points</div>
-                            <div class="info-value"><?php echo $patient['points'] ?? 0; ?> points</div>
-                            <small class="text-muted">Next reward at <?php echo 250 - (($patient['points'] ?? 0) % 250); ?> points</small>
-                        </div>
-                    </div>
-                </div>
-                <?php endif; ?>
-
-                <div class="info-card">
-                    <div class="d-flex align-items-center">
-                        <i class="fas fa-calendar-check"></i>
-                        <div class="ms-3">
-                            <div class="info-label">Account Created</div>
-                            <div class="info-value"><?php echo formatDate($patient['created_at'], 'M d, Y'); ?></div>
-                        </div>
-                    </div>
-                </div>
-
-                <?php if (patientHasLastVisitDate($patient['last_visit_date'] ?? null)): ?>
-                <div class="info-card">
-                    <div class="d-flex align-items-center">
-                        <i class="fas fa-clock"></i>
-                        <div class="ms-3">
-                            <div class="info-label">Last Visit</div>
-                            <div class="info-value"><?php echo htmlspecialchars(formatDate(normalizePatientOptionalDate($patient['last_visit_date'] ?? null))); ?></div>
-                        </div>
-                    </div>
-                </div>
-                <?php endif; ?>
-            </div>
-
             <!-- Subscription Info Card (visible only if subscription feature is enabled) -->
             <?php if (canViewSubscription()): ?>
             <div class="profile-section">
-                <h5 class="section-title">
+                <h5 class="section-title section-title--subscription">
                     <i class="fas fa-crown section-icon"></i> Subscription
                 </h5>
                 <?php if ($patient['subscription_type'] != 'none'): ?>
@@ -583,12 +353,12 @@ include '../layouts/header.php';
                             Valid until <?php echo formatDate($patient['subscription_end_date']); ?>
                         </p>
                     </div>
-                    <a href="subscription.php" class="btn btn-outline-primary w-100">
+                    <a href="subscription.php" class="btn btn-profile-green-outline w-100">
                         <i class="fas fa-arrow-right"></i> Manage Subscription
                     </a>
                 <?php else: ?>
                     <p class="text-muted text-center mb-3">No active subscription</p>
-                    <a href="subscription.php" class="btn btn-primary w-100">
+                    <a href="subscription.php" class="btn btn-profile-green-solid w-100">
                         <i class="fas fa-gem"></i> Subscribe Now
                     </a>
                 <?php endif; ?>
@@ -596,48 +366,36 @@ include '../layouts/header.php';
             <?php endif; ?>
 
             <!-- Referral Info Card (visible only if referrals feature is enabled) -->
-            <?php if (canViewReferrals()): ?>
+            <?php if ($allowReferrals): ?>
             <div class="profile-section">
-                <h5 class="section-title">
+                <h5 class="section-title section-title--referral">
                     <i class="fas fa-share-alt section-icon"></i> Referral Program
                 </h5>
-                <div class="text-center">
-                    <div class="bg-light rounded p-3 mb-3">
-                        <p class="mb-1">Your Referral Code</p>
-                        <h4 class="mb-0 text-primary"><?php echo $patient['referral_code']; ?></h4>
-                    </div>
-                    <button class="btn btn-outline-success w-100 mb-2" onclick="copyReferralCode()">
-                        <i class="fas fa-copy"></i> Copy Code
-                    </button>
-                    <small class="text-muted">
-                        <i class="fas fa-gift"></i> Share your code and earn 50 points per referral!
-                    </small>
-                </div>
+                <p class="text-muted small mb-3">Your referral code is shown in the profile header above.</p>
+                <button type="button" class="btn btn-profile-green-solid w-100 mb-2" onclick="copyReferralCode()">
+                    <i class="fas fa-copy"></i> Copy referral code
+                </button>
+                <small class="text-muted d-block text-center">
+                    <i class="fas fa-gift"></i> Share your code and earn 50 points per referral!
+                </small>
             </div>
             <?php endif; ?>
-
-            <!-- Support Card -->
-            <div class="profile-section">
-                <h5 class="section-title">
-                    <i class="fas fa-headset section-icon"></i> Need Help?
-                </h5>
-                <div class="text-center">
-                    <p class="mb-2">Contact our support team</p>
-                    <a href="tel:+1234567890" class="btn btn-outline-info w-100 mb-2">
-                        <i class="fas fa-phone"></i> Call Us
-                    </a>
-                    <a href="mailto:support@dentalclinic.com" class="btn btn-outline-info w-100">
-                        <i class="fas fa-envelope"></i> Email Support
-                    </a>
-                </div>
-            </div>
         </div>
     </div>
 </div>
 
 <script>
+document.getElementById('showPasswords')?.addEventListener('change', function (e) {
+    document.querySelectorAll('#current_password_profile, #new_password_profile, #confirm_password_profile').forEach(function (field) {
+        field.type = e.target.checked ? 'text' : 'password';
+    });
+});
+
 function copyReferralCode() {
-    const code = '<?php echo $patient['referral_code']; ?>';
+    const code = <?php echo json_encode((string) ($patient['referral_code'] ?? ''), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT); ?>;
+    if (!code) {
+        return;
+    }
     navigator.clipboard.writeText(code).then(function() {
         alert('Referral code copied to clipboard!');
     });
