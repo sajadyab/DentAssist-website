@@ -189,7 +189,7 @@ include '../layouts/header.php';
                             </div>
                             <div class="col-12 mb-3">
                                 <label class="form-label">Address</label>
-                                <input type="text" class="form-control" name="address" value="<?php echo htmlspecialchars($patient['address'] ?? ''); ?>">
+                                <input type="text" class="form-control" name="address" value="<?php echo htmlspecialchars($patient['address'] ?? $patient['address_line1'] ?? ''); ?>">
                             </div>
 
                             <div class="col-12"><h5 class="mt-3">Emergency Contact</h5><hr></div>

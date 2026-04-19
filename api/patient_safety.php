@@ -114,10 +114,11 @@ if ($method === 'POST') {
     }
 
     $db->execute(
-        'UPDATE patients SET medical_history = ?, allergies = ?, current_medications = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        "UPDATE patients SET medical_history = ?, allergies = ?, current_medications = ?, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ?",
         [$mhPayload, $allergies, $medPayload, $pid],
         'sssi'
     );
+    sync_push_row_now('patients', $pid);
 
     $caution = buildPatientCautionSummary([
         'medical_history' => $mhPayload,

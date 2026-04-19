@@ -3,6 +3,7 @@ require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
+require_once '../includes/patient_cloud_repository.php';
 
 /**
  * Short labels for profile UI: no underscores, leading letter uppercased, and "password"/"passwords" get a capital P.
@@ -72,7 +73,10 @@ if (!$patientId) {
 }
 
 // Get patient and user details
-$patient = $db->fetchOne("SELECT * FROM patients WHERE id = ?", [$patientId], "i");
+$patient = patient_portal_fetch_patient_cloud_first((int) $patientId);
+if (!$patient) {
+    die("Patient record not found. Please contact support.");
+}
 $user = $db->fetchOne("SELECT * FROM users WHERE id = ?", [$userId], "i");
 
 $pageTitle = 'My Profile';
@@ -255,7 +259,7 @@ $profileHeaderRow2 = array_slice($profileHeaderItems, 3);
                             <div class="col-md-12 mb-3">
                                 <label class="form-label-modern">Address</label>
                                 <input type="text" class="form-control form-control-modern" name="address"
-                                       value="<?php echo htmlspecialchars($patient['address'] ?? ''); ?>"
+                                       value="<?php echo htmlspecialchars($patient['address'] ?? $patient['address_line1'] ?? ''); ?>"
                                        placeholder="Full address">
                             </div>
                         </div>

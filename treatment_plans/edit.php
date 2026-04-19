@@ -25,29 +25,45 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $setParts = [
+        'plan_name = ?',
+        'description = ?',
+        'teeth_affected = ?',
+        'estimated_cost = ?',
+        'discount = ?',
+        'status = ?',
+        'priority = ?',
+        'start_date = ?',
+        'estimated_end_date = ?',
+        'notes = ?',
+    ];
+    $values = [
+        $_POST['plan_name'],
+        $_POST['description'] ?? null,
+        $_POST['teeth_affected'] ?? null,
+        $_POST['estimated_cost'] ?? 0,
+        $_POST['discount'] ?? 0,
+        $_POST['status'],
+        $_POST['priority'],
+        $_POST['start_date'] ?? null,
+        $_POST['estimated_end_date'] ?? null,
+        $_POST['notes'] ?? null,
+    ];
+    $types = 'sssddsssss';
+    if (dbColumnExists('treatment_plans', 'sync_status')) {
+        $setParts[] = "sync_status = 'pending'";
+    }
+    $values[] = $planId;
+    $types .= 'i';
+
     $result = $db->execute(
-        "UPDATE treatment_plans SET
-            plan_name = ?, description = ?, teeth_affected = ?,
-            estimated_cost = ?, discount = ?, status = ?, priority = ?,
-            start_date = ?, estimated_end_date = ?, notes = ?
-         WHERE id = ?",
-        [
-            $_POST['plan_name'],
-            $_POST['description'] ?? null,
-            $_POST['teeth_affected'] ?? null,
-            $_POST['estimated_cost'] ?? 0,
-            $_POST['discount'] ?? 0,
-            $_POST['status'],
-            $_POST['priority'],
-            $_POST['start_date'] ?? null,
-            $_POST['estimated_end_date'] ?? null,
-            $_POST['notes'] ?? null,
-            $planId
-        ],
-        "sssddsssssi"
+        'UPDATE treatment_plans SET ' . implode(', ', $setParts) . ' WHERE id = ?',
+        $values,
+        $types
     );
 
     if ($result !== false) {
+        sync_push_row_now('treatment_plans', (int) $planId);
         logAction('UPDATE', 'treatment_plans', $planId, $plan, $_POST);
         $success = 'Treatment plan updated successfully';
         // Refresh plan

@@ -81,10 +81,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_in_appointment'
                     throw new RuntimeException('Could not add arrival.');
                 }
                 $db->execute(
-                    "UPDATE appointments SET status = 'checked-in', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'scheduled'",
+                    "UPDATE appointments SET status = 'checked-in', updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ? AND status = 'scheduled'",
                     [$apptId],
                     'i'
                 );
+                sync_push_row_now('appointments', $apptId);
                 $stRow = $db->fetchOne("SELECT status FROM appointments WHERE id = ?", [$apptId], 'i');
                 if (!$stRow || ($stRow['status'] ?? '') !== 'checked-in') {
                     throw new RuntimeException('Checked in, but could not update appointment status.');
@@ -168,8 +169,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_walkin_arriv
         $newApptId = (int) $db->insert(
             "INSERT INTO appointments (
                 patient_id, doctor_id, appointment_date, appointment_time,
-                duration, treatment_type, description, status, created_by
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ?)",
+                duration, treatment_type, description, status, created_by, sync_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)",
             [
                 $pid,
                 $docId,
@@ -179,12 +180,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_walkin_arriv
                 $treatmentType,
                 'Recorded from walk-in clinic arrival.',
                 $currentUserId,
+                'pending',
             ],
-            'iississi'
+            'iississis'
         );
         if ($newApptId <= 0) {
             throw new RuntimeException('Could not record completed visit.');
         }
+        sync_push_row_now('appointments', $newApptId);
         $db->execute('DELETE FROM clinic_arrivals WHERE id = ?', [$aid], 'i');
         logAction('CREATE', 'appointments', $newApptId, null, ['via' => 'walk_in_completed', 'clinic_arrival_id' => $aid, 'status' => 'completed']);
         logAction('DELETE', 'clinic_arrivals', $aid, $row, null);
@@ -232,13 +235,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_scheduled_ar
     $db->beginTransaction();
     try {
         $aff = $db->execute(
-            "UPDATE appointments SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status NOT IN ('cancelled', 'completed')",
+            "UPDATE appointments SET status = 'completed', updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ? AND status NOT IN ('cancelled', 'completed')",
             [$apptId],
             'i'
         );
         if ($aff < 1) {
             throw new RuntimeException('Could not mark that appointment completed (it may already be completed or cancelled).');
         }
+        sync_push_row_now('appointments', $apptId);
         $db->execute('DELETE FROM clinic_arrivals WHERE id = ?', [$aid], 'i');
         logAction('UPDATE', 'appointments', $apptId, null, ['status' => 'completed', 'via' => 'clinic_arrivals']);
         logAction('DELETE', 'clinic_arrivals', $aid, $row, null);

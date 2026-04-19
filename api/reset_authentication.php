@@ -66,11 +66,22 @@ if ($userId === null) {
 $hashed = hashPassword($password);
 
 $db = Database::getInstance();
+$setParts = ['password_hash = ?'];
+$values = [$hashed];
+$types = 's';
+if (function_exists('dbColumnExists') && dbColumnExists('users', 'sync_status')) {
+    $setParts[] = "sync_status = 'pending'";
+}
+$values[] = $userId;
+$types .= 'i';
 $affected = $db->execute(
-    "UPDATE users SET password_hash = ? WHERE id = ?",
-    [$hashed, $userId],
-    "si"
+    'UPDATE users SET ' . implode(', ', $setParts) . ' WHERE id = ?',
+    $values,
+    $types
 );
+if ($affected > 0 && function_exists('sync_push_row_now')) {
+    sync_push_row_now('users', (int) $userId);
+}
 
 consumePasswordResetToken($token);
 

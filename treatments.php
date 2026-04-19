@@ -40,8 +40,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 "sds"
             );
             if ($result) {
+                $treatmentId = $db->lastInsertId();
                 $success = __('treatment_added');
-                logAction('CREATE', 'treatments', $db->lastInsertId(), null, $_POST);
+                logAction('CREATE', 'treatments', $treatmentId, null, $_POST);
+                sync_push_row_now('treatments', $treatmentId);
                 header('Location: treatments.php?success=added');
                 exit;
             } else {
@@ -71,6 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($result) {
                     $success = __('treatment_updated');
                     logAction('UPDATE', 'treatments', $treatmentId, null, $_POST);
+                    sync_push_row_now('treatments', $treatmentId);
                     header('Location: treatments.php?success=updated');
                     exit;
                 } else {
@@ -90,6 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($result) {
                 $success = __('treatment_deleted');
                 logAction('DELETE', 'treatments', $treatmentId, null, null);
+                queueCloudDeletion('treatments', $treatmentId);
                 header('Location: treatments.php?success=deleted');
                 exit;
             } else {

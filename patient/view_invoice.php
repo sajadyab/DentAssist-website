@@ -3,6 +3,7 @@ require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
+require_once '../includes/patient_cloud_repository.php';
 
 Auth::requireLogin();
 
@@ -21,17 +22,8 @@ if (!$patientId) {
     die("Patient record not found.");
 }
 
-// Get invoice - only if it belongs to this patient
-$invoice = $db->fetchOne(
-    "SELECT i.*, p.full_name as patient_name, p.phone, p.email, p.address, p.country,
-            a.appointment_date, a.treatment_type
-     FROM invoices i
-     JOIN patients p ON i.patient_id = p.id
-     LEFT JOIN appointments a ON i.appointment_id = a.id
-     WHERE i.id = ? AND i.patient_id = ?",
-    [$invoiceId, $patientId],
-    "ii"
-);
+// Get invoice - cloud-first, local fallback
+$invoice = patient_portal_find_invoice_for_patient_cloud_first((int) $invoiceId, (int) $patientId);
 
 // If invoice not found or doesn't belong to patient, redirect to bills
 if (!$invoice) {
@@ -39,12 +31,21 @@ if (!$invoice) {
     exit;
 }
 
-// Get payments for this invoice
-$payments = $db->fetchAll(
-    "SELECT * FROM payments WHERE invoice_id = ? ORDER BY payment_date DESC",
-    [$invoiceId],
-    "i"
-);
+$invoice['subtotal'] = isset($invoice['subtotal']) ? (float) $invoice['subtotal'] : 0.0;
+$invoice['discount_amount'] = isset($invoice['discount_amount']) ? (float) $invoice['discount_amount'] : 0.0;
+$invoice['tax_amount'] = isset($invoice['tax_amount']) ? (float) $invoice['tax_amount'] : 0.0;
+$invoice['tax_rate'] = isset($invoice['tax_rate']) ? (float) $invoice['tax_rate'] : 0.0;
+$invoice['total_amount'] = isset($invoice['total_amount'])
+    ? (float) $invoice['total_amount']
+    : max(0.0, $invoice['subtotal'] - $invoice['discount_amount'] + $invoice['tax_amount']);
+$invoice['paid_amount'] = isset($invoice['paid_amount']) ? (float) $invoice['paid_amount'] : 0.0;
+$invoice['balance_due'] = isset($invoice['balance_due'])
+    ? (float) $invoice['balance_due']
+    : max(0.0, $invoice['total_amount'] - $invoice['paid_amount']);
+$invoice['appointment_id'] = isset($invoice['appointment_id']) ? (int) $invoice['appointment_id'] : 0;
+
+// Get payments for this invoice - cloud-first, local fallback
+$payments = patient_portal_list_invoice_payments_cloud_first((int) $invoiceId);
 
 $pageTitle = 'Invoice #' . $invoice['invoice_number'];
 

@@ -12,7 +12,17 @@ $db = Database::getInstance();
 // Handle delete
 if (isset($_GET['delete'])) {
     $id = intval($_GET['delete']);
-    $db->execute("DELETE FROM inventory WHERE id = ?", [$id], "i");
+    $trxRows = $db->fetchAll('SELECT id FROM inventory_transactions WHERE inventory_id = ?', [$id], 'i');
+    $deletedRows = (int) $db->execute("DELETE FROM inventory WHERE id = ?", [$id], "i");
+    if ($deletedRows > 0) {
+        foreach ($trxRows as $trx) {
+            $trxId = (int) ($trx['id'] ?? 0);
+            if ($trxId > 0) {
+                queueCloudDeletion('inventory_transactions', $trxId, 'local_id');
+            }
+        }
+        queueCloudDeletion('inventory', $id, 'local_id');
+    }
     header('Location: index.php');
     exit;
 }

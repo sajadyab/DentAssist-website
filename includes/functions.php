@@ -1,7 +1,67 @@
 <?php
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/sync_runtime.php';
 // Global helper functions
+
+
+
+
+
+
+// Helper: call Supabase API
+if (!function_exists('callSupabaseAPI')) {
+    function callSupabaseAPI($endpoint, $data, $method = 'POST') {
+        $ch = curl_init(SUPABASE_URL . $endpoint);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'apikey: ' . SUPABASE_KEY,
+            'Authorization: Bearer ' . SUPABASE_KEY,
+            'Content-Type: application/json',
+            'Prefer: return=representation'
+        ]);
+        curl_setopt($ch, CURLOPT_PROXY, '');
+        curl_setopt($ch, CURLOPT_NOPROXY, '*');
+        if ($method == 'POST') {
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        } elseif ($method == 'PATCH') {
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        }
+        $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($http_code == 201 || $http_code == 200) {
+            $result = json_decode($response, true);
+            return $result[0]['id'] ?? null;
+        }
+        return null;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Generate absolute URL for internal paths (keeps views/pages consistent)
 function url($path = '')
@@ -197,8 +257,7 @@ function getStatusBadge($status)
 function logAction($action, $table, $recordId, $oldValues = null, $newValues = null)
 {
     $db = Database::getInstance();
-
-    $db->execute(
+    $auditId = $db->insert(
         "INSERT INTO audit_log (user_id, action, table_name, record_id, old_values, new_values, ip_address, user_agent) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         [
@@ -213,6 +272,61 @@ function logAction($action, $table, $recordId, $oldValues = null, $newValues = n
         ],
         "ississss"
     );
+
+    if ($auditId) {
+        sync_push_row_now('audit_log', (int) $auditId);
+    }
+}
+
+/**
+ * Queue a local hard-delete so sync_to_supabase.php can delete the matching cloud row.
+ */
+function queueCloudDeletion(string $tableName, int $localId, string $matchColumn = 'local_id'): bool
+{
+    if ($localId <= 0 || $tableName === '' || $matchColumn === '') {
+        return false;
+    }
+
+    $db = Database::getInstance();
+    $conn = $db->getConnection();
+    static $queueTableEnsured = false;
+
+    if (!$queueTableEnsured) {
+        $conn->query(
+            "CREATE TABLE IF NOT EXISTS sync_delete_queue (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                table_name VARCHAR(64) NOT NULL,
+                local_id BIGINT NOT NULL,
+                match_column VARCHAR(64) NOT NULL DEFAULT 'local_id',
+                status ENUM('pending','synced','failed') NOT NULL DEFAULT 'pending',
+                last_attempt DATETIME NULL,
+                error_text TEXT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_sync_delete_queue_status (status),
+                KEY idx_sync_delete_queue_table (table_name, local_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
+        );
+        $queueTableEnsured = true;
+    }
+
+    try {
+        $db->insert(
+            'INSERT INTO sync_delete_queue (table_name, local_id, match_column, status) VALUES (?, ?, ?, \'pending\')',
+            [$tableName, $localId, $matchColumn],
+            'sis'
+        );
+        if (function_exists('sync_record_runtime_status')) {
+            sync_record_runtime_status($db, $tableName, $localId, 'local_to_cloud_delete', 'delete', 'pending', 'Delete queued', null, false, false);
+        }
+        sync_process_delete_queue_now(1);
+
+        return true;
+    } catch (Throwable $e) {
+        error_log('queueCloudDeletion failed: ' . $e->getMessage());
+
+        return false;
+    }
 }
 
 // Upload file
@@ -999,8 +1113,11 @@ function getSubscriptionPlan($planKey) {
  */
 function updateSubscriptionPlan($planKey, $data) {
     global $db;
-    return $db->execute(
-        "UPDATE subscription_plans SET plan_name = ?, monthly_price = ?, annual_price = ?, features = ?, is_active = ?, display_order = ? WHERE plan_key = ?",
+    $sql = "UPDATE subscription_plans SET plan_name = ?, monthly_price = ?, annual_price = ?, features = ?, is_active = ?, display_order = ?"
+        . (dbColumnExists('subscription_plans', 'sync_status') ? ", sync_status = 'pending'" : '')
+        . " WHERE plan_key = ?";
+    $ok = $db->execute(
+        $sql,
         [
             $data['plan_name'],
             $data['monthly_price'],
@@ -1012,6 +1129,15 @@ function updateSubscriptionPlan($planKey, $data) {
         ],
         "sddssis"
     );
+    if ($ok !== false) {
+        $row = $db->fetchOne('SELECT id FROM subscription_plans WHERE plan_key = ? LIMIT 1', [$planKey], 's');
+        $pid = (int) ($row['id'] ?? 0);
+        if ($pid > 0) {
+            sync_push_row_now('subscription_plans', $pid);
+        }
+    }
+
+    return $ok;
 }
 
 }

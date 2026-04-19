@@ -61,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     if ($invoiceId) {
         logAction('CREATE', 'invoices', $invoiceId, null, $_POST);
+        sync_push_row_now('invoices', $invoiceId);
         $success = 'Invoice created successfully';
         // Redirect to view
         header("Location: invoice_view.php?id=$invoiceId");

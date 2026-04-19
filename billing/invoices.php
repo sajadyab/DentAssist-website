@@ -109,6 +109,11 @@ include '../layouts/header.php';
                         </thead>
                         <tbody>
                             <?php foreach ($invoices as $inv): ?>
+                                <?php
+                                $totalAmount = (float) ($inv['total_amount'] ?? $inv['subtotal'] ?? 0);
+                                $paidAmount = (float) ($inv['paid_amount'] ?? 0);
+                                $balanceDue = (float) ($inv['balance_due'] ?? max(0, $totalAmount - $paidAmount));
+                                ?>
                                 <tr>
                                     <td><strong><?php echo $inv['invoice_number']; ?></strong></td>
                                     <td>
@@ -118,9 +123,9 @@ include '../layouts/header.php';
                                     </td>
                                     <td><?php echo formatDate($inv['invoice_date']); ?></td>
                                     <td><?php echo formatDate($inv['due_date']); ?></td>
-                                    <td><?php echo formatCurrency($inv['total_amount']); ?></td>
-                                    <td><?php echo formatCurrency($inv['paid_amount']); ?></td>
-                                    <td><?php echo formatCurrency($inv['balance_due']); ?></td>
+                                    <td><?php echo formatCurrency($totalAmount); ?></td>
+                                    <td><?php echo formatCurrency($paidAmount); ?></td>
+                                    <td><?php echo formatCurrency($balanceDue); ?></td>
                                     <td>
                                         <?php
                                         $statusColors = [

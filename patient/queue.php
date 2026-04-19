@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../api/_helpers.php';
+require_once __DIR__ . '/../supabase_client.php';
+require_once __DIR__ . '/../includes/patient_cloud_repository.php';
 
 Auth::requireLogin();
 if ($_SESSION['role'] != 'patient') {
@@ -19,7 +21,10 @@ if (!$patientId) {
 $error = '';
 $success = '';
 
-$patient = $db->fetchOne('SELECT full_name FROM patients WHERE id = ?', [$patientId], 'i');
+$patient = patient_portal_fetch_patient_cloud_first((int) $patientId);
+if (!$patient) {
+    die('Patient record not found.');
+}
 $calendarConfig = getClinicBookingCalendarConfig($db);
 $slotMinutes = $calendarConfig['slot_minutes'];
 $hoursConfig = $calendarConfig['hours'];
@@ -36,6 +41,34 @@ $visitTypeOptions = [
     'Emergency / pain',
     'Other',
 ];
+
+function patientQueueSupabaseClient(): ?SupabaseAPI
+{
+    static $client = false;
+    if ($client !== false) {
+        return $client;
+    }
+    if (!defined('SUPABASE_URL') || !defined('SUPABASE_KEY')) {
+        $client = null;
+
+        return null;
+    }
+    $url = trim((string) SUPABASE_URL);
+    $key = trim((string) SUPABASE_KEY);
+    if ($url === '' || $key === '') {
+        $client = null;
+
+        return null;
+    }
+    try {
+        $client = new SupabaseAPI($url, $key);
+    } catch (Throwable $e) {
+        error_log('patientQueueSupabaseClient init failed: ' . $e->getMessage());
+        $client = null;
+    }
+
+    return $client;
+}
 
 $doctorId = isset($_GET['doctor_id']) ? (int) $_GET['doctor_id'] : 0;
 $weekOffset = isset($_GET['week']) ? (int) $_GET['week'] : 0;
@@ -157,6 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['book_appointment'])) 
                         $slotEndHis = $slotEnd->format('H:i:s');
                         $bookError = '';
                         $requestId = 0;
+                        $cloudRequestId = null;
                         $db->beginTransaction();
                         try {
                             if (patientQueueSlotConflict($db, $postDoctor, $postDate, $slotStartHis, $slotEndHis)) {
@@ -172,6 +206,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['book_appointment'])) 
                             if ($dup) {
                                 throw new RuntimeException('You already have a pending request for this slot.');
                             }
+
+                            $supabase = patientQueueSupabaseClient();
+                            if ($supabase === null) {
+                                throw new RuntimeException('Cloud booking is temporarily unavailable. Please try again in a moment.');
+                            }
+                            $cloudInsert = $supabase->insert('appointment_requests', [
+                                'patient_id' => $patientId,
+                                'doctor_id' => $postDoctor,
+                                'requested_date' => $postDate,
+                                'requested_time' => $postTime,
+                                'duration_minutes' => $slotMinutes,
+                                'treatment_type' => $treatmentType,
+                                'description' => ($description !== '' ? $description : null),
+                                'source' => 'patient_portal',
+                            ]);
+                            if (is_array($cloudInsert) && !empty($cloudInsert[0]['id'])) {
+                                $cloudRequestId = (int) $cloudInsert[0]['id'];
+                            }
+
                             $requestId = (int) $db->insert(
                                 "INSERT INTO appointment_requests (
                                     patient_id, doctor_id, requested_date, requested_time, duration_minutes,
@@ -195,9 +248,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['book_appointment'])) 
                             $db->commit();
                         } catch (RuntimeException $e) {
                             $db->rollback();
+                            if ($cloudRequestId !== null) {
+                                try {
+                                    $supabase = patientQueueSupabaseClient();
+                                    if ($supabase !== null) {
+                                        $supabase->delete('appointment_requests', ['id' => $cloudRequestId]);
+                                    }
+                                } catch (Throwable $ignored) {
+                                }
+                            }
                             $bookError = $e->getMessage();
                         } catch (Throwable $e) {
                             $db->rollback();
+                            if ($cloudRequestId !== null) {
+                                try {
+                                    $supabase = patientQueueSupabaseClient();
+                                    if ($supabase !== null) {
+                                        $supabase->delete('appointment_requests', ['id' => $cloudRequestId]);
+                                    }
+                                } catch (Throwable $ignored) {
+                                }
+                            }
                             $bookError = 'Could not submit your request. Please try again.';
                         }
 
@@ -287,56 +358,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['weekly_queue_request'
         $flexDays = isset($_POST['date_flexibility_days']) && $_POST['date_flexibility_days'] !== ''
             ? max(0, min(30, (int) $_POST['date_flexibility_days']))
             : 0;
-
-        if (dbColumnExists('waiting_queue', 'date_flexibility_days')) {
-            $db->insert(
-                "INSERT INTO waiting_queue (
-                    patient_id, patient_name, doctor_id, queue_type, priority, reason,
-                    preferred_treatment, preferred_day, preferred_date, notes, date_flexibility_days, status
-                ) VALUES (?, ?, ?, 'weekly', ?, ?, NULL, ?, ?, ?, ?, 'waiting')",
-                [
-                    $patientId,
-                    $patient['full_name'],
-                    $postDoctor,
-                    $priority,
-                    $reason,
-                    $preferredDayName,
-                    $preferredDate,
-                    $notesVal,
-                    $flexDays,
-                ],
-                'isisssssi'
-            );
-        } else {
-            $db->insert(
-                "INSERT INTO waiting_queue (
-                    patient_id, patient_name, doctor_id, queue_type, priority, reason,
-                    preferred_treatment, preferred_day, preferred_date, notes, status
-                ) VALUES (?, ?, ?, 'weekly', ?, ?, NULL, ?, ?, ?, 'waiting')",
-                [
-                    $patientId,
-                    $patient['full_name'],
-                    $postDoctor,
-                    $priority,
-                    $reason,
-                    $preferredDayName,
-                    $preferredDate,
-                    $notesVal,
-                ],
-                'isisssss'
-            );
-        }
-
-        $docLabel = '';
-        foreach ($doctors as $d) {
-            if ((int) $d['id'] === $postDoctor) {
-                $docLabel = (string) $d['full_name'];
-                break;
+        $cloudWaitingId = null;
+        try {
+            $supabase = patientQueueSupabaseClient();
+            if ($supabase === null) {
+                throw new RuntimeException('Cloud queue is temporarily unavailable. Please try again in a moment.');
             }
+            $cloudInsert = $supabase->insert('waiting_queue', [
+                'patient_id' => $patientId,
+                'patient_name' => $patient['full_name'],
+                'doctor_id' => $postDoctor,
+                'queue_type' => 'weekly',
+                'priority' => $priority,
+                'reason' => $reason,
+                'preferred_day' => $preferredDayName,
+                'preferred_date' => $preferredDate,
+                'notes' => $notesVal,
+                'date_flexibility_days' => $flexDays,
+                'status' => 'waiting',
+                'source' => 'patient_portal',
+            ]);
+            if (is_array($cloudInsert) && !empty($cloudInsert[0]['id'])) {
+                $cloudWaitingId = (int) $cloudInsert[0]['id'];
+            }
+
+            if (dbColumnExists('waiting_queue', 'date_flexibility_days')) {
+                $db->insert(
+                    "INSERT INTO waiting_queue (
+                        patient_id, patient_name, doctor_id, queue_type, priority, reason,
+                        preferred_treatment, preferred_day, preferred_date, notes, date_flexibility_days, status
+                    ) VALUES (?, ?, ?, 'weekly', ?, ?, NULL, ?, ?, ?, ?, 'waiting')",
+                    [
+                        $patientId,
+                        $patient['full_name'],
+                        $postDoctor,
+                        $priority,
+                        $reason,
+                        $preferredDayName,
+                        $preferredDate,
+                        $notesVal,
+                        $flexDays,
+                    ],
+                    'isisssssi'
+                );
+            } else {
+                $db->insert(
+                    "INSERT INTO waiting_queue (
+                        patient_id, patient_name, doctor_id, queue_type, priority, reason,
+                        preferred_treatment, preferred_day, preferred_date, notes, status
+                    ) VALUES (?, ?, ?, 'weekly', ?, ?, NULL, ?, ?, ?, 'waiting')",
+                    [
+                        $patientId,
+                        $patient['full_name'],
+                        $postDoctor,
+                        $priority,
+                        $reason,
+                        $preferredDayName,
+                        $preferredDate,
+                        $notesVal,
+                    ],
+                    'isisssss'
+                );
+            }
+        } catch (Throwable $e) {
+            if ($cloudWaitingId !== null) {
+                try {
+                    $supabase = patientQueueSupabaseClient();
+                    if ($supabase !== null) {
+                        $supabase->delete('waiting_queue', ['id' => $cloudWaitingId]);
+                    }
+                } catch (Throwable $ignored) {
+                }
+            }
+            $error = $e instanceof RuntimeException ? $e->getMessage() : 'Could not add your weekly queue request right now.';
         }
-        $success = 'Your request was added to the weekly queue for Dr. ' . $docLabel
-            . ' on ' . formatDate($preferredDate) . '. The clinic will follow up with you.';
-        $_POST = [];
+
+        if ($error !== '') {
+            // stop here and show the error
+        } else {
+
+            $docLabel = '';
+            foreach ($doctors as $d) {
+                if ((int) $d['id'] === $postDoctor) {
+                    $docLabel = (string) $d['full_name'];
+                    break;
+                }
+            }
+            $success = 'Your request was added to the weekly queue for Dr. ' . $docLabel
+                . ' on ' . formatDate($preferredDate) . '. The clinic will follow up with you.';
+            $_POST = [];
+        }
     }
 }
 
@@ -353,7 +464,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_appointment_re
         if (!$cancelRow) {
             $error = 'That request was not found or may have already been processed.';
         } else {
-            $db->execute('DELETE FROM appointment_requests WHERE id = ? AND patient_id = ?', [$cancelId, $patientId], 'ii');
+            try {
+                patient_portal_delete_appointment_request_cloud_first($cancelRow, $cancelId);
+            } catch (Throwable $e) {
+                $error = 'Cloud cancel failed. Please retry in a moment.';
+                $cancelRow = null;
+            }
+        }
+        if ($error === '' && $cancelRow) {
+            $deletedRows = (int) $db->execute('DELETE FROM appointment_requests WHERE id = ? AND patient_id = ?', [$cancelId, $patientId], 'ii');
             logAction('DELETE', 'appointment_requests', $cancelId, $cancelRow, null);
             sendNotification(
                 $userId,
@@ -906,7 +1025,7 @@ include '../layouts/header.php';
                 </div>
                 <div class="modal-footer border-0 pt-0">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;"><i class="fas fa-check me-1"></i> Confirm</button>
+                    <button type="button" id="slotConfirmBtn" class="btn text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;"><i class="fas fa-check me-1"></i> Confirm</button>
                 </div>
             </form>
         </div>
@@ -918,12 +1037,42 @@ var slotModal;
 document.addEventListener('DOMContentLoaded', function() {
     var el = document.getElementById('slotModal');
     if (el && window.bootstrap) slotModal = new bootstrap.Modal(el);
+
+    var form = document.getElementById('slotBookForm');
+    var confirmBtn = document.getElementById('slotConfirmBtn');
+    if (form && confirmBtn) {
+        confirmBtn.addEventListener('click', function() {
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+            confirmBtn.disabled = true;
+            if (typeof form.requestSubmit === 'function') {
+                form.requestSubmit();
+            } else {
+                form.submit();
+            }
+        });
+        form.addEventListener('submit', function() {
+            confirmBtn.disabled = true;
+        });
+    }
 });
 function openSlotModal(btn) {
     document.getElementById('modalApptDate').value = btn.getAttribute('data-date');
     document.getElementById('modalApptTime').value = btn.getAttribute('data-time');
     document.getElementById('modalDoctorName').textContent = btn.getAttribute('data-doctor');
     document.getElementById('modalWhen').textContent = btn.getAttribute('data-label');
+    var form = document.getElementById('slotBookForm');
+    if (form) {
+        form.reset();
+        document.getElementById('modalApptDate').value = btn.getAttribute('data-date');
+        document.getElementById('modalApptTime').value = btn.getAttribute('data-time');
+    }
+    var confirmBtn = document.getElementById('slotConfirmBtn');
+    if (confirmBtn) {
+        confirmBtn.disabled = false;
+    }
     if (slotModal) slotModal.show();
 }
 </script>

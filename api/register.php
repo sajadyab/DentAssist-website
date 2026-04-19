@@ -63,11 +63,15 @@ if ($db->fetchOne('SELECT id FROM users WHERE username = ?', [$username], 's')) 
     api_error('Username already taken.', 409);
 }
 
+if ($db->fetchOne('SELECT id FROM users WHERE email = ?', [$email], 's')) {
+    api_error('Email already registered.', 409);
+}
+
 $phone = (string) $phoneParsed['value'];
 $passwordHash = Auth::hashPassword($password);
 
-// users.email is UNIQUE + NOT NULL; store patient email in patients.email
-$usersEmail = $username . '@patients.local';
+// Use the actual email provided by the user for the users table
+$usersEmail = $email;
 
 $referredBy = null;
 if ($referralCode !== '') {
@@ -80,11 +84,18 @@ if ($referralCode !== '') {
 
 $conn->begin_transaction();
 try {
+    $userColumns = ['username', 'email', 'password_hash', 'full_name', 'role', 'phone', 'is_active'];
+    $userValues = [$username, $usersEmail, $passwordHash, $fullName, 'patient', $phone, 1];
+    $userTypes = 'ssssssi';
+    if (dbColumnExists('users', 'sync_status')) {
+        $userColumns[] = 'sync_status';
+        $userValues[] = 'pending';
+        $userTypes .= 's';
+    }
     $userId = $db->insert(
-        "INSERT INTO users (username, email, password_hash, full_name, role, phone, is_active)
-         VALUES (?, ?, ?, ?, 'patient', ?, 1)",
-        [$username, $usersEmail, $passwordHash, $fullName, $phone],
-        'sssss'
+        'INSERT INTO users (' . implode(', ', $userColumns) . ') VALUES (' . implode(', ', array_fill(0, count($userColumns), '?')) . ')',
+        $userValues,
+        $userTypes
     );
     if (!$userId) {
         throw new RuntimeException('Error creating account. Please try again later.');
@@ -93,8 +104,8 @@ try {
     $patientId = $db->insert(
         "INSERT INTO patients (
             user_id, full_name, date_of_birth, phone, email,
-            referred_by, created_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            referred_by, created_by, sync_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         [
             (int) $userId,
             $fullName,
@@ -103,18 +114,26 @@ try {
             $email,
             $referredBy,
             (int) $userId,
+            'pending',
         ],
-        'issssii'
+        'issssiis'
     );
     if (!$patientId) {
         throw new RuntimeException('Error creating patient record.');
     }
 
     if ($referredBy !== null) {
-        $db->execute('UPDATE patients SET points = COALESCE(points,0) + 50 WHERE id = ? LIMIT 1', [$referredBy], 'i');
+        $db->execute("UPDATE patients SET points = COALESCE(points,0) + 50, sync_status = 'pending' WHERE id = ? LIMIT 1", [$referredBy], 'i');
+        sync_push_row_now('patients', (int) $referredBy);
     }
 
     $conn->commit();
+    if ($userId) {
+        sync_push_row_now('users', (int) $userId);
+    }
+    if ($patientId) {
+        sync_push_row_now('patients', (int) $patientId);
+    }
 } catch (Throwable $e) {
     try {
         $conn->rollback();
@@ -132,4 +151,3 @@ if (!Auth::login($username, $password)) {
 api_ok([
     'redirect' => 'patient/index.php',
 ], 'Registration successful.');
-

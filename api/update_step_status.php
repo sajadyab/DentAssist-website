@@ -17,13 +17,18 @@ if (!isset($input['id']) || !isset($input['status'])) {
 
 $db = Database::getInstance();
 
+$setSql = "status = ?, completed_date = IF(? = 'completed', CURDATE(), completed_date)";
+if (dbColumnExists('treatment_steps', 'sync_status')) {
+    $setSql .= ", sync_status = 'pending'";
+}
 $result = $db->execute(
-    "UPDATE treatment_steps SET status = ?, completed_date = IF(? = 'completed', CURDATE(), completed_date) WHERE id = ?",
+    "UPDATE treatment_steps SET {$setSql} WHERE id = ?",
     [$input['status'], $input['status'], $input['id']],
     "ssi"
 );
 
 if ($result) {
+    sync_push_row_now('treatment_steps', (int) $input['id']);
     logAction('UPDATE', 'treatment_steps', $input['id'], null, ['status' => $input['status']]);
     echo json_encode(['success' => true]);
 } else {

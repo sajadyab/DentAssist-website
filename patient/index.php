@@ -3,6 +3,7 @@ require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
+require_once '../includes/patient_cloud_repository.php';
 
 if (!function_exists('canViewPoints')) {
     function canViewPoints()
@@ -55,41 +56,27 @@ if (!$patientId) {
     die('Patient record not found. Please contact support.');
 }
 
-$patient = $db->fetchOne('SELECT * FROM patients WHERE id = ?', [$patientId], 'i');
+$patient = patient_portal_fetch_patient_cloud_first($patientId);
+if (!$patient) {
+    die('Patient record not found. Please contact support.');
+}
 
 if (canViewReferrals() && empty($patient['referral_code'])) {
     $newCode = strtoupper(substr(md5($patientId . uniqid()), 0, 8));
-    $db->execute('UPDATE patients SET referral_code = ? WHERE id = ?', [$newCode, $patientId], 'si');
-    $patient = $db->fetchOne('SELECT * FROM patients WHERE id = ?', [$patientId], 'i');
+    try {
+        patient_portal_set_referral_code_cloud_first((int) $patientId, $newCode);
+        $db->execute('UPDATE patients SET referral_code = ?, sync_status = \'pending\' WHERE id = ?', [$newCode, $patientId], 'si');
+        sync_push_row_now('patients', (int) $patientId);
+        $patient = patient_portal_fetch_patient_cloud_first($patientId);
+    } catch (Throwable $e) {
+        error_log('Patient referral code cloud-first update failed: ' . $e->getMessage());
+    }
 }
 
-$nextAppointment = $db->fetchOne(
-    "SELECT a.*, u.full_name as doctor_name 
-     FROM appointments a
-     JOIN users u ON a.doctor_id = u.id
-     WHERE a.patient_id = ? AND a.appointment_date >= CURDATE() AND a.status IN ('scheduled', 'checked-in')
-     ORDER BY a.appointment_date, a.appointment_time
-     LIMIT 1",
-    [$patientId],
-    'i'
-);
-
-$totalVisits = (int) $db->fetchOne(
-    "SELECT COUNT(*) as count FROM appointments WHERE patient_id = ? AND status = 'completed'",
-    [$patientId],
-    'i'
-)['count'];
-
-$recentAppointments = $db->fetchAll(
-    "SELECT a.*, u.full_name as doctor_name 
-     FROM appointments a
-     JOIN users u ON a.doctor_id = u.id
-     WHERE a.patient_id = ?
-     ORDER BY a.appointment_date DESC, a.appointment_time DESC
-     LIMIT 5",
-    [$patientId],
-    'i'
-);
+$allAppointments = patient_portal_fetch_appointments_cloud_first($patientId);
+$nextAppointment = patient_portal_pick_next_appointment($allAppointments);
+$totalVisits = patient_portal_count_completed_visits($allAppointments);
+$recentAppointments = array_slice($allAppointments, 0, 5);
 
 $showPoints = canViewPoints();
 $showRefs = canViewReferrals();
@@ -97,11 +84,7 @@ $showSub = canViewSubscription();
 
 $referralCount = 0;
 if ($showRefs) {
-    $referralCount = (int) $db->fetchOne(
-        'SELECT COUNT(*) as count FROM patients WHERE referred_by = ?',
-        [$patientId],
-        'i'
-    )['count'];
+    $referralCount = patient_portal_count_referred_patients_cloud_first((int) $patientId);
 }
 
 $points = (int) ($patient['points'] ?? 0);
@@ -162,8 +145,12 @@ $quickActions = [
     ['href' => 'bills.php', 'icon' => 'fa-file-invoice-dollar', 'title' => 'Bills', 'sub' => 'Payments & invoices'],
     ['href' => 'teeth.php', 'icon' => 'fa-smile', 'title' => 'Dental chart', 'sub' => 'Tooth chart'],
     ['href' => 'profile.php', 'icon' => 'fa-user', 'title' => 'Profile', 'sub' => 'Your account'],
-    ['href' => 'subscription.php', 'icon' => 'fa-crown', 'title' => 'Subscription', 'sub' => 'Plans & benefits'],
 ];
+
+// Conditionally add subscription
+if (!function_exists('canViewSubscription')) {
+    $quickActions[] = ['href' => 'subscription.php', 'icon' => 'fa-crown', 'title' => 'Subscription', 'sub' => 'Plans & benefits'];
+}
 if ($showPoints) {
     $quickActions[] = ['href' => 'points.php', 'icon' => 'fa-star', 'title' => 'Points', 'sub' => 'Rewards'];
 }
@@ -274,7 +261,7 @@ include '../layouts/header.php';
                                                 </div>
                                                 <div class="idx-next-appt-row">
                                                     <i class="fas fa-user-md" aria-hidden="true"></i>
-                                                    <span class="idx-next-appt-label">Doctor</span><span class="idx-next-appt-value">Dr. <?php echo htmlspecialchars($nextAppointment['doctor_name']); ?></span>
+                                                    <span class="idx-next-appt-label">Doctor</span><span class="idx-next-appt-value"><?php echo !empty($nextAppointment['doctor_name']) ? 'Dr. ' . htmlspecialchars((string) $nextAppointment['doctor_name']) : 'Not assigned'; ?></span>
                                                 </div>
                                                 <div class="idx-next-appt-row">
                                                     <i class="fas fa-stethoscope" aria-hidden="true"></i>
@@ -351,7 +338,7 @@ include '../layouts/header.php';
                                                 <td><strong><?php echo htmlspecialchars(formatDate($apt['appointment_date'])); ?></strong></td>
                                                 <td><?php echo htmlspecialchars(formatTime($apt['appointment_time'])); ?></td>
                                                 <td><?php echo htmlspecialchars((string) $apt['treatment_type']); ?></td>
-                                                <td>Dr. <?php echo htmlspecialchars($apt['doctor_name']); ?></td>
+                                                <td><?php echo !empty($apt['doctor_name']) ? 'Dr. ' . htmlspecialchars((string) $apt['doctor_name']) : 'Not assigned'; ?></td>
                                                 <td><span class="<?php echo htmlspecialchars($badgeClass); ?>"><?php echo htmlspecialchars(ucfirst((string) $apt['status'])); ?></span></td>
                                                 <?php if ($showPoints): ?>
                                                     <td>

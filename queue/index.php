@@ -64,8 +64,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_appointment_r
         $apptId = $db->insert(
             "INSERT INTO appointments (
                 patient_id, doctor_id, appointment_date, appointment_time, duration,
-                treatment_type, description, chair_number, status, notes, created_by
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 'scheduled', ?, ?)",
+                treatment_type, description, chair_number, status, notes, created_by, sync_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 'scheduled', ?, ?, ?)",
             [
                 (int) $req['patient_id'],
                 (int) $req['doctor_id'],
@@ -76,18 +76,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_appointment_r
                 $req['description'] !== null && $req['description'] !== '' ? $req['description'] : null,
                 $notes,
                 $uid,
+                'pending',
             ],
-            'iississsi'
+            'iississsis'
         );
 
         if (!$apptId) {
             throw new RuntimeException('Could not save the appointment.');
         }
+        sync_push_row_now('appointments', (int) $apptId);
 
         if ($db->execute('DELETE FROM appointment_requests WHERE id = ?', [$reqId], 'i') < 1) {
             throw new RuntimeException('Could not remove the pending request after booking. Please try again or fix the queue entry manually.');
         }
         $db->commit();
+        queueCloudDeletion('appointment_requests', $reqId, 'local_id');
     } catch (Throwable $e) {
         $db->rollback();
         $_SESSION['queue_flash_error'] = $e->getMessage();
@@ -188,6 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deny_appointment_requ
             throw new RuntimeException('Could not remove that request. It may have been processed already.');
         }
         $db->commit();
+        queueCloudDeletion('appointment_requests', $reqId, 'local_id');
     } catch (Throwable $e) {
         $db->rollback();
         $_SESSION['queue_flash_error'] = $e->getMessage();
@@ -252,7 +256,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resolve_weekly_queue'
             exit;
         }
     }
-    $db->execute('DELETE FROM waiting_queue WHERE id = ?', [$wid], 'i');
+    $deletedRows = (int) $db->execute('DELETE FROM waiting_queue WHERE id = ?', [$wid], 'i');
+    if ($deletedRows > 0) {
+        queueCloudDeletion('waiting_queue', $wid, 'local_id');
+    }
     logAction('DELETE', 'waiting_queue', $wid, $wq, null);
     $_SESSION['queue_flash_ok'] = 'Weekly request resolved and removed from the list.';
     $returnTo = trim((string) ($_POST['return_url'] ?? ''));
@@ -348,6 +355,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_staff_weekly_port
         );
     }
     if ($newWqId > 0) {
+        sync_push_row_now('waiting_queue', $newWqId);
         logAction('CREATE', 'waiting_queue', $newWqId, null, ['source' => 'staff_weekly_portal']);
     }
     $_SESSION['queue_flash_ok'] = 'Weekly queue request added.';

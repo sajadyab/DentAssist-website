@@ -42,19 +42,39 @@ $existing = $db->fetchOne(
 );
 
 if ($existing) {
+    $setParts = ['status = ?', 'diagnosis = ?', 'treatment = ?', 'notes = ?', 'updated_by = ?'];
+    $values = [$status, $diagnosis, $treatment, $notes, Auth::userId()];
+    $types = 'sssss';
+    if (dbColumnExists('tooth_chart', 'sync_status')) {
+        $setParts[] = "sync_status = 'pending'";
+    }
+    $values[] = $patientId;
+    $types .= 'i';
+    $values[] = $toothNumber;
+    $types .= 'i';
     $db->execute(
-        "UPDATE tooth_chart SET status = ?, diagnosis = ?, treatment = ?, notes = ?, updated_by = ? WHERE patient_id = ? AND tooth_number = ?",
-        [$status, $diagnosis, $treatment, $notes, Auth::userId(), $patientId, $toothNumber],
-        "ssssiii"
+        'UPDATE tooth_chart SET ' . implode(', ', $setParts) . ' WHERE patient_id = ? AND tooth_number = ?',
+        $values,
+        $types
     );
     logAction('UPDATE', 'tooth_chart', $existing['id'], null, $input);
+    sync_push_row_now('tooth_chart', $existing['id']);
 } else {
+    $columns = ['patient_id', 'tooth_number', 'status', 'diagnosis', 'treatment', 'notes', 'updated_by'];
+    $values = [$patientId, $toothNumber, $status, $diagnosis, $treatment, $notes, Auth::userId()];
+    $types = 'iissssi';
+    if (dbColumnExists('tooth_chart', 'sync_status')) {
+        $columns[] = 'sync_status';
+        $values[] = 'pending';
+        $types .= 's';
+    }
     $id = $db->insert(
-        "INSERT INTO tooth_chart (patient_id, tooth_number, status, diagnosis, treatment, notes, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [$patientId, $toothNumber, $status, $diagnosis, $treatment, $notes, Auth::userId()],
-        "iissssi"
+        'INSERT INTO tooth_chart (' . implode(', ', $columns) . ') VALUES (' . implode(', ', array_fill(0, count($columns), '?')) . ')',
+        $values,
+        $types
     );
     logAction('CREATE', 'tooth_chart', $id, null, $input);
+    sync_push_row_now('tooth_chart', $id);
 }
 
 echo json_encode(['success' => true, 'message' => 'Tooth updated']);

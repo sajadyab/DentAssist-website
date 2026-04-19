@@ -3,6 +3,7 @@ require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
+require_once '../includes/patient_cloud_repository.php';
 
 Auth::requireLogin();
 if ($_SESSION['role'] != 'patient') {
@@ -18,19 +19,24 @@ if (!$patientId) {
     die('Patient record not found.');
 }
 
-$patient = $db->fetchOne('SELECT full_name, referral_code, points FROM patients WHERE id = ?', [$patientId], 'i');
+$patient = patient_portal_fetch_patient_cloud_first((int) $patientId);
+if (!$patient) {
+    die('Patient record not found.');
+}
 
 if (empty($patient['referral_code'])) {
     $newCode = strtoupper(substr(md5($patientId . uniqid()), 0, 8));
-    $db->execute('UPDATE patients SET referral_code = ? WHERE id = ?', [$newCode, $patientId], 'si');
-    $patient = $db->fetchOne('SELECT full_name, referral_code, points FROM patients WHERE id = ?', [$patientId], 'i');
+    try {
+        patient_portal_set_referral_code_cloud_first((int) $patientId, $newCode);
+        $db->execute("UPDATE patients SET referral_code = ?, sync_status = 'pending' WHERE id = ?", [$newCode, $patientId], 'si');
+        sync_push_row_now('patients', (int) $patientId);
+        $patient = patient_portal_fetch_patient_cloud_first((int) $patientId);
+    } catch (Throwable $e) {
+        error_log('Patient referrals cloud-first code update failed: ' . $e->getMessage());
+    }
 }
 
-$referred = $db->fetchAll(
-    'SELECT full_name, created_at, email, phone FROM patients WHERE referred_by = ? ORDER BY created_at DESC',
-    [$patientId],
-    'i'
-);
+$referred = patient_portal_list_referred_patients_cloud_first((int) $patientId);
 
 $referralCount = count($referred);
 $pointsEarned = $referralCount * 50;

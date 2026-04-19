@@ -81,6 +81,18 @@ $xrays = repo_xray_list_for_patient_excluding_dental_history($patientId);
 
 // Get invoices
 $invoices = repo_invoice_list_for_patient($patientId);
+foreach ($invoices as &$invoice) {
+    $invoice['total_amount'] = isset($invoice['total_amount'])
+        ? (float) $invoice['total_amount']
+        : (float) ($invoice['subtotal'] ?? 0);
+    $invoice['paid_amount'] = isset($invoice['paid_amount'])
+        ? (float) $invoice['paid_amount']
+        : 0.0;
+    $invoice['balance_due'] = isset($invoice['balance_due'])
+        ? (float) $invoice['balance_due']
+        : max(0.0, $invoice['total_amount'] - $invoice['paid_amount']);
+}
+unset($invoice);
 
 include '../layouts/header.php';
 ?>

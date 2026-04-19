@@ -44,23 +44,26 @@ function normalizeE164Phone(?string $countryCode, ?string $localNumber): array
 }
 
 /**
- * Patient login username: sanitized full name + 4 random digits.
- * Retries until no other patient (and no other user) already uses that username.
+ * Patient login username: sanitized full name (spaces replaced with underscores).
+ * Retries with number suffix until no other patient (and no other user) already uses that username.
  */
 function generateUniquePatientUsername(Database $db, string $fullName): string
 {
-    $slug = strtolower(preg_replace('/[^a-z0-9]+/', '', $fullName));
-    if ($slug === '') {
-        $slug = 'patient';
+    // Create base username from full name: replace spaces with underscores, remove special chars
+    $baseSlug = strtolower(preg_replace('/[^a-zA-Z0-9\s]+/', '', $fullName));
+    $baseSlug = preg_replace('/\s+/', '_', trim($baseSlug));
+
+    if ($baseSlug === '') {
+        $baseSlug = 'patient';
     }
-    if (strlen($slug) > 24) {
-        $slug = substr($slug, 0, 24);
+    if (strlen($baseSlug) > 50) {
+        $baseSlug = substr($baseSlug, 0, 50);
     }
 
-    for ($attempt = 0; $attempt < 100; $attempt++) {
-        $digits = str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
-        $candidate = $slug . $digits;
+    $candidate = $baseSlug;
+    $counter = 1;
 
+    while (true) {
         $otherPatient = $db->fetchOne(
             "SELECT p.id FROM patients p
              INNER JOIN users u ON u.id = p.user_id
@@ -68,16 +71,21 @@ function generateUniquePatientUsername(Database $db, string $fullName): string
             [$candidate],
             's'
         );
-        if ($otherPatient) {
-            continue;
+        if (!$otherPatient) {
+            $anyUser = $db->fetchOne('SELECT id FROM users WHERE username = ?', [$candidate], 's');
+            if (!$anyUser) {
+                return $candidate;
+            }
         }
 
-        $anyUser = $db->fetchOne('SELECT id FROM users WHERE username = ?', [$candidate], 's');
-        if ($anyUser) {
-            continue;
-        }
+        // If base username exists, append counter
+        $candidate = $baseSlug . '_' . $counter;
+        $counter++;
 
-        return $candidate;
+        // Prevent infinite loop
+        if ($counter > 1000) {
+            throw new Exception('Unable to generate unique username after 1000 attempts.');
+        }
     }
 
     throw new Exception('Could not generate a unique username. Please try again.');
@@ -135,6 +143,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             if ($emailInput === '') {
                 throw new Exception('Email is required.');
             }
+
+            // Check if email is already taken by another user
+            $existingUser = $db->fetchOne('SELECT id FROM users WHERE email = ?', [$emailInput], 's');
+            if ($existingUser) {
+                throw new Exception('This email is already registered. Please use a different email.');
+            }
+
             $patientsEmail = $emailInput;
             $fullName = trim((string) ($_POST['full_name'] ?? ''));
             $phoneParsed = normalizeE164Phone($_POST['phone_country'] ?? null, $_POST['phone_number'] ?? null);
@@ -149,10 +164,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             // Always create user account for the patient (unique username: name + 4 random digits)
             $username = generateUniquePatientUsername($db, $fullName);
 
-            // IMPORTANT: `users.email` is UNIQUE + NOT NULL in your DB schema.
-            // To allow many patients to share the same email, we store the real (possibly shared) email in `patients.email`,
-            // and generate a unique placeholder for the authentication user.
-            $usersEmail = $username . '@patients.local';
+            // Use the actual email provided by the user for the users table
+            $usersEmail = $emailInput;
 
             $generatedPassword = generateRandomPassword();
             $passwordHash = Auth::hashPassword($generatedPassword);
@@ -173,6 +186,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             if (!$userId) {
                 throw new Exception('Database insert failed (user)');
             }
+
+            sync_push_row_now('users', (int) $userId);
 
             // Optional: upload handwritten dental history image (stored in xrays table as type "Other")
             if (isset($_FILES['dental_history_image']) && is_array($_FILES['dental_history_image']) && ($_FILES['dental_history_image']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
@@ -223,46 +238,88 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $allergiesFlag = 'no';
             }
 
-            // Insert patient linked to user
+            // Insert patient linked to user (schema-compatible: address/address_line1 may differ between DBs)
+            $patientColumns = [
+                'full_name',
+                'date_of_birth',
+                'gender',
+                'phone',
+                'email',
+                'emergency_contact_name',
+                'emergency_contact_phone',
+                'emergency_contact_relation',
+                'insurance_provider',
+                'insurance_id',
+                'insurance_type',
+                'insurance_coverage',
+                'medical_history',
+                'allergies',
+                'current_medications',
+                'dental_history',
+                'last_visit_date',
+            ];
+            $patientValues = [
+                $fullName,
+                $_POST['date_of_birth'] ?? null,
+                $_POST['gender'] ?? null,
+                $phone,
+                $patientsEmail,
+                $_POST['emergency_contact_name'] ?? null,
+                $_POST['emergency_contact_phone'] ?? null,
+                $_POST['emergency_contact_relation'] ?? null,
+                $_POST['insurance_provider'] ?? null,
+                $_POST['insurance_id'] ?? null,
+                $_POST['insurance_type'] ?? 'None',
+                (int) ($_POST['insurance_coverage'] ?? 0),
+                $medicalHistoryPayload,
+                $allergiesFlag,
+                $medsPayload,
+                $_POST['dental_history'] ?? null,
+                normalizePatientOptionalDate($_POST['last_visit_date'] ?? null),
+            ];
+            $patientTypes = str_repeat('s', 11) . 'i' . str_repeat('s', 5);
+
+            $addressValue = $address !== '' ? $address : null;
+            if (dbColumnExists('patients', 'address')) {
+                $patientColumns[] = 'address';
+                $patientValues[] = $addressValue;
+                $patientTypes .= 's';
+            } elseif (dbColumnExists('patients', 'address_line1')) {
+                $patientColumns[] = 'address_line1';
+                $patientValues[] = $addressValue;
+                $patientTypes .= 's';
+            }
+            if (dbColumnExists('patients', 'country')) {
+                $patientColumns[] = 'country';
+                $patientValues[] = 'LB';
+                $patientTypes .= 's';
+            }
+
+            $patientColumns[] = 'user_id';
+            $patientValues[] = (int) $userId;
+            $patientTypes .= 'i';
+
+            $patientColumns[] = 'created_by';
+            $patientValues[] = Auth::userId();
+            $patientTypes .= 'i';
+
+            $patientColumns[] = 'sync_status';
+            $patientValues[] = 'pending';
+            $patientTypes .= 's';
+
+            $placeholders = implode(', ', array_fill(0, count($patientColumns), '?'));
+            $columnsSql = implode(', ', $patientColumns);
+
             $patientId = $db->insert(
-                "INSERT INTO patients (
-                    full_name, date_of_birth, gender, phone, email,
-                    emergency_contact_name, emergency_contact_phone, emergency_contact_relation,
-                    insurance_provider, insurance_id, insurance_type, insurance_coverage,
-                    medical_history, allergies, current_medications,
-                    dental_history, last_visit_date,
-                    address, country,
-                    user_id, created_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                [
-                    $fullName,
-                    $_POST['date_of_birth'] ?? null,
-                    $_POST['gender'] ?? null,
-                    $phone,
-                    $patientsEmail,
-                    $_POST['emergency_contact_name'] ?? null,
-                    $_POST['emergency_contact_phone'] ?? null,
-                    $_POST['emergency_contact_relation'] ?? null,
-                    $_POST['insurance_provider'] ?? null,
-                    $_POST['insurance_id'] ?? null,
-                    $_POST['insurance_type'] ?? 'None',
-                    $_POST['insurance_coverage'] ?? 0,
-                    $medicalHistoryPayload,
-                    $allergiesFlag,
-                    $medsPayload,
-                    $_POST['dental_history'] ?? null,
-                    normalizePatientOptionalDate($_POST['last_visit_date'] ?? null),
-                    $address !== '' ? $address : null,
-                    'LB',
-                    (int) $userId,
-                    Auth::userId()
-                ],
-                str_repeat('s', 11) . 'i' . str_repeat('s', 7) . 'ii'
+                "INSERT INTO patients ({$columnsSql}) VALUES ({$placeholders})",
+                $patientValues,
+                $patientTypes
             );
 
             if (!$patientId) {
                 throw new Exception('Database insert failed (patient)');
             }
+            sync_push_row_now('patients', (int) $patientId);
 
             logAction('CREATE', 'patients', $patientId, null, $_POST);
 

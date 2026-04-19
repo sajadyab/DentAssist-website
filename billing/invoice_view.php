@@ -8,9 +8,10 @@ Auth::requireLogin();
 
 $db = Database::getInstance();
 $invoiceId = $_GET['id'] ?? 0;
+$patientAddressColumn = dbColumnExists('patients', 'address') ? 'p.address' : (dbColumnExists('patients', 'address_line1') ? 'p.address_line1' : 'NULL');
 
 $invoice = $db->fetchOne(
-    "SELECT i.*, p.full_name as patient_name, p.phone, p.email, p.address, p.country,
+    "SELECT i.*, p.full_name as patient_name, p.phone, p.email, {$patientAddressColumn} AS address, p.country,
             a.appointment_date, a.treatment_type,
             u.full_name as created_by_name
      FROM invoices i
@@ -26,6 +27,13 @@ if (!$invoice) {
     header('Location: invoices.php');
     exit;
 }
+
+$invoiceSubtotal = (float) ($invoice['subtotal'] ?? 0);
+$invoiceDiscount = (float) ($invoice['discount_amount'] ?? 0);
+$invoiceTax = (float) ($invoice['tax_amount'] ?? 0);
+$invoiceTotal = (float) ($invoice['total_amount'] ?? max(0, $invoiceSubtotal - $invoiceDiscount + $invoiceTax));
+$invoicePaid = (float) ($invoice['paid_amount'] ?? 0);
+$invoiceBalance = (float) ($invoice['balance_due'] ?? max(0, $invoiceTotal - $invoicePaid));
 
 // Get payments
 $payments = $db->fetchAll(
@@ -117,27 +125,27 @@ include '../layouts/header.php';
                     <table class="table table-sm">
                         <tr>
                             <td>Subtotal:</td>
-                            <td class="text-end"><?php echo formatCurrency($invoice['subtotal']); ?></td>
+                            <td class="text-end"><?php echo formatCurrency($invoiceSubtotal); ?></td>
                         </tr>
                         <tr>
-                            <td>Discount (<?php echo $invoice['discount_type'] == 'percentage' ? $invoice['discount_value'] . '%' : 'fixed'; ?>):</td>
-                            <td class="text-end">-<?php echo formatCurrency($invoice['discount_amount']); ?></td>
+                            <td>Discount (<?php echo ($invoice['discount_type'] ?? 'fixed') == 'percentage' ? ($invoice['discount_value'] ?? 0) . '%' : 'fixed'; ?>):</td>
+                            <td class="text-end">-<?php echo formatCurrency($invoiceDiscount); ?></td>
                         </tr>
                         <tr>
-                            <td>Tax (<?php echo $invoice['tax_rate']; ?>%):</td>
-                            <td class="text-end">+<?php echo formatCurrency($invoice['tax_amount']); ?></td>
+                            <td>Tax (<?php echo (float) ($invoice['tax_rate'] ?? 0); ?>%):</td>
+                            <td class="text-end">+<?php echo formatCurrency($invoiceTax); ?></td>
                         </tr>
                         <tr class="fw-bold">
                             <td>Total:</td>
-                            <td class="text-end"><?php echo formatCurrency($invoice['total_amount']); ?></td>
+                            <td class="text-end"><?php echo formatCurrency($invoiceTotal); ?></td>
                         </tr>
                         <tr>
                             <td>Paid:</td>
-                            <td class="text-end"><?php echo formatCurrency($invoice['paid_amount']); ?></td>
+                            <td class="text-end"><?php echo formatCurrency($invoicePaid); ?></td>
                         </tr>
-                        <tr class="fw-bold <?php echo $invoice['balance_due'] > 0 ? 'text-danger' : 'text-success'; ?>">
+                        <tr class="fw-bold <?php echo $invoiceBalance > 0 ? 'text-danger' : 'text-success'; ?>">
                             <td>Balance Due:</td>
-                            <td class="text-end"><?php echo formatCurrency($invoice['balance_due']); ?></td>
+                            <td class="text-end"><?php echo formatCurrency($invoiceBalance); ?></td>
                         </tr>
                     </table>
 
@@ -255,7 +263,7 @@ include '../layouts/header.php';
                     <input type="hidden" name="invoice_id" value="<?php echo $invoiceId; ?>">
                     <div class="mb-3">
                         <label class="form-label">Amount</label>
-                        <input type="number" step="0.01" class="form-control" name="amount" max="<?php echo $invoice['balance_due']; ?>" required>
+                        <input type="number" step="0.01" class="form-control" name="amount" max="<?php echo $invoiceBalance; ?>" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Payment Method</label>

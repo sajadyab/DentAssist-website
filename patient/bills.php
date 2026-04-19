@@ -3,6 +3,7 @@ require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
+require_once '../includes/patient_cloud_repository.php';
 
 Auth::requireLogin();
 if ($_SESSION['role'] != 'patient') {
@@ -24,7 +25,18 @@ $settingResult = $db->fetchOne("SELECT setting_value FROM clinic_settings WHERE 
 if ($settingResult && !empty($settingResult['setting_value'])) {
     $clinicPhone = $settingResult['setting_value'];
 }
-
+if (!function_exists('canViewSubscription')) {
+    function canViewSubscription()
+    {
+        global $db;
+        static $cached = null;
+        if ($cached === null) {
+            $result = $db->fetchOne("SELECT setting_value FROM clinic_settings WHERE setting_key = 'allow_subscription_view'");
+            $cached = ($result && $result['setting_value'] == '1');
+        }
+        return $cached;
+    }
+}$showSub = canViewSubscription();
 // Clean phone number: keep digits and optional leading '+'
 $cleanPhone = preg_replace('/[^0-9+]/', '', $clinicPhone);
 // Ensure it starts with '+' if it contains a plus, otherwise assume digits only
@@ -33,19 +45,21 @@ if (!empty($cleanPhone)) {
     $whatsappUrl = 'https://wa.me/' . ltrim($cleanPhone, '+'); // wa.me works with digits only
 }
 
-// Get invoices
-$invoices = $db->fetchAll(
-    "SELECT * FROM invoices WHERE patient_id = ? ORDER BY invoice_date DESC",
-    [$patientId],
-    "i"
-);
+// Get invoices (cloud-first, local fallback)
+$invoices = patient_portal_list_invoices_cloud_first((int) $patientId);
 
-// Get subscription payments
-$subscriptions = $db->fetchAll(
-    "SELECT * FROM subscription_payments WHERE patient_id = ? ORDER BY payment_date DESC",
-    [$patientId],
-    "i"
-);
+// Get subscription payments (cloud-first, local fallback)
+$subscriptions = patient_portal_list_subscription_payments_cloud_first((int) $patientId);
+
+// Normalize invoice fields for older schema or cloud payloads that may omit derived fields.
+foreach ($invoices as &$inv) {
+    $inv['total_amount'] = isset($inv['total_amount']) ? (float) $inv['total_amount'] : ((float) ($inv['subtotal'] ?? 0));
+    $inv['paid_amount'] = isset($inv['paid_amount']) ? (float) $inv['paid_amount'] : 0.0;
+    $inv['balance_due'] = isset($inv['balance_due'])
+        ? (float) $inv['balance_due']
+        : max(0.0, $inv['total_amount'] - $inv['paid_amount']);
+}
+unset($inv);
 
 // Calculate totals
 $totalDue = 0;
@@ -175,9 +189,11 @@ include '../layouts/header.php';
                 <div class="card-body p-0">
                     <?php if (empty($subscriptions)): ?>
                         <div class="bills-empty-state text-center py-4 px-3">
-                            <p class="text-muted small mb-3">No subscription payments yet.</p>
-                            <a href="subscription.php" class="btn btn-sm bills-cta bills-cta--subscribe">Subscribe Now</a>
-                        </div>
+                                <?php if ($showSub): ?>
+    <p class="text-muted small mb-3">No subscription payments yet.</p>
+        <a href="subscription.php" class="btn btn-sm bills-cta bills-cta--subscribe">Subscribe Now</a>
+    <?php endif; ?>
+</div>
                     <?php else: ?>
                         <?php foreach ($subscriptions as $sub): ?>
                             <?php

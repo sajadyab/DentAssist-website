@@ -57,6 +57,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } else {
 
         $id = $stmt->insert_id;
+        if ($id > 0) {
+            sync_push_row_now('inventory', (int) $id);
+        }
 
         // Record initial inventory transaction
         if ($quantity > 0) {
@@ -76,6 +79,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             );
 
             $stmt2->execute();
+            $trxId = (int) $stmt2->insert_id;
+            if ($trxId > 0) {
+                sync_push_row_now('inventory_transactions', $trxId);
+            }
         }
 
         logAction('CREATE', 'inventory', $id, null, $_POST);

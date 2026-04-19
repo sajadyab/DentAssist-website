@@ -27,30 +27,40 @@ $success = '';
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Get logged-in user ID
     $createdBy = $_SESSION['user_id'] ?? 0;
+    $columns = [
+        'patient_id', 'plan_name', 'description', 'teeth_affected',
+        'estimated_cost', 'discount', 'status', 'priority',
+        'start_date', 'estimated_end_date', 'notes', 'created_by',
+    ];
+    $values = [
+        $_POST['patient_id'],
+        $_POST['plan_name'],
+        $_POST['description'] ?? null,
+        $_POST['teeth_affected'] ?? null,
+        $_POST['estimated_cost'] ?? 0,
+        $_POST['discount'] ?? 0,
+        $_POST['status'] ?? 'proposed',
+        $_POST['priority'] ?? 'medium',
+        $_POST['start_date'] ?? null,
+        $_POST['estimated_end_date'] ?? null,
+        $_POST['notes'] ?? null,
+        $createdBy,
+    ];
+    $types = 'issdddsssssi';
+    if (dbColumnExists('treatment_plans', 'sync_status')) {
+        $columns[] = 'sync_status';
+        $values[] = 'pending';
+        $types .= 's';
+    }
+
     $planId = $db->insert(
-        "INSERT INTO treatment_plans (
-            patient_id, plan_name, description, teeth_affected,
-            estimated_cost, discount, status, priority,
-            start_date, estimated_end_date, notes, created_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [
-            $_POST['patient_id'],
-            $_POST['plan_name'],
-            $_POST['description'] ?? null,
-            $_POST['teeth_affected'] ?? null,
-            $_POST['estimated_cost'] ?? 0,
-            $_POST['discount'] ?? 0,
-            $_POST['status'] ?? 'proposed',
-            $_POST['priority'] ?? 'medium',
-            $_POST['start_date'] ?? null,
-            $_POST['estimated_end_date'] ?? null,
-            $_POST['notes'] ?? null,
-            $createdBy
-        ],
-        "issdddsssssi" // types: i, s, s, s, d, d, s, s, s, s, s, i
+        'INSERT INTO treatment_plans (' . implode(', ', $columns) . ') VALUES (' . implode(', ', array_fill(0, count($columns), '?')) . ')',
+        $values,
+        $types
     );
 
     if ($planId) {
+        sync_push_row_now('treatment_plans', (int) $planId);
         logAction('INSERT', 'treatment_plans', $planId, null, $_POST);
         $success = 'Treatment plan created successfully';
         // Redirect after a short delay or immediately

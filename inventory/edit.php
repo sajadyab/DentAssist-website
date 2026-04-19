@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         "UPDATE inventory SET 
             item_name = ?, category = ?, quantity = ?, unit = ?,
             reorder_level = ?, reorder_quantity = ?, supplier_name = ?, supplier_contact = ?,
-            cost_per_unit = ?, expiry_date = ?
+            cost_per_unit = ?, expiry_date = ?, sync_status = 'pending'
          WHERE id = ?",
         [
             $_POST['item_name'],
@@ -45,6 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     );
 
     if ($result !== false) {
+        sync_push_row_now('inventory', (int) $id);
         logAction('UPDATE', 'inventory', $id, $item, $_POST);
         header('Location: index.php');
         exit;

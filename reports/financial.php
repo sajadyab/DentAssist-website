@@ -21,26 +21,54 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_expenses'])) {
     $notes = $_POST['notes'] ?? null;
 
     if ($monthYear) {
+        $hasMonthlySync = dbColumnExists('monthly_expenses', 'sync_status');
         $existing = $db->fetchOne(
             "SELECT id FROM monthly_expenses WHERE month_year = ?",
             [$monthYear],
             "s"
         );
         if ($existing) {
+            $setParts = [
+                'salaries_total = ?',
+                'assistants_count = ?',
+                'electricity = ?',
+                'rent = ?',
+                'other_expenses = ?',
+                'notes = ?',
+            ];
+            $values = [$salariesTotal, $assistants, $electricity, $rent, $other, $notes];
+            $types = 'diddds';
+            if ($hasMonthlySync) {
+                $setParts[] = "sync_status = 'pending'";
+            }
+            $values[] = $monthYear;
+            $types .= 's';
+
             $db->execute(
-                "UPDATE monthly_expenses SET 
-                    salaries_total = ?, assistants_count = ?, electricity = ?, rent = ?, other_expenses = ?, notes = ?
-                 WHERE month_year = ?",
-                [$salariesTotal, $assistants, $electricity, $rent, $other, $notes, $monthYear],
-                "ddddsss"
+                'UPDATE monthly_expenses SET ' . implode(', ', $setParts) . ' WHERE month_year = ?',
+                $values,
+                $types
             );
+            if (!empty($existing['id'])) {
+                sync_push_row_now('monthly_expenses', (int) $existing['id']);
+            }
         } else {
-            $db->insert(
-                "INSERT INTO monthly_expenses (month_year, salaries_total, assistants_count, electricity, rent, other_expenses, notes)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [$monthYear, $salariesTotal, $assistants, $electricity, $rent, $other, $notes],
-                "sidddds"
+            $columns = ['month_year', 'salaries_total', 'assistants_count', 'electricity', 'rent', 'other_expenses', 'notes'];
+            $values = [$monthYear, $salariesTotal, $assistants, $electricity, $rent, $other, $notes];
+            $types = 'sdiddds';
+            if ($hasMonthlySync) {
+                $columns[] = 'sync_status';
+                $values[] = 'pending';
+                $types .= 's';
+            }
+            $newId = (int) $db->insert(
+                'INSERT INTO monthly_expenses (' . implode(', ', $columns) . ') VALUES (' . implode(', ', array_fill(0, count($columns), '?')) . ')',
+                $values,
+                $types
             );
+            if ($newId > 0) {
+                sync_push_row_now('monthly_expenses', $newId);
+            }
         }
 
         // Redirect back to the same month

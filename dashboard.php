@@ -858,7 +858,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('dashCalRequestAccept').disabled = loading;
         document.getElementById('dashCalRequestDecline').disabled = loading;
     }
-ClinicPopup.confirm('Delete this item?', { variant: 'danger', title: 'Confirm delete', okText: 'Delete' }).then(ok => { if (ok) {/*...*/} })
+
     document.getElementById('dashCalRequestAccept').addEventListener('click', function() {
         if (!dashStaffPendingRequestId || !confirm('Confirm this appointment and notify the patient?')) {
             return;

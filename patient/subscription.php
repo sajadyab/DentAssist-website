@@ -3,6 +3,7 @@ require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
+require_once '../includes/patient_cloud_repository.php';
 
 Auth::requireLogin();
 if ($_SESSION['role'] != 'patient') {
@@ -19,19 +20,29 @@ if (!$patientId) {
 }
 
 // Get patient current subscription
-$patient = $db->fetchOne("SELECT subscription_type, subscription_start_date, subscription_end_date, subscription_status, referral_code FROM patients WHERE id = ?", [$patientId], "i");
+$patient = patient_portal_fetch_patient_cloud_first((int) $patientId);
+if (!$patient) {
+    die("Patient record not found.");
+}
 
 // Generate referral code if not exists
 if (empty($patient['referral_code'])) {
     $newCode = strtoupper(substr(md5($patientId . uniqid()), 0, 8));
-    $db->execute("UPDATE patients SET referral_code = ? WHERE id = ?", [$newCode, $patientId], "si");
-    $patient = $db->fetchOne("SELECT subscription_type, subscription_start_date, subscription_end_date, subscription_status, referral_code FROM patients WHERE id = ?", [$patientId], "i");
+    try {
+        patient_portal_set_referral_code_cloud_first((int) $patientId, $newCode);
+        $db->execute("UPDATE patients SET referral_code = ?, sync_status = 'pending' WHERE id = ?", [$newCode, $patientId], "si");
+        sync_push_row_now('patients', (int) $patientId);
+        $patient = patient_portal_fetch_patient_cloud_first((int) $patientId);
+    } catch (Throwable $e) {
+        error_log('Patient subscription cloud-first code update failed: ' . $e->getMessage());
+    }
 }
 
 $currentPlan = $patient['subscription_type'] ?? 'none';
 $subscriptionStatus = $patient['subscription_status'] ?? 'none';
 $showPaymentForm = false;
 $selectedPlan = $_GET['plan'] ?? '';
+$selectedPlan = in_array($selectedPlan, ['basic', 'premium', 'family'], true) ? $selectedPlan : '';
 
 // If plan selected from index page
 if ($selectedPlan && in_array($selectedPlan, ['basic', 'premium', 'family']) && $currentPlan == 'none') {
@@ -134,12 +145,15 @@ include '../layouts/header.php';
         </div>
     <?php endif; ?>
 
-    <?php if ($currentPlan == 'none' && !$showPaymentForm): ?>
+    <?php if ($currentPlan == 'none'): ?>
         <!-- Plan Selection -->
         <div class="row">
             <div class="col-md-4 mb-4">
-                <div class="card payment-card h-100">
+                <div class="card payment-card plan-option-card h-100<?php echo $selectedPlan === 'basic' ? ' plan-option-card--selected' : ''; ?>">
                     <div class="card-body text-center p-4">
+                        <?php if ($selectedPlan === 'basic'): ?>
+                            <div class="plan-selected-badge">Selected Plan</div>
+                        <?php endif; ?>
                         <div class="payment-icon">
                             <i class="fas fa-tooth" aria-hidden="true"></i>
                         </div>
@@ -151,13 +165,23 @@ include '../layouts/header.php';
                             <li><i class="fas fa-check me-2" aria-hidden="true"></i> 10% off treatments</li>
                             <li><i class="fas fa-check me-2" aria-hidden="true"></i> Free consultation</li>
                         </ul>
-                        <button type="button" class="btn btn-subscribe-plan btn-subscribe-plan--basic w-100 mt-3" onclick="selectPlan('basic')">Select Plan</button>
+                        <button
+                            type="button"
+                            class="btn btn-subscribe-plan btn-subscribe-plan--basic w-100 mt-3"
+                            onclick="selectPlan('basic')"
+                            <?php echo $selectedPlan === 'basic' ? 'disabled aria-disabled="true"' : ''; ?>
+                        >
+                            <?php echo $selectedPlan === 'basic' ? 'Selected' : ($selectedPlan === '' ? 'Select Plan' : 'Choose This Plan'); ?>
+                        </button>
                     </div>
                 </div>
             </div>
             <div class="col-md-4 mb-4">
-                <div class="card payment-card h-100 border-highlight-premium">
+                <div class="card payment-card plan-option-card h-100 border-highlight-premium<?php echo $selectedPlan === 'premium' ? ' plan-option-card--selected' : ''; ?>">
                     <div class="card-body text-center p-4">
+                        <?php if ($selectedPlan === 'premium'): ?>
+                            <div class="plan-selected-badge">Selected Plan</div>
+                        <?php endif; ?>
                         <div class="payment-icon">
                             <i class="fas fa-crown premium-crown-icon" aria-hidden="true"></i>
                         </div>
@@ -170,13 +194,23 @@ include '../layouts/header.php';
                             <li><i class="fas fa-check me-2" aria-hidden="true"></i> Priority scheduling</li>
                             <li><i class="fas fa-check me-2" aria-hidden="true"></i> Emergency access</li>
                         </ul>
-                        <button type="button" class="btn btn-subscribe-plan btn-subscribe-plan--premium w-100 mt-3" onclick="selectPlan('premium')">Select Plan</button>
+                        <button
+                            type="button"
+                            class="btn btn-subscribe-plan btn-subscribe-plan--premium w-100 mt-3"
+                            onclick="selectPlan('premium')"
+                            <?php echo $selectedPlan === 'premium' ? 'disabled aria-disabled="true"' : ''; ?>
+                        >
+                            <?php echo $selectedPlan === 'premium' ? 'Selected' : ($selectedPlan === '' ? 'Select Plan' : 'Choose This Plan'); ?>
+                        </button>
                     </div>
                 </div>
             </div>
             <div class="col-md-4 mb-4">
-                <div class="card payment-card h-100">
+                <div class="card payment-card plan-option-card h-100<?php echo $selectedPlan === 'family' ? ' plan-option-card--selected' : ''; ?>">
                     <div class="card-body text-center p-4">
+                        <?php if ($selectedPlan === 'family'): ?>
+                            <div class="plan-selected-badge">Selected Plan</div>
+                        <?php endif; ?>
                         <div class="payment-icon">
                             <i class="fas fa-users" aria-hidden="true"></i>
                         </div>
@@ -188,7 +222,14 @@ include '../layouts/header.php';
                             <li><i class="fas fa-check me-2" aria-hidden="true"></i> 3 cleanings each/year</li>
                             <li><i class="fas fa-check me-2" aria-hidden="true"></i> 15% off treatments</li>
                         </ul>
-                        <button type="button" class="btn btn-subscribe-plan btn-subscribe-plan--basic w-100 mt-3" onclick="selectPlan('family')">Select Plan</button>
+                        <button
+                            type="button"
+                            class="btn btn-subscribe-plan btn-subscribe-plan--basic w-100 mt-3"
+                            onclick="selectPlan('family')"
+                            <?php echo $selectedPlan === 'family' ? 'disabled aria-disabled="true"' : ''; ?>
+                        >
+                            <?php echo $selectedPlan === 'family' ? 'Selected' : ($selectedPlan === '' ? 'Select Plan' : 'Choose This Plan'); ?>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -200,7 +241,7 @@ include '../layouts/header.php';
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-white border-0 py-3">
                 <h4>Complete Payment for <?php echo ucfirst($selectedPlan); ?> Plan</h4>
-                <p class="text-muted">Choose your payment method</p>
+                <p class="text-muted">Your selected plan is locked in below. Choose a payment method to continue.</p>
             </div>
             <div class="card-body">
                 <div class="row">
@@ -261,6 +302,27 @@ function selectPaymentMethod(method) {
 
 const style = document.createElement('style');
 style.textContent = `
+    .subscription-page .plan-option-card {
+        position: relative;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .subscription-page .plan-option-card--selected {
+        border: 2px solid var(--bills-accent-deep, #6ca3f5) !important;
+        box-shadow: 0 14px 34px rgba(108, 163, 245, 0.18);
+        transform: translateY(-4px);
+    }
+    .subscription-page .plan-selected-badge {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        background: var(--bills-accent-deep, #6ca3f5);
+        color: #fff;
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 0.35rem 0.7rem;
+        border-radius: 999px;
+        letter-spacing: 0.02em;
+    }
     .subscription-page .payment-card.selected {
         transform: scale(1.02);
     }

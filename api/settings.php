@@ -31,16 +31,58 @@ $respondOkTab = static function (string $message, string $t) use ($redirectToTab
     api_ok(['redirect' => $redirectToTab($t)], $message);
 };
 
-$upsertClinicSetting = static function (string $key, string $value) use ($db): bool {
+$touchUserSync = static function (int $uid): void {
+    if ($uid <= 0) {
+        return;
+    }
+    try {
+        sync_push_row_now('users', $uid);
+    } catch (Throwable $ignored) {
+    }
+};
+
+$touchSubscriptionPlanSync = static function (int $planId): void {
+    if ($planId <= 0) {
+        return;
+    }
+    try {
+        sync_push_row_now('subscription_plans', $planId);
+    } catch (Throwable $ignored) {
+    }
+};
+
+$upsertClinicSetting = static function (string $key, string $value) use ($db): ?int {
     $existing = $db->fetchOne('SELECT id FROM clinic_settings WHERE setting_key = ?', [$key], 's');
     if ($existing) {
-        $res = $db->execute('UPDATE clinic_settings SET setting_value = ? WHERE setting_key = ?', [$value, $key], 'ss');
+        $settingId = (int) ($existing['id'] ?? 0);
+        if ($settingId <= 0) {
+            return null;
+        }
+        $res = $db->execute(
+            "UPDATE clinic_settings
+             SET setting_value = ?, sync_status = 'pending'
+             WHERE id = ?",
+            [$value, $settingId],
+            'si'
+        );
+        if ($res === false) {
+            return null;
+        }
+        sync_push_row_now('clinic_settings', $settingId);
 
-        return $res !== false;
+        return $settingId;
     }
-    $res = $db->execute('INSERT INTO clinic_settings (setting_key, setting_value) VALUES (?, ?)', [$key, $value], 'ss');
+    $settingId = (int) $db->insert(
+        'INSERT INTO clinic_settings (setting_key, setting_value, sync_status) VALUES (?, ?, ?)',
+        [$key, $value, 'pending'],
+        'sss'
+    );
+    if ($settingId <= 0) {
+        return null;
+    }
+    sync_push_row_now('clinic_settings', $settingId);
 
-    return $res !== false;
+    return $settingId;
 };
 
 // Primary dispatch: hidden field always sent with fetch/FormData (submit button name is not).
@@ -93,7 +135,16 @@ switch ($action) {
             api_error((string) __('email_exists', 'Email already exists.'), 409);
         }
 
-        $db->execute('UPDATE users SET full_name = ?, phone = ?, email = ? WHERE id = ?', [$fullName, $phone, $email, $userId], 'sssi');
+        $setParts = ['full_name = ?', 'phone = ?', 'email = ?'];
+        $values = [$fullName, $phone, $email];
+        $types = 'sss';
+        if (dbColumnExists('users', 'sync_status')) {
+            $setParts[] = "sync_status = 'pending'";
+        }
+        $values[] = $userId;
+        $types .= 'i';
+        $db->execute('UPDATE users SET ' . implode(', ', $setParts) . ' WHERE id = ?', $values, $types);
+        $touchUserSync($userId);
         $_SESSION['full_name'] = $fullName;
         $respondOkTab((string) __('profile_updated', 'Profile updated.'), 'profile');
         break;
@@ -119,7 +170,16 @@ switch ($action) {
         }
 
         $newHash = Auth::hashPassword($newPassword);
-        $db->execute('UPDATE users SET password_hash = ? WHERE id = ?', [$newHash, $userId], 'si');
+        $setParts = ['password_hash = ?'];
+        $values = [$newHash];
+        $types = 's';
+        if (dbColumnExists('users', 'sync_status')) {
+            $setParts[] = "sync_status = 'pending'";
+        }
+        $values[] = $userId;
+        $types .= 'i';
+        $db->execute('UPDATE users SET ' . implode(', ', $setParts) . ' WHERE id = ?', $values, $types);
+        $touchUserSync($userId);
         $respondOkTab((string) __('password_updated', 'Password updated.'), 'password');
         break;
 
@@ -137,20 +197,20 @@ switch ($action) {
         $openingHours = (string) ($_POST['opening_hours'] ?? '');
 
         $ok =
-            $upsertClinicSetting('clinic_name', $clinicName)
-            && $upsertClinicSetting('clinic_phone', $clinicPhone)
-            && $upsertClinicSetting('clinic_email', $clinicEmail)
-            && $upsertClinicSetting('clinic_address', $clinicAddress)
-            && $upsertClinicSetting('opening_hours', $openingHours);
+            $upsertClinicSetting('clinic_name', $clinicName) !== null
+            && $upsertClinicSetting('clinic_phone', $clinicPhone) !== null
+            && $upsertClinicSetting('clinic_email', $clinicEmail) !== null
+            && $upsertClinicSetting('clinic_address', $clinicAddress) !== null
+            && $upsertClinicSetting('opening_hours', $openingHours) !== null;
 
         $allowPoints = isset($_POST['allow_points']) ? '1' : '0';
         $allowReferrals = isset($_POST['allow_referrals']) ? '1' : '0';
         $allowSubscription = isset($_POST['allow_subscription']) ? '1' : '0';
 
         $ok = $ok
-            && $upsertClinicSetting('allow_points_view', $allowPoints)
-            && $upsertClinicSetting('allow_referrals_view', $allowReferrals)
-            && $upsertClinicSetting('allow_subscription_view', $allowSubscription);
+            && $upsertClinicSetting('allow_points_view', $allowPoints) !== null
+            && $upsertClinicSetting('allow_referrals_view', $allowReferrals) !== null
+            && $upsertClinicSetting('allow_subscription_view', $allowSubscription) !== null;
 
         if (!$ok) {
             api_error('Error updating clinic info. Please try again.', 500);
@@ -173,13 +233,17 @@ switch ($action) {
         $displayOrder = (int) ($_POST['display_order'] ?? 0);
 
         $res = $db->execute(
-            'UPDATE subscription_plans SET plan_name = ?, monthly_price = ?, annual_price = ?, features = ?, is_active = ?, display_order = ? WHERE plan_key = ?',
+            'UPDATE subscription_plans SET plan_name = ?, monthly_price = ?, annual_price = ?, features = ?, is_active = ?, display_order = ?'
+            . (dbColumnExists('subscription_plans', 'sync_status') ? ", sync_status = 'pending'" : '')
+            . ' WHERE plan_key = ?',
             [$planName, $monthlyPrice, $annualPrice, $features, $isActive, $displayOrder, $planKey],
             'sddsiss'
         );
         if ($res === false) {
             api_error('Error updating plan.', 500);
         }
+        $planRow = $db->fetchOne('SELECT id FROM subscription_plans WHERE plan_key = ? LIMIT 1', [$planKey], 's');
+        $touchSubscriptionPlanSync((int) ($planRow['id'] ?? 0));
         $respondOkTab('Plan updated successfully.', 'subscription_plans');
         break;
 
@@ -204,13 +268,68 @@ switch ($action) {
             api_error((string) __('username_email_exists', 'Username or email already exists.'), 409);
         }
 
-        $passwordHash = Auth::hashPassword($password);
-        $db->execute(
-            "INSERT INTO users (username, email, password_hash, full_name, role, phone, is_admin, is_active)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
-            [$username, $email, $passwordHash, $fullName, $role, $phone, $isAdminUser],
-            'ssssssi'
-        );
+        $conn = $db->getConnection();
+        $conn->begin_transaction();
+        $newPatientId = 0;
+
+        try {
+            $passwordHash = Auth::hashPassword($password);
+            $columns = ['username', 'email', 'password_hash', 'full_name', 'role', 'phone', 'is_admin', 'is_active'];
+            $values = [$username, $email, $passwordHash, $fullName, $role, $phone, $isAdminUser, 1];
+            $types = 'ssssssii';
+            if (dbColumnExists('users', 'sync_status')) {
+                $columns[] = 'sync_status';
+                $values[] = 'pending';
+                $types .= 's';
+            }
+            $newUserId = (int) $db->insert(
+                'INSERT INTO users (' . implode(', ', $columns) . ') VALUES (' . implode(', ', array_fill(0, count($columns), '?')) . ')',
+                $values,
+                $types
+            );
+            if ($newUserId <= 0) {
+                throw new RuntimeException('Error creating user account.');
+            }
+
+            if ($role === 'patient') {
+                $patientColumns = ['user_id', 'full_name', 'phone', 'email'];
+                $patientValues = [(int) $newUserId, $fullName, $phone, $email];
+                $patientTypes = 'isss';
+
+                if (dbColumnExists('patients', 'created_by')) {
+                    $patientColumns[] = 'created_by';
+                    $patientValues[] = $userId;
+                    $patientTypes .= 'i';
+                }
+                if (dbColumnExists('patients', 'sync_status')) {
+                    $patientColumns[] = 'sync_status';
+                    $patientValues[] = 'pending';
+                    $patientTypes .= 's';
+                }
+
+                $newPatientId = (int) $db->insert(
+                    'INSERT INTO patients (' . implode(', ', $patientColumns) . ') VALUES (' . implode(', ', array_fill(0, count($patientColumns), '?')) . ')',
+                    $patientValues,
+                    $patientTypes
+                );
+                if ($newPatientId <= 0) {
+                    throw new RuntimeException('Error creating patient record.');
+                }
+            }
+
+            $conn->commit();
+        } catch (Throwable $e) {
+            try {
+                $conn->rollback();
+            } catch (Throwable $ignored) {
+            }
+            api_error($e->getMessage(), 500);
+        }
+
+        $touchUserSync($newUserId);
+        if ($newPatientId > 0) {
+            sync_push_row_now('patients', $newPatientId);
+        }
 
         $respondOkTab((string) __('user_added', 'User added.') . ' - Password: ' . $password, 'users');
         break;
@@ -222,7 +341,16 @@ switch ($action) {
             api_error('Invalid user.', 422);
         }
         $newStatus = $currentStatus === 1 ? 0 : 1;
-        $db->execute('UPDATE users SET is_active = ? WHERE id = ?', [$newStatus, $targetUserId], 'ii');
+        $setParts = ['is_active = ?'];
+        $values = [$newStatus];
+        $types = 'i';
+        if (dbColumnExists('users', 'sync_status')) {
+            $setParts[] = "sync_status = 'pending'";
+        }
+        $values[] = $targetUserId;
+        $types .= 'i';
+        $db->execute('UPDATE users SET ' . implode(', ', $setParts) . ' WHERE id = ?', $values, $types);
+        $touchUserSync($targetUserId);
         $respondOkTab((string) __('user_status_updated', 'User status updated.'), 'users');
         break;
 
@@ -236,7 +364,16 @@ switch ($action) {
         if ($targetUserId === $userId && $newAdmin === 0) {
             api_error((string) __('cannot_remove_own_admin', 'Cannot remove your own admin.'), 422);
         }
-        $db->execute('UPDATE users SET is_admin = ? WHERE id = ?', [$newAdmin, $targetUserId], 'ii');
+        $setParts = ['is_admin = ?'];
+        $values = [$newAdmin];
+        $types = 'i';
+        if (dbColumnExists('users', 'sync_status')) {
+            $setParts[] = "sync_status = 'pending'";
+        }
+        $values[] = $targetUserId;
+        $types .= 'i';
+        $db->execute('UPDATE users SET ' . implode(', ', $setParts) . ' WHERE id = ?', $values, $types);
+        $touchUserSync($targetUserId);
         $respondOkTab((string) __('admin_status_updated', 'Admin status updated.'), 'users');
         break;
 
@@ -248,20 +385,41 @@ switch ($action) {
         if ($targetUserId === $userId) {
             api_error((string) __('cannot_delete_self', 'Cannot delete yourself.'), 422);
         }
-        $db->execute('DELETE FROM users WHERE id = ?', [$targetUserId], 'i');
+        $deleted = (int) $db->execute('DELETE FROM users WHERE id = ?', [$targetUserId], 'i');
+        if ($deleted > 0) {
+            queueCloudDeletion('users', $targetUserId, 'local_id');
+            sync_process_delete_queue_now(1);
+        }
         $respondOkTab((string) __('user_deleted', 'User deleted.'), 'users');
         break;
 
-    case 'reset_user_password':
-        $targetUserId = (int) ($_POST['user_id'] ?? 0);
-        if ($targetUserId <= 0) {
-            api_error('Invalid user.', 422);
-        }
-        $newPassword = (string) generateRandomPassword();
-        $passwordHash = Auth::hashPassword($newPassword);
-        $db->execute('UPDATE users SET password_hash = ? WHERE id = ?', [$passwordHash, $targetUserId], 'si');
-        $respondOkTab((string) __('password_reset', 'Password reset.') . ' - New Password: ' . $newPassword, 'users');
-        break;
+case 'reset_user_password':
+    $targetUserId = (int) ($_POST['user_id'] ?? 0);
+    if ($targetUserId <= 0) {
+        api_error('Invalid user.', 422);
+    }
+    $newPassword = (string) generateRandomPassword();
+    $passwordHash = Auth::hashPassword($newPassword);
+    $setParts = ['password_hash = ?'];
+    $values = [$passwordHash];
+    $types = 's';
+    if (dbColumnExists('users', 'sync_status')) {
+        $setParts[] = "sync_status = 'pending'";
+    }
+    $values[] = $targetUserId;
+    $types .= 'i';
+    $db->execute('UPDATE users SET ' . implode(', ', $setParts) . ' WHERE id = ?', $values, $types);
+    $touchUserSync($targetUserId);
+    
+    // Instead of redirecting, return JSON with new_password
+    header('Content-Type: application/json');
+    echo json_encode([
+        'success' => true,
+        'message' => 'Password reset successfully.',
+        'new_password' => $newPassword
+    ]);
+    exit;
+    break;
 
     default:
         api_error('Invalid action.', 400);

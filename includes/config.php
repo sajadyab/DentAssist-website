@@ -4,7 +4,12 @@
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
 define('DB_PASS', '');
-define('DB_NAME', 'dental_clinic');
+define('DB_NAME', 'dental_clinic_local');
+
+define('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpmenJ2aW9qd2lucmFzY3Bkb3ljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxNDU0MzQsImV4cCI6MjA5MDcyMTQzNH0.bivyEAYdzrNP8DE5G5NfyKK31fM2KiO9Dpw5AQBUg6cy');      
+define('SUPABASE_URL', 'https://zfzrviojwinrascpdoyc.supabase.co');   // Replace with your actual Supabase URL
+define('SUPABASE_KEY', 'sb_publishable_a0kU3h5n4ytw5N8hTY1PQg_1Cz7ZKoD'); // Replace with your key
+
 
 // Application configuration
 define('SITE_NAME', 'DentAssist<br>Smart Dental Clinic');
