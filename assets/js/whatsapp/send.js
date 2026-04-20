@@ -5,7 +5,7 @@ const path = require('path');
 const http = require('http');
 
 const PORT = Number(process.env.WHATSAPP_SERVER_PORT || 3210);
-const HOST = process.env.WHATSAPP_SERVER_HOST || '127.0.0.1';
+const HOST = process.env.WHATSAPP_SERVER_HOST || '0.0.0.0';
 const QR_SCAN_TIMEOUT_MS = 300000;
 const qrOutputPath = path.join(__dirname, 'last-qr.txt');
 
@@ -46,6 +46,7 @@ async function processQueue() {
 
     setTimeout(processQueue, 1500); // delay reduces ban risk
 }
+
 
 const client = new Client({
     authStrategy: new LocalAuth({
@@ -108,23 +109,8 @@ client.on('auth_failure', (msg) => {
 });
 
 client.on('disconnected', (reason) => {
-
     isReady = false;
-
     console.log('Client disconnected:', reason);
-
-    console.log('Reconnecting WhatsApp in 5 seconds...');
-
-    setTimeout(() => {
-
-        try {
-            client.initialize();
-        } catch (err) {
-            console.log("Reconnect failed:", err?.message || err);
-        }
-
-    }, 5000);
-
 });
 
 const server = http.createServer(async (req, res) => {

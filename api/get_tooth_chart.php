@@ -3,6 +3,7 @@ require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
+require_once '../includes/patient_cloud_repository.php';
 
 Auth::requireLogin();
 header('Content-Type: application/json');
@@ -22,13 +23,7 @@ if (Auth::hasRole('patient')) {
     }
 }
 
-$db = Database::getInstance();
-$teeth = $db->fetchAll(
-    "SELECT tooth_number, status, diagnosis, treatment, notes, last_updated 
-     FROM tooth_chart WHERE patient_id = ?",
-    [$patientId],
-    "i"
-);
+$teeth = patient_portal_list_tooth_chart_cloud_first($patientId);
 
 $result = [];
 foreach ($teeth as $t) {

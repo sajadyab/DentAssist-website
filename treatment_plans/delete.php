@@ -28,6 +28,15 @@ $conn = $db->getConnection();
 $conn->begin_transaction();
 
 try {
+    $stepRows = $db->fetchAll("SELECT id FROM treatment_steps WHERE plan_id = ?", [$planId], "i");
+    foreach ($stepRows as $sr) {
+        $sid = (int) ($sr['id'] ?? 0);
+        if ($sid > 0) {
+            queueCloudDeletion('treatment_steps', $sid, 'local_id');
+        }
+    }
+    queueCloudDeletion('treatment_plans', $planId, 'local_id');
+
     // ------------------------------------------------------------------
     // 1. Check for foreign key constraints on treatment_steps
     // ------------------------------------------------------------------
@@ -56,6 +65,14 @@ try {
     $stepDeleteError = '';
 
     try {
+        // Get all step IDs for this plan before deleting
+        $stepIds = $db->fetchAll("SELECT id FROM treatment_steps WHERE plan_id = ?", [$planId], "i");
+        
+        // Queue deletions for sync
+        foreach ($stepIds as $step) {
+            queueCloudDeletion('treatment_steps', (int) $step['id'], 'local_id');
+        }
+
         $stepDelete = $db->execute("DELETE FROM treatment_steps WHERE plan_id = ?", [$planId], "i");
         if ($stepDelete !== false) {
             $stepDeleteSuccess = true;
@@ -102,6 +119,7 @@ try {
     // 4. Commit transaction and log success
     // ------------------------------------------------------------------
     $conn->commit();
+    sync_process_delete_queue_now(50);
     logAction('DELETE', 'treatment_plans', $planId, $plan, null);
     $_SESSION['success'] = 'Treatment plan and all associated steps deleted successfully.';
 

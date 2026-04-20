@@ -45,19 +45,29 @@ $invoices = $db->fetchAll(
 include '../layouts/header.php';
 ?>
 
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3">Invoices</h1>
-        <a href="create_invoice.php" class="btn btn-primary">
-            <i class="fas fa-plus"></i> Create Invoice
+<div class="container-fluid bills-page billing-invoices-page">
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
+            <div class="col-12">
+                <h2 class="mb-2 fw-bold">
+                    <i class="fas fa-file-invoice-dollar me-2 opacity-90" aria-hidden="true"></i>Invoices
+                </h2>
+                <p class="mb-0 opacity-90">Create bills, track payment status, and follow up on balances.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-center justify-content-md-end mb-3 mb-md-4 billing-invoices-cta-wrap">
+        <a href="create_invoice.php" class="btn-green staff-cta-mobile-90">
+            <i class="fas fa-plus" aria-hidden="true"></i> Create Invoice
         </a>
     </div>
 
     <!-- Filters -->
-    <div class="card mb-4">
+    <div class="card mb-4 billing-invoices-filter-card">
         <div class="card-body">
             <form method="GET" class="row g-3">
-                <div class="col-md-4">
+                <div class="col-12 col-md-6 col-lg-4">
                     <label class="form-label">Payment Status</label>
                     <select class="form-select" name="status">
                         <option value="">All</option>
@@ -68,7 +78,7 @@ include '../layouts/header.php';
                         <option value="cancelled" <?php echo $status == 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                     </select>
                 </div>
-                <div class="col-md-6">
+                <div class="col-12 col-md-6 col-lg-5">
                     <label class="form-label">Patient</label>
                     <select class="form-select" name="patient_id">
                         <option value="">All Patients</option>
@@ -79,8 +89,10 @@ include '../layouts/header.php';
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="col-md-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary w-100">Filter</button>
+                <div class="col-12 col-md-12 col-lg-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-filter" aria-hidden="true"></i> Filter
+                    </button>
                 </div>
             </form>
         </div>
@@ -109,6 +121,11 @@ include '../layouts/header.php';
                         </thead>
                         <tbody>
                             <?php foreach ($invoices as $inv): ?>
+                                <?php
+                                $totalAmount = (float) ($inv['total_amount'] ?? $inv['subtotal'] ?? 0);
+                                $paidAmount = (float) ($inv['paid_amount'] ?? 0);
+                                $balanceDue = (float) ($inv['balance_due'] ?? max(0, $totalAmount - $paidAmount));
+                                ?>
                                 <tr>
                                     <td><strong><?php echo $inv['invoice_number']; ?></strong></td>
                                     <td>
@@ -118,9 +135,9 @@ include '../layouts/header.php';
                                     </td>
                                     <td><?php echo formatDate($inv['invoice_date']); ?></td>
                                     <td><?php echo formatDate($inv['due_date']); ?></td>
-                                    <td><?php echo formatCurrency($inv['total_amount']); ?></td>
-                                    <td><?php echo formatCurrency($inv['paid_amount']); ?></td>
-                                    <td><?php echo formatCurrency($inv['balance_due']); ?></td>
+                                    <td><?php echo formatCurrency($totalAmount); ?></td>
+                                    <td><?php echo formatCurrency($paidAmount); ?></td>
+                                    <td><?php echo formatCurrency($balanceDue); ?></td>
                                     <td>
                                         <?php
                                         $statusColors = [
@@ -135,15 +152,22 @@ include '../layouts/header.php';
                                         <span class="badge bg-<?php echo $color; ?>"><?php echo ucfirst($inv['payment_status']); ?></span>
                                     </td>
                                     <td>
-                                        <div class="btn-group">
-                                            <a href="invoice_view.php?id=<?php echo $inv['id']; ?>" class="btn btn-sm btn-info">
-                                                <i class="fas fa-eye"></i>
+                                        <div class="table-card-actions" role="group" aria-label="Invoice actions">
+                                            <a href="invoice_view.php?id=<?php echo $inv['id']; ?>"
+                                               class="btn btn-sm table-action-btn action-blue"
+                                               title="View">
+                                                <i class="fas fa-eye" aria-hidden="true"></i>
                                             </a>
-                                            <a href="edit_invoice.php?id=<?php echo $inv['id']; ?>" class="btn btn-sm btn-warning">
-                                                <i class="fas fa-edit"></i>
+                                            <a href="edit_invoice.php?id=<?php echo $inv['id']; ?>"
+                                               class="btn btn-sm table-action-btn action-yellow"
+                                               title="Edit">
+                                                <i class="fas fa-edit" aria-hidden="true"></i>
                                             </a>
-                                            <button class="btn btn-sm btn-success" onclick="recordPayment(<?php echo $inv['id']; ?>)">
-                                                <i class="fas fa-dollar-sign"></i>
+                                            <button type="button"
+                                                    class="btn btn-sm table-action-btn action-green"
+                                                    title="Record payment"
+                                                    onclick="recordPayment(<?php echo $inv['id']; ?>)">
+                                                <i class="fas fa-dollar-sign" aria-hidden="true"></i>
                                             </button>
                                         </div>
                                     </td>

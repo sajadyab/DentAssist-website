@@ -34,12 +34,30 @@ $patientNavActive = static function (string $leaf) use ($selfPath): bool {
 $showPointsMenu = getClinicSetting('allow_points_view', '1');
 $showReferralsMenu = getClinicSetting('allow_referrals_view', '1');
 $showSubscriptionMenu = getClinicSetting('allow_subscription_view', '1');
+
+/** Brand logo: add assets/images/logo.jpeg (also used by mobile toolbar in header.php after this include). */
+$appBrandLogoPath = dirname(__DIR__) . '/assets/images/logo.jpeg';
+$appBrandLogoUrl = asset_url('assets/images/logo.jpeg');
+$appBrandLogoExists = is_file($appBrandLogoPath);
+$appBrandLogoVer = $appBrandLogoExists ? (string) @filemtime($appBrandLogoPath) : '';
+
 ?>
 <div class="sidebar" id="app-sidebar">
-    <div class="sidebar-header">
-        <h3><?php echo SITE_NAME; ?></h3>
+    <div class="sidebar-header sidebar-brand">
+        <div class="sidebar-brand__logo-wrap">
+            <?php if ($appBrandLogoExists): ?>
+                <span class="sidebar-brand__logo sidebar-brand__logo--img">
+                    <img src="<?php echo htmlspecialchars($appBrandLogoUrl . ($appBrandLogoVer !== '' ? '?v=' . rawurlencode($appBrandLogoVer) : '')); ?>" alt="" width="56" height="56" decoding="async" loading="eager">
+                </span>
+            <?php else: ?>
+                <span class="sidebar-brand__logo" aria-hidden="true"><i class="fas fa-tooth"></i></span>
+            <?php endif; ?>
+        </div>
+        <h3 class="sidebar-brand__title">DentAssist</h3>
+        <p class="sidebar-brand__subtitle"><?php echo htmlspecialchars(__('smart_dental_clinic', 'Smart Dental Clinic')); ?></p>
     </div>
     
+    <?php if ($role !== 'patient'): ?>
     <div class="user-info">
         <?php
         // Determine profile image source
@@ -63,6 +81,7 @@ $showSubscriptionMenu = getClinicSetting('allow_subscription_view', '1');
             <small class="d-block text-muted"><?php echo ucfirst($role); ?></small>
         </div>
     </div>
+    <?php endif; ?>
     
     <ul class="nav-menu">
         <?php if ($role != 'patient'): ?>

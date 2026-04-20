@@ -13,12 +13,15 @@ $base = rtrim(SITE_URL, '/');
 ?>
 </main>
 <footer class="auth-site-footer">
-    <div class="container-fluid py-3 text-center small">
-        <span class="auth-footer-copy">&copy; <?php echo date('Y'); ?> <?php echo htmlspecialchars($authBrandPlain); ?></span>
-        <span class="auth-footer-sep mx-2" aria-hidden="true">·</span>
-        <a href="<?php echo htmlspecialchars($base); ?>/login.php" class="auth-footer-link">Sign in</a>
-        <span class="auth-footer-sep mx-2" aria-hidden="true">·</span>
-        <a href="<?php echo htmlspecialchars($base); ?>/register.php" class="auth-footer-link">Register</a>
+    <div class="auth-footer-content">
+        <div class="auth-footer-row auth-footer-copy-row">
+            &copy; <?php echo date('Y'); ?> <?php echo htmlspecialchars($authBrandPlain); ?>
+        </div>
+        <div class="auth-footer-row auth-footer-links-row">
+            <a href="<?php echo htmlspecialchars($base); ?>/login.php" class="auth-footer-link">Sign in</a>
+            <span class="auth-footer-sep" aria-hidden="true">·</span>
+            <a href="<?php echo htmlspecialchars($base); ?>/register.php" class="auth-footer-link">Register</a>
+        </div>
     </div>
 </footer>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>

@@ -78,12 +78,23 @@ try {
     
     // Create invoice
     $invoiceNumber = generateInvoiceNumber();
+    $invoiceColumns = ['patient_id', 'invoice_number', 'subtotal', 'payment_status', 'invoice_date', 'due_date', 'notes', 'created_by'];
+    $invoiceParams = [$patientId, $invoiceNumber, $amount, 'paid', $startDate, $startDate, "Subscription: {$plan} plan (Annual) - Paid via OWO", $userId];
+    $invoiceTypes = 'isdssssi';
+    if (dbColumnExists('invoices', 'total_amount')) {
+        array_splice($invoiceColumns, 3, 0, 'total_amount');
+        array_splice($invoiceParams, 3, 0, $amount);
+        $invoiceTypes = 'isddssssi';
+    }
+
     $invoiceId = $db->insert(
-        "INSERT INTO invoices (patient_id, invoice_number, subtotal, total_amount, payment_status, invoice_date, due_date, notes, created_by) 
-         VALUES (?, ?, ?, ?, 'paid', ?, ?, ?, ?)",
-        [$patientId, $invoiceNumber, $amount, $amount, $startDate, $startDate, "Subscription: {$plan} plan (Annual) - Paid via OWO", $userId],
-        "isddsssi"
+        'INSERT INTO invoices (' . implode(', ', $invoiceColumns) . ')'
+        . ' VALUES (' . implode(', ', array_fill(0, count($invoiceColumns), '?')) . ')',
+        $invoiceParams,
+        $invoiceTypes
     );
+    
+    sync_push_row_now('invoices', $invoiceId);
     
     // Record payment
     if ($hasSubscriptionPaymentsTable) {

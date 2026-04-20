@@ -22,11 +22,20 @@ if (isset($_POST['update_profile'])) {
         api_error('Full name and email are required.', 422);
     }
 
+    $setParts = ['full_name = ?', 'email = ?', 'phone = ?'];
+    $values = [$fullName, $email, $phone];
+    $types = 'sss';
+    if (dbColumnExists('users', 'sync_status')) {
+        $setParts[] = "sync_status = 'pending'";
+    }
+    $values[] = $userId;
+    $types .= 'i';
     $db->execute(
-        'UPDATE users SET full_name = ?, email = ?, phone = ? WHERE id = ?',
-        [$fullName, $email, $phone, $userId],
-        'sssi'
+        'UPDATE users SET ' . implode(', ', $setParts) . ' WHERE id = ?',
+        $values,
+        $types
     );
+    sync_push_row_now('users', (int) $userId);
     $_SESSION['full_name'] = $fullName;
     api_ok(['reload' => true], 'Profile updated.');
 }
@@ -50,9 +59,17 @@ if (isset($_POST['change_password'])) {
     }
 
     $newHash = Auth::hashPassword($new);
-    $db->execute('UPDATE users SET password_hash = ? WHERE id = ?', [$newHash, $userId], 'si');
+    $setParts = ['password_hash = ?'];
+    $values = [$newHash];
+    $types = 's';
+    if (dbColumnExists('users', 'sync_status')) {
+        $setParts[] = "sync_status = 'pending'";
+    }
+    $values[] = $userId;
+    $types .= 'i';
+    $db->execute('UPDATE users SET ' . implode(', ', $setParts) . ' WHERE id = ?', $values, $types);
+    sync_push_row_now('users', (int) $userId);
     api_ok(['reload' => true], 'Password changed successfully.');
 }
 
 api_error('Invalid action.', 400);
-

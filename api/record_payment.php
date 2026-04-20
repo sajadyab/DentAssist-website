@@ -38,7 +38,13 @@ if (!$paymentId) {
 }
 
 // Update invoice paid_amount and status
-$invoice = $db->fetchOne("SELECT total_amount, paid_amount FROM invoices WHERE id = ?", [$input['invoice_id']], "i");
+$invoice = $db->fetchOne(
+    dbColumnExists('invoices', 'total_amount')
+        ? "SELECT total_amount, paid_amount FROM invoices WHERE id = ?"
+        : "SELECT subtotal AS total_amount, paid_amount FROM invoices WHERE id = ?",
+    [$input['invoice_id']],
+    "i"
+);
 $newPaid = $invoice['paid_amount'] + $input['amount'];
 $newStatus = 'pending';
 if ($newPaid >= $invoice['total_amount']) {
@@ -52,6 +58,8 @@ $db->execute(
     [$newPaid, $newStatus, $newStatus, $input['invoice_id']],
     "dssi"
 );
+
+sync_push_row_now('invoices', $input['invoice_id']);
 
 logAction('CREATE', 'payments', $paymentId, null, $input);
 echo json_encode(['success' => true, 'message' => 'Payment recorded']);

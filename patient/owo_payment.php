@@ -3,6 +3,7 @@ require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
+require_once '../includes/patient_cloud_repository.php';
 
 Auth::requireLogin();
 if ($_SESSION['role'] != 'patient') {
@@ -25,7 +26,10 @@ if (!isset($_SESSION['pending_subscription'])) {
 }
 
 $subscription = $_SESSION['pending_subscription'];
-$patient = $db->fetchOne("SELECT full_name, phone, email FROM patients WHERE id = ?", [$patientId], "i");
+$patient = patient_portal_fetch_patient_cloud_first((int) $patientId);
+if (!$patient) {
+    die("Patient record not found.");
+}
 
 // Clinic OWO/Wish number
 $CLINIC_OWO_NUMBER = "1234567890"; // Replace with actual clinic OWO number

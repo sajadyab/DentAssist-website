@@ -3,6 +3,7 @@ require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
+require_once '../includes/patient_cloud_repository.php';
 
 // Require login
 Auth::requireLogin();
@@ -39,36 +40,35 @@ switch ($method) {
             // Fetch appointments for calendar
             $start = $_GET['start'] ?? date('Y-m-d');
             $end = $_GET['end'] ?? date('Y-m-d', strtotime('+1 month'));
-            
-            // Build query based on user role
-            $whereClause = "a.appointment_date BETWEEN ? AND ?";
-            $params = [$start, $end];
-            $types = "ss";
-            
+
             if (Auth::hasRole('patient')) {
-                // Patients can only see their own appointments
                 $patientId = getPatientIdFromUserId(Auth::userId());
-                $whereClause .= " AND a.patient_id = ?";
-                $params[] = $patientId;
-                $types .= "i";
-            } elseif (Auth::hasRole('doctor')) {
-                $whereClause .= " AND a.doctor_id = ?";
-                $params[] = (int) Auth::userId();
-                $types .= "i";
+                $appointments = patient_portal_fetch_appointments_cloud_first((int) $patientId, $start, $end);
+            } else {
+                // Build query based on user role
+                $whereClause = "a.appointment_date BETWEEN ? AND ?";
+                $params = [$start, $end];
+                $types = "ss";
+
+                if (Auth::hasRole('doctor')) {
+                    $whereClause .= " AND a.doctor_id = ?";
+                    $params[] = (int) Auth::userId();
+                    $types .= "i";
+                }
+
+                $appointments = $db->fetchAll(
+                    "SELECT a.*, 
+                            p.full_name as patient_name,
+                            u.full_name as doctor_name
+                     FROM appointments a
+                     JOIN patients p ON a.patient_id = p.id
+                     JOIN users u ON a.doctor_id = u.id
+                     WHERE $whereClause
+                     ORDER BY a.appointment_date, a.appointment_time",
+                    $params,
+                    $types
+                );
             }
-            
-            $appointments = $db->fetchAll(
-                "SELECT a.*, 
-                        p.full_name as patient_name,
-                        u.full_name as doctor_name
-                 FROM appointments a
-                 JOIN patients p ON a.patient_id = p.id
-                 JOIN users u ON a.doctor_id = u.id
-                 WHERE $whereClause
-                 ORDER BY a.appointment_date, a.appointment_time",
-                $params,
-                $types
-            );
             
             $events = [];
             foreach ($appointments as $apt) {
@@ -85,9 +85,17 @@ switch ($method) {
                         break;
                 }
                 
+                $title = '';
+                if (Auth::hasRole('patient')) {
+                    $doctorLabel = !empty($apt['doctor_name']) ? ' - Dr. ' . $apt['doctor_name'] : '';
+                    $title = ($apt['treatment_type'] ?? 'Appointment') . $doctorLabel;
+                } else {
+                    $title = ($apt['patient_name'] ?? 'Patient') . ' - ' . ($apt['treatment_type'] ?? 'Appointment');
+                }
+
                 $events[] = [
                     'id' => $apt['id'],
-                    'title' => $apt['patient_name'] . ' - ' . $apt['treatment_type'],
+                    'title' => $title,
                     'start' => $apt['appointment_date'] . 'T' . $apt['appointment_time'],
                     'end' => $apt['appointment_date'] . 'T' . $apt['end_time'],
                     'backgroundColor' => $color,
@@ -131,10 +139,17 @@ switch ($method) {
                     'i'
                 );
                 $result = $db->execute(
-                    "UPDATE appointments SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    "UPDATE appointments SET status = ?, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ?",
                     [$data['status'], $data['id']],
                     "si"
                 );
+                if ($result === false) {
+                    echo json_encode(['success' => false, 'message' => 'Could not update appointment status']);
+                    break;
+                }
+                if ($result !== false) {
+                    sync_push_row_now('appointments', (int) $data['id']);
+                }
                 
                 logAction('UPDATE', 'appointments', $data['id'], null, ['status' => $data['status']]);
 
@@ -162,7 +177,7 @@ switch ($method) {
                 $sql = "UPDATE appointments SET 
                         patient_id = ?, doctor_id = ?, appointment_date = ?,
                         appointment_time = ?, duration = ?, treatment_type = ?,
-                        description = ?, chair_number = ?, status = ?, notes = ?
+                        description = ?, chair_number = ?, status = ?, notes = ?, sync_status = 'pending'
                         WHERE id = ?";
                 
                 $result = $db->execute(
@@ -182,6 +197,13 @@ switch ($method) {
                     ],
                     "iississsssi"
                 );
+                if ($result === false) {
+                    echo json_encode(['success' => false, 'message' => 'Could not update appointment']);
+                    break;
+                }
+                if ($result !== false) {
+                    sync_push_row_now('appointments', (int) $data['id']);
+                }
                 
                 logAction('UPDATE', 'appointments', $data['id'], null, $data);
 
@@ -207,8 +229,8 @@ switch ($method) {
                 $id = $db->insert(
                     "INSERT INTO appointments 
                     (patient_id, doctor_id, appointment_date, appointment_time, 
-                     duration, treatment_type, description, chair_number, status, created_by)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                     duration, treatment_type, description, chair_number, status, created_by, sync_status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     [
                         $data['patient_id'],
                         $data['doctor_id'],
@@ -219,12 +241,14 @@ switch ($method) {
                         $data['description'] ?? null,
                         $data['chair_number'] ?? null,
                         $data['status'] ?? 'scheduled',
-                        Auth::userId()
+                        Auth::userId(),
+                        'pending',
                     ],
-                    "iississssi"
+                    "iississssis"
                 );
                 
                 if ($id) {
+                    sync_push_row_now('appointments', (int) $id);
                     logAction('CREATE', 'appointments', $id, null, $data);
                     $postTreatmentWhatsapp = null;
                     if (($data['status'] ?? 'scheduled') === 'completed') {
@@ -283,11 +307,30 @@ switch ($method) {
                 echo json_encode(['success' => false, 'message' => 'Past appointments cannot be removed.']);
                 break;
             }
-            $ok = $db->execute('DELETE FROM appointments WHERE id = ? AND patient_id = ?', [$id, $patientId], 'ii');
-            if ($ok === false) {
-                http_response_code(500);
-                echo json_encode(['success' => false, 'message' => 'Could not remove appointment']);
-                break;
+            if (dbColumnExists('appointments', 'deleted')) {
+                $ok = $db->execute(
+                    "UPDATE appointments
+                     SET deleted = 1, status = 'cancelled', sync_status = 'pending'
+                     WHERE id = ? AND patient_id = ?",
+                    [$id, $patientId],
+                    'ii'
+                );
+                if ($ok === false) {
+                    http_response_code(500);
+                    echo json_encode(['success' => false, 'message' => 'Could not remove appointment']);
+                    break;
+                }
+                sync_push_row_now('appointments', $id);
+                queueCloudDeletion('appointments', $id, 'local_id');
+            } else {
+                $ok = $db->execute('DELETE FROM appointments WHERE id = ? AND patient_id = ?', [$id, $patientId], 'ii');
+                if ($ok === false) {
+                    http_response_code(500);
+                    echo json_encode(['success' => false, 'message' => 'Could not remove appointment']);
+                    break;
+                }
+                queueCloudDeletion('appointments', $id, 'local_id');
+                sync_process_delete_queue_now(1);
             }
             logAction('DELETE', 'appointments', $id, $apt, ['patient_self_cancel' => true]);
             echo json_encode(['success' => true, 'message' => 'Appointment removed']);
@@ -295,10 +338,18 @@ switch ($method) {
         }
 
         $result = $db->execute(
-            "UPDATE appointments SET status = 'cancelled', cancellation_reason = ? WHERE id = ?",
+            "UPDATE appointments SET status = 'cancelled', cancellation_reason = ?, sync_status = 'pending' WHERE id = ?",
             [$data['reason'] ?? null, $id],
             'si'
         );
+        if ($result === false) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Could not cancel appointment']);
+            break;
+        }
+        if ($result !== false) {
+            sync_push_row_now('appointments', $id);
+        }
 
         logAction('DELETE', 'appointments', $id);
 

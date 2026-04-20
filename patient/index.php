@@ -3,6 +3,7 @@ require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
+require_once '../includes/patient_cloud_repository.php';
 
 if (!function_exists('canViewPoints')) {
     function canViewPoints()
@@ -55,41 +56,27 @@ if (!$patientId) {
     die('Patient record not found. Please contact support.');
 }
 
-$patient = $db->fetchOne('SELECT * FROM patients WHERE id = ?', [$patientId], 'i');
+$patient = patient_portal_fetch_patient_cloud_first($patientId);
+if (!$patient) {
+    die('Patient record not found. Please contact support.');
+}
 
 if (canViewReferrals() && empty($patient['referral_code'])) {
     $newCode = strtoupper(substr(md5($patientId . uniqid()), 0, 8));
-    $db->execute('UPDATE patients SET referral_code = ? WHERE id = ?', [$newCode, $patientId], 'si');
-    $patient = $db->fetchOne('SELECT * FROM patients WHERE id = ?', [$patientId], 'i');
+    try {
+        patient_portal_set_referral_code_cloud_first((int) $patientId, $newCode);
+        $db->execute('UPDATE patients SET referral_code = ?, sync_status = \'pending\' WHERE id = ?', [$newCode, $patientId], 'si');
+        sync_push_row_now('patients', (int) $patientId);
+        $patient = patient_portal_fetch_patient_cloud_first($patientId);
+    } catch (Throwable $e) {
+        error_log('Patient referral code cloud-first update failed: ' . $e->getMessage());
+    }
 }
 
-$nextAppointment = $db->fetchOne(
-    "SELECT a.*, u.full_name as doctor_name 
-     FROM appointments a
-     JOIN users u ON a.doctor_id = u.id
-     WHERE a.patient_id = ? AND a.appointment_date >= CURDATE() AND a.status IN ('scheduled', 'checked-in')
-     ORDER BY a.appointment_date, a.appointment_time
-     LIMIT 1",
-    [$patientId],
-    'i'
-);
-
-$totalVisits = (int) $db->fetchOne(
-    "SELECT COUNT(*) as count FROM appointments WHERE patient_id = ? AND status = 'completed'",
-    [$patientId],
-    'i'
-)['count'];
-
-$recentAppointments = $db->fetchAll(
-    "SELECT a.*, u.full_name as doctor_name 
-     FROM appointments a
-     JOIN users u ON a.doctor_id = u.id
-     WHERE a.patient_id = ?
-     ORDER BY a.appointment_date DESC, a.appointment_time DESC
-     LIMIT 5",
-    [$patientId],
-    'i'
-);
+$allAppointments = patient_portal_fetch_appointments_cloud_first($patientId);
+$nextAppointment = patient_portal_pick_next_appointment($allAppointments);
+$totalVisits = patient_portal_count_completed_visits($allAppointments);
+$recentAppointments = array_slice($allAppointments, 0, 5);
 
 $showPoints = canViewPoints();
 $showRefs = canViewReferrals();
@@ -97,11 +84,7 @@ $showSub = canViewSubscription();
 
 $referralCount = 0;
 if ($showRefs) {
-    $referralCount = (int) $db->fetchOne(
-        'SELECT COUNT(*) as count FROM patients WHERE referred_by = ?',
-        [$patientId],
-        'i'
-    )['count'];
+    $referralCount = patient_portal_count_referred_patients_cloud_first((int) $patientId);
 }
 
 $points = (int) ($patient['points'] ?? 0);
@@ -109,13 +92,13 @@ $subscription = $patient['subscription_type'] ?? 'none';
 $subscriptionEnd = $patient['subscription_end_date'] ?? null;
 
 $statTiles = [
-    ['mod' => 'invoices', 'value' => $totalVisits, 'label' => 'Total visits', 'isText' => false],
+    ['mod' => 'invoices', 'value' => $totalVisits, 'label' => 'Visits', 'isText' => false],
 ];
 if ($showPoints) {
-    $statTiles[] = ['mod' => 'paid', 'value' => $points, 'label' => 'Points earned', 'isText' => false];
+    $statTiles[] = ['mod' => 'paid', 'value' => $points, 'label' => 'Points', 'isText' => false];
 }
 if ($showRefs) {
-    $statTiles[] = ['mod' => 'subs', 'value' => $referralCount, 'label' => 'Referrals made', 'isText' => false];
+    $statTiles[] = ['mod' => 'subs', 'value' => $referralCount, 'label' => 'Referrals', 'isText' => false];
 }
 if ($showSub) {
     $planDisp = ($subscription === 'none' || $subscription === '') ? 'None' : ucfirst($subscription);
@@ -162,8 +145,12 @@ $quickActions = [
     ['href' => 'bills.php', 'icon' => 'fa-file-invoice-dollar', 'title' => 'Bills', 'sub' => 'Payments & invoices'],
     ['href' => 'teeth.php', 'icon' => 'fa-smile', 'title' => 'Dental chart', 'sub' => 'Tooth chart'],
     ['href' => 'profile.php', 'icon' => 'fa-user', 'title' => 'Profile', 'sub' => 'Your account'],
-    ['href' => 'subscription.php', 'icon' => 'fa-crown', 'title' => 'Subscription', 'sub' => 'Plans & benefits'],
 ];
+
+// Conditionally add subscription
+if (!function_exists('canViewSubscription')) {
+    $quickActions[] = ['href' => 'subscription.php', 'icon' => 'fa-crown', 'title' => 'Subscription', 'sub' => 'Plans & benefits'];
+}
 if ($showPoints) {
     $quickActions[] = ['href' => 'points.php', 'icon' => 'fa-star', 'title' => 'Points', 'sub' => 'Rewards'];
 }
@@ -175,6 +162,12 @@ $actionColClassSidebar = 'col-6 mb-2';
 $ptsMod = $points % 250;
 $toNextReward = $points === 0 ? 250 : ($ptsMod === 0 ? 250 : 250 - $ptsMod);
 
+$idxHeroMemberSince = htmlspecialchars(formatDate($patient['created_at'], 'M Y'));
+$idxHeroLastVisit = patientHasLastVisitDate($patient['last_visit_date'] ?? null)
+    ? htmlspecialchars(formatDate(normalizePatientOptionalDate($patient['last_visit_date'] ?? null)))
+    : 'Never';
+$idxHeroVisits = (int) $totalVisits;
+
 $pageTitle = 'My Portal';
 include '../layouts/header.php';
 ?>
@@ -184,21 +177,34 @@ include '../layouts/header.php';
     <div class="bills-queue-header">
         <div class="row align-items-center bills-queue-header-inner">
             <div class="col-md-8">
-                <h2 class="mb-2 fw-bold">
-                    <i class="fas fa-hand-sparkles me-2 opacity-90" aria-hidden="true"></i>Welcome back, <?php echo htmlspecialchars($patient['full_name']); ?>
-                </h2>
-                <p class="mb-2 opacity-90">
-                    <i class="fas fa-calendar-alt me-1" aria-hidden="true"></i>Member since <?php echo htmlspecialchars(formatDate($patient['created_at'], 'M Y')); ?>
-                    <span class="mx-2">·</span>
-                    <i class="fas fa-history me-1" aria-hidden="true"></i>Last visit:
-                    <?php echo patientHasLastVisitDate($patient['last_visit_date'] ?? null)
-                        ? htmlspecialchars(formatDate(normalizePatientOptionalDate($patient['last_visit_date'] ?? null)))
-                        : 'Never'; ?>
-                    <span class="mx-2">·</span>
-                    <i class="fas fa-tooth me-1" aria-hidden="true"></i><?php echo (int) $totalVisits; ?> visits
-                </p>
+                <div class="idx-hero-mobile d-md-none" aria-label="Welcome">
+                    <p class="idx-hero-welcome-line mb-0">Welcome back,</p>
+                    <h2 class="idx-hero-name mb-0"><?php echo htmlspecialchars($patient['full_name']); ?></h2>
+                    <div class="idx-hero-stats-row">
+                        <span class="idx-hero-stat">Member since <?php echo $idxHeroMemberSince; ?></span>
+                        <span class="idx-hero-stat-sep" aria-hidden="true">·</span>
+                        <span class="idx-hero-stat">Last visit: <?php echo $idxHeroLastVisit; ?></span>
+                        <span class="idx-hero-stat-sep" aria-hidden="true">·</span>
+                        <span class="idx-hero-stat"><?php echo $idxHeroVisits; ?> visits</span>
+                    </div>
+                </div>
+                <div class="d-none d-md-block idx-hero-desktop">
+                    <h2 class="mb-2 fw-bold">
+                        <i class="fas fa-hand-sparkles me-2 opacity-90" aria-hidden="true"></i>Welcome back, <?php echo htmlspecialchars($patient['full_name']); ?>
+                    </h2>
+                    <p class="mb-2 opacity-90">
+                        <i class="fas fa-calendar-alt me-1" aria-hidden="true"></i>Member since <?php echo htmlspecialchars(formatDate($patient['created_at'], 'M Y')); ?>
+                        <span class="mx-2">·</span>
+                        <i class="fas fa-history me-1" aria-hidden="true"></i>Last visit:
+                        <?php echo patientHasLastVisitDate($patient['last_visit_date'] ?? null)
+                            ? htmlspecialchars(formatDate(normalizePatientOptionalDate($patient['last_visit_date'] ?? null)))
+                            : 'Never'; ?>
+                        <span class="mx-2">·</span>
+                        <i class="fas fa-tooth me-1" aria-hidden="true"></i><?php echo (int) $totalVisits; ?> visits
+                    </p>
+                </div>
                 <?php if ($showRefs): ?>
-                    <p class="small mt-3 mb-0 opacity-90">
+                    <p class="small mt-3 mb-0 opacity-90 d-none d-md-block">
                         <i class="fas fa-gift me-1" aria-hidden="true"></i>Share your referral code with friends to earn bonus points.
                     </p>
                 <?php endif; ?>
@@ -255,47 +261,49 @@ include '../layouts/header.php';
     <div class="row g-4 mb-4 idx-patient-two-col align-items-stretch">
         <div class="col-lg-8 col-xl-8 d-flex">
             <div class="idx-main-stack w-100" id="idx-main-stack">
-                <div id="idx-next-appt-block" class="card bills-dash-section-card mb-0 idx-next-appt-card border-0 shadow-none bg-transparent">
-                    <div class="card-body idx-next-appt-wrap p-0">
+                <div id="idx-next-appt-block" class="card bills-dash-section-card mb-0 idx-next-appt-card">
+                    <div class="card-header bills-arrivals-header bills-arrivals-header--subscriptions border-0">
+                        <div class="bills-arrivals-section-header__inner align-items-center">
+                            <div>
+                                <h5 class="card-title mb-0"><i class="fas fa-calendar-day me-2" aria-hidden="true"></i>Next appointment</h5>
+                            </div>
+                            <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
                         <?php if ($nextAppointment): ?>
-                            <div class="idx-next-appt-panel">
-                                <h2 class="idx-next-appt-panel__title">Next Appointment</h2>
-                                <div class="idx-next-appt-panel__content">
-                                    <div class="idx-next-appt-body-row">
-                                        <div class="idx-next-appt-mid">
-                                            <div class="idx-next-appt-rows">
-                                                <div class="idx-next-appt-row">
-                                                    <i class="fas fa-calendar-day" aria-hidden="true"></i>
-                                                    <span class="idx-next-appt-label">Date</span><span class="idx-next-appt-value"><?php echo htmlspecialchars(formatDate($nextAppointment['appointment_date'])); ?></span>
-                                                </div>
-                                                <div class="idx-next-appt-row">
-                                                    <i class="fas fa-clock" aria-hidden="true"></i>
-                                                    <span class="idx-next-appt-label">Time</span><span class="idx-next-appt-value"><?php echo htmlspecialchars(formatTime($nextAppointment['appointment_time'])); ?></span>
-                                                </div>
-                                                <div class="idx-next-appt-row">
-                                                    <i class="fas fa-user-md" aria-hidden="true"></i>
-                                                    <span class="idx-next-appt-label">Doctor</span><span class="idx-next-appt-value">Dr. <?php echo htmlspecialchars($nextAppointment['doctor_name']); ?></span>
-                                                </div>
-                                                <div class="idx-next-appt-row">
-                                                    <i class="fas fa-stethoscope" aria-hidden="true"></i>
-                                                    <span class="idx-next-appt-label">Treatment</span><span class="idx-next-appt-value"><?php echo htmlspecialchars((string) $nextAppointment['treatment_type']); ?></span>
-                                                </div>
+                            <div class="idx-next-appt-detail px-3 py-3">
+                                <div class="idx-next-appt-body-row">
+                                    <div class="idx-next-appt-mid">
+                                        <div class="idx-next-appt-rows">
+                                            <div class="idx-next-appt-row">
+                                                <i class="fas fa-calendar-day" aria-hidden="true"></i>
+                                                <span class="idx-next-appt-label">Date</span><span class="idx-next-appt-value"><?php echo htmlspecialchars(formatDate($nextAppointment['appointment_date'])); ?></span>
+                                            </div>
+                                            <div class="idx-next-appt-row">
+                                                <i class="fas fa-clock" aria-hidden="true"></i>
+                                                <span class="idx-next-appt-label">Time</span><span class="idx-next-appt-value"><?php echo htmlspecialchars(formatTime($nextAppointment['appointment_time'])); ?></span>
+                                            </div>
+                                            <div class="idx-next-appt-row">
+                                                <i class="fas fa-user-md" aria-hidden="true"></i>
+                                                <span class="idx-next-appt-label">Doctor</span><span class="idx-next-appt-value">Dr. <?php echo htmlspecialchars($nextAppointment['doctor_name']); ?></span>
+                                            </div>
+                                            <div class="idx-next-appt-row">
+                                                <i class="fas fa-stethoscope" aria-hidden="true"></i>
+                                                <span class="idx-next-appt-label">Treatment</span><span class="idx-next-appt-value"><?php echo htmlspecialchars((string) $nextAppointment['treatment_type']); ?></span>
                                             </div>
                                         </div>
-                                        <div class="idx-next-appt-actions">
-                                            <a href="queue.php" class="idx-next-appt-action-btn idx-next-appt-action-btn--schedule">Reschedule</a>
-                                            <button type="button" class="idx-next-appt-action-btn idx-next-appt-action-btn--cancel" id="idxCancelNextApptBtn" data-appt-id="<?php echo (int) $nextAppointment['id']; ?>">Cancel</button>
-                                        </div>
+                                    </div>
+                                    <div class="idx-next-appt-actions">
+                                        <a href="queue.php" class="idx-next-appt-action-btn idx-next-appt-action-btn--schedule">Reschedule</a>
+                                        <button type="button" class="idx-next-appt-action-btn idx-next-appt-action-btn--cancel" id="idxCancelNextApptBtn" data-appt-id="<?php echo (int) $nextAppointment['id']; ?>">Cancel</button>
                                     </div>
                                 </div>
                             </div>
                         <?php else: ?>
-                            <div class="idx-next-appt-panel">
-                                <h2 class="idx-next-appt-panel__title">Next Appointment</h2>
-                                <div class="idx-next-appt-panel__content idx-next-appt-panel__content--empty">
-                                    <p class="idx-next-appt-empty-msg">No upcoming appointments.</p>
-                                    <a href="queue.php" class="idx-next-appt-action-btn idx-next-appt-action-btn--schedule">Book Now</a>
-                                </div>
+                            <div class="bills-empty-state text-center py-4 px-3">
+                                <p class="text-muted small mb-3">No upcoming appointments.</p>
+                                <a href="queue.php" class="btn-green">Book appointment</a>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -314,7 +322,7 @@ include '../layouts/header.php';
                         <?php if (empty($recentAppointments)): ?>
                             <div class="bills-empty-state text-center py-4 px-3">
                                 <p class="text-muted small mb-3">No appointments yet.</p>
-                                <a href="queue.php" class="btn btn-sm bills-cta bills-cta--book">Book appointment</a>
+                                <a href="queue.php" class="btn-green">Book appointment</a>
                             </div>
                         <?php else: ?>
                             <div class="table-responsive">
@@ -382,7 +390,7 @@ include '../layouts/header.php';
                                         <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
                                     </div>
                                 </div>
-                                <div class="card-body py-3">
+                                <div class="card-body py-3" style="text-align: center;">
                                     <?php if ($subscription !== 'none' && $subscription !== ''): ?>
                                         <p class="mb-1 small"><strong><?php echo htmlspecialchars(ucfirst($subscription)); ?></strong> plan</p>
                                         <?php if ($subscriptionEnd): ?>
@@ -391,7 +399,7 @@ include '../layouts/header.php';
                                     <?php else: ?>
                                         <p class="text-muted small mb-2">No active subscription. View plans for discounts and cleanings.</p>
                                     <?php endif; ?>
-                                    <a href="subscription.php" class="btn btn-sm btn-light text-dark fw-semibold w-100 mt-2"><?php echo $subscription !== 'none' && $subscription !== '' ? 'Manage' : 'View plans'; ?></a>
+                                    <a href="subscription.php" class="btn-blue" style="width: 50%; "><?php echo $subscription !== 'none' && $subscription !== '' ? 'Manage' : 'View plans'; ?></a>
                                 </div>
                             </div>
                         </div>
@@ -431,77 +439,6 @@ include '../layouts/header.php';
         </div>
     </div>
 
-    <?php if ($showSub && ($subscription === 'none' || $subscription === '')): ?>
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card bills-dash-section-card mb-0">
-                    <div class="card-header bills-arrivals-header bills-arrivals-header--payment border-0">
-                        <div class="bills-arrivals-section-header__inner align-items-center">
-                            <div>
-                                <h5 class="card-title mb-0"><i class="fas fa-gem me-2" aria-hidden="true"></i>Recommended plans</h5>
-                            </div>
-                            <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <p class="idx-rec-plans-intro">Unlock benefits with an annual subscription — same options as on the subscription page, scaled for a quick overview.</p>
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <div class="card idx-rec-plan-card h-100">
-                                    <div class="card-body text-center idx-rec-plan-card-body">
-                                        <div class="idx-rec-plan-icon"><i class="fas fa-tooth" aria-hidden="true"></i></div>
-                                        <h3 class="idx-rec-plan-name">Basic Plan</h3>
-                                        <p class="idx-rec-plan-price mb-0">$29<span class="small">/month</span></p>
-                                        <p class="idx-rec-plan-year">$348/year</p>
-                                        <ul class="list-unstyled idx-rec-plan-features">
-                                            <li><i class="fas fa-check me-2" aria-hidden="true"></i>2 free cleanings/year</li>
-                                            <li><i class="fas fa-check me-2" aria-hidden="true"></i>10% off treatments</li>
-                                            <li><i class="fas fa-check me-2" aria-hidden="true"></i>Free consultation</li>
-                                        </ul>
-                                        <a href="subscription.php?plan=basic" class="btn btn-subscribe-plan btn-subscribe-plan--basic w-100">Choose plan</a>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="card idx-rec-plan-card idx-rec-plan-card--highlight h-100">
-                                    <div class="card-body text-center idx-rec-plan-card-body">
-                                        <span class="bills-badge bills-badge--yellow mb-1 d-inline-block">Popular</span>
-                                        <div class="idx-rec-plan-icon"><i class="fas fa-crown" aria-hidden="true"></i></div>
-                                        <h3 class="idx-rec-plan-name">Premium Plan</h3>
-                                        <p class="idx-rec-plan-price mb-0">$49<span class="small">/month</span></p>
-                                        <p class="idx-rec-plan-year">$588/year</p>
-                                        <ul class="list-unstyled idx-rec-plan-features">
-                                            <li><i class="fas fa-check me-2" aria-hidden="true"></i>4 free cleanings/year</li>
-                                            <li><i class="fas fa-check me-2" aria-hidden="true"></i>20% off treatments</li>
-                                            <li><i class="fas fa-check me-2" aria-hidden="true"></i>Priority scheduling</li>
-                                            <li><i class="fas fa-check me-2" aria-hidden="true"></i>Emergency access</li>
-                                        </ul>
-                                        <a href="subscription.php?plan=premium" class="btn btn-subscribe-plan btn-subscribe-plan--premium w-100">Choose plan</a>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="card idx-rec-plan-card h-100">
-                                    <div class="card-body text-center idx-rec-plan-card-body">
-                                        <div class="idx-rec-plan-icon"><i class="fas fa-users" aria-hidden="true"></i></div>
-                                        <h3 class="idx-rec-plan-name">Family Plan</h3>
-                                        <p class="idx-rec-plan-price mb-0">$79<span class="small">/month</span></p>
-                                        <p class="idx-rec-plan-year">$948/year</p>
-                                        <ul class="list-unstyled idx-rec-plan-features">
-                                            <li><i class="fas fa-check me-2" aria-hidden="true"></i>Covers up to 4 members</li>
-                                            <li><i class="fas fa-check me-2" aria-hidden="true"></i>3 cleanings each/year</li>
-                                            <li><i class="fas fa-check me-2" aria-hidden="true"></i>15% off treatments</li>
-                                        </ul>
-                                        <a href="subscription.php?plan=family" class="btn btn-subscribe-plan btn-subscribe-plan--basic w-100">Choose plan</a>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    <?php endif; ?>
 </div>
 
 <?php if ($showSub): ?>

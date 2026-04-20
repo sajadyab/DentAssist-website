@@ -5,7 +5,7 @@ require_once __DIR__ . '/../api/_helpers.php';
 Auth::requireLogin();
 
 $db = Database::getInstance();
-$invoiceId = $_GET['id'] ?? 0;
+$invoiceId = (int) ($_GET['id'] ?? 0);
 
 $invoice = $db->fetchOne(
     "SELECT i.*, p.full_name as patient_name
@@ -57,6 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     if ($result !== false) {
         logAction('UPDATE', 'invoices', $invoiceId, $invoice, $_POST);
+        sync_push_row_now('invoices', $invoiceId);
         $success = 'Invoice updated successfully';
         // Refresh invoice
         $invoice = $db->fetchOne(
@@ -72,98 +73,125 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 include '../layouts/header.php';
 ?>
 
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3">Edit Invoice #<?php echo $invoice['invoice_number']; ?></h1>
-        <div>
-            <a href="invoice_view.php?id=<?php echo $invoiceId; ?>" class="btn btn-info">
-                <i class="fas fa-eye"></i> View
-            </a>
-            <a href="invoices.php" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i> Back
-            </a>
+<div class="container-fluid bills-page billing-edit-invoice-page">
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
+            <div class="col-12 col-lg-8">
+                <h2 class="mb-2 fw-bold">
+                    <i class="fas fa-file-invoice-dollar me-2 opacity-90" aria-hidden="true"></i>Edit invoice
+                    #<?php echo htmlspecialchars((string) $invoice['invoice_number']); ?>
+                </h2>
+                <p class="mb-0 opacity-90">
+                    <?php echo htmlspecialchars((string) $invoice['patient_name']); ?>
+                    · update dates, amounts, and notes — the total preview refreshes as you change fields.
+                </p>
+            </div>
+            <div class="col-12 col-lg-4 mt-3 mt-lg-0 d-flex flex-column align-items-stretch align-items-lg-end justify-content-center billing-invoice-view-hero-actions-wrap">
+                <div class="billing-invoice-view-hero-actions" role="group" aria-label="Invoice navigation">
+                    <a href="invoices.php" class="btn billing-invoice-view-hero-btn">
+                        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                        <span class="d-none d-sm-inline">Back to Invoices</span><span class="d-sm-none">Back</span>
+                    </a>
+                    <a href="invoice_view.php?id=<?php echo $invoiceId; ?>" class="btn billing-invoice-view-hero-btn">
+                        <i class="fas fa-eye" aria-hidden="true"></i> View
+                    </a>
+                </div>
+            </div>
         </div>
     </div>
 
     <?php if ($error): ?>
-        <div class="alert alert-danger"><?php echo $error; ?></div>
+        <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
     <?php endif; ?>
 
     <?php if ($success): ?>
-        <div class="alert alert-success"><?php echo $success; ?></div>
+        <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
     <?php endif; ?>
 
-    <div class="card">
-        <div class="card-body">
-            <form method="POST" action="">
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Patient *</label>
-                        <select class="form-select" name="patient_id" required>
-                            <option value="">Select Patient</option>
-                            <?php foreach ($patients as $p): ?>
-                                <option value="<?php echo $p['id']; ?>" <?php echo $invoice['patient_id'] == $p['id'] ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($p['full_name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Invoice Date *</label>
-                        <input type="date" class="form-control" name="invoice_date" 
-                               value="<?php echo $invoice['invoice_date']; ?>" required>
-                    </div>
-
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Due Date *</label>
-                        <input type="date" class="form-control" name="due_date" 
-                               value="<?php echo $invoice['due_date']; ?>" required>
-                    </div>
-
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Subtotal ($)</label>
-                        <input type="number" step="0.01" class="form-control" name="subtotal" id="subtotal" 
-                               value="<?php echo $invoice['subtotal']; ?>" onchange="calculateTotal()">
-                    </div>
-
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Discount Type</label>
-                        <select class="form-select" name="discount_type" id="discount_type" onchange="calculateTotal()">
-                            <option value="fixed" <?php echo $invoice['discount_type'] == 'fixed' ? 'selected' : ''; ?>>Fixed ($)</option>
-                            <option value="percentage" <?php echo $invoice['discount_type'] == 'percentage' ? 'selected' : ''; ?>>Percentage (%)</option>
-                        </select>
-                    </div>
-
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Discount Value</label>
-                        <input type="number" step="0.01" class="form-control" name="discount_value" id="discount_value" 
-                               value="<?php echo $invoice['discount_value']; ?>" onchange="calculateTotal()">
-                    </div>
-
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Tax Rate (%)</label>
-                        <input type="number" step="0.01" class="form-control" name="tax_rate" id="tax_rate" 
-                               value="<?php echo $invoice['tax_rate']; ?>" onchange="calculateTotal()">
-                    </div>
-
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Total Amount</label>
-                        <input type="text" class="form-control" id="total" readonly value="<?php echo formatCurrency($invoice['total_amount']); ?>">
-                    </div>
-
-                    <div class="col-12 mb-3">
-                        <label class="form-label">Notes</label>
-                        <textarea class="form-control" name="notes" rows="3"><?php echo htmlspecialchars((string) ($invoice['notes'] ?? '')); ?></textarea>
+    <div class="row g-3">
+        <div class="col-12">
+            <div class="card bills-dash-section-card billing-create-invoice-form-card queue-registration-card">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--payment border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-file-invoice me-2" aria-hidden="true"></i>Invoice details</h5>
+                        </div>
                     </div>
                 </div>
+                <div class="card-body">
+                    <form method="POST" action="">
+                        <div class="row">
+                            <div class="col-12 col-md-6 mb-3">
+                                <label class="form-label" for="invEditPatient">Patient *</label>
+                                <select class="form-select form-control-modern" id="invEditPatient" name="patient_id" required>
+                                    <option value="">Select Patient</option>
+                                    <?php foreach ($patients as $p): ?>
+                                        <option value="<?php echo (int) $p['id']; ?>" <?php echo (int) $invoice['patient_id'] === (int) $p['id'] ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($p['full_name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
 
-                <hr>
-                <div class="d-flex justify-content-end gap-2">
-                    <button type="submit" class="btn btn-primary">Update Invoice</button>
-                    <a href="invoice_view.php?id=<?php echo $invoiceId; ?>" class="btn btn-secondary">Cancel</a>
+                            <div class="col-12 col-md-6 mb-3">
+                                <label class="form-label" for="invEditInvDate">Invoice Date *</label>
+                                <input type="date" class="form-control form-control-modern" id="invEditInvDate" name="invoice_date"
+                                       value="<?php echo htmlspecialchars((string) $invoice['invoice_date']); ?>" required>
+                            </div>
+
+                            <div class="col-12 col-md-6 mb-3">
+                                <label class="form-label" for="invEditDue">Due Date *</label>
+                                <input type="date" class="form-control form-control-modern" id="invEditDue" name="due_date"
+                                       value="<?php echo htmlspecialchars((string) $invoice['due_date']); ?>" required>
+                            </div>
+
+                            <div class="col-12 col-md-6 mb-3">
+                                <label class="form-label" for="subtotal">Subtotal ($)</label>
+                                <input type="number" step="0.01" class="form-control form-control-modern" name="subtotal" id="subtotal"
+                                       value="<?php echo htmlspecialchars((string) $invoice['subtotal']); ?>" onchange="calculateTotal()">
+                            </div>
+
+                            <div class="col-12 col-md-4 mb-3">
+                                <label class="form-label" for="discount_type">Discount Type</label>
+                                <select class="form-select form-control-modern" name="discount_type" id="discount_type" onchange="calculateTotal()">
+                                    <option value="fixed" <?php echo ($invoice['discount_type'] ?? '') === 'fixed' ? 'selected' : ''; ?>>Fixed ($)</option>
+                                    <option value="percentage" <?php echo ($invoice['discount_type'] ?? '') === 'percentage' ? 'selected' : ''; ?>>Percentage (%)</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12 col-md-4 mb-3">
+                                <label class="form-label" for="discount_value">Discount Value</label>
+                                <input type="number" step="0.01" class="form-control form-control-modern" name="discount_value" id="discount_value"
+                                       value="<?php echo htmlspecialchars((string) ($invoice['discount_value'] ?? '0')); ?>" onchange="calculateTotal()">
+                            </div>
+
+                            <div class="col-12 col-md-4 mb-3">
+                                <label class="form-label" for="tax_rate">Tax Rate (%)</label>
+                                <input type="number" step="0.01" class="form-control form-control-modern" name="tax_rate" id="tax_rate"
+                                       value="<?php echo htmlspecialchars((string) ($invoice['tax_rate'] ?? '0')); ?>" onchange="calculateTotal()">
+                            </div>
+
+                            <div class="col-12 col-md-6 mb-3">
+                                <label class="form-label" for="total">Total Amount</label>
+                                <input type="text" class="form-control form-control-modern" id="total" readonly
+                                       value="<?php echo htmlspecialchars(formatCurrency((float) ($invoice['total_amount'] ?? 0))); ?>">
+                            </div>
+
+                            <div class="col-12 mb-3">
+                                <label class="form-label" for="invEditNotes">Notes</label>
+                                <textarea class="form-control form-control-modern" name="notes" id="invEditNotes" rows="3"><?php echo htmlspecialchars((string) ($invoice['notes'] ?? '')); ?></textarea>
+                            </div>
+                        </div>
+
+                        <hr class="my-3">
+
+                        <div class="d-flex justify-content-lg-end gap-2 flex-wrap billing-create-invoice-form-actions">
+                            <button type="submit" class="btn-green">Update Invoice</button>
+                            <a href="invoice_view.php?id=<?php echo $invoiceId; ?>" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>

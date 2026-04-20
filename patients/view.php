@@ -81,22 +81,39 @@ $xrays = repo_xray_list_for_patient_excluding_dental_history($patientId);
 
 // Get invoices
 $invoices = repo_invoice_list_for_patient($patientId);
+foreach ($invoices as &$invoice) {
+    $invoice['total_amount'] = isset($invoice['total_amount'])
+        ? (float) $invoice['total_amount']
+        : (float) ($invoice['subtotal'] ?? 0);
+    $invoice['paid_amount'] = isset($invoice['paid_amount'])
+        ? (float) $invoice['paid_amount']
+        : 0.0;
+    $invoice['balance_due'] = isset($invoice['balance_due'])
+        ? (float) $invoice['balance_due']
+        : max(0.0, $invoice['total_amount'] - $invoice['paid_amount']);
+}
+unset($invoice);
 
 include '../layouts/header.php';
 ?>
 
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3">
-            <i class="fas fa-user"></i> <?php echo htmlspecialchars($patient['full_name'] ?: 'Patient #' . $patientId); ?>
-        </h1>
-        <div>
-            <a href="edit.php?id=<?php echo $patientId; ?>" class="btn btn-warning">
+<div class="container-fluid bills-page patients-view-page">
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
+            <div class="col-12 col-lg-8">
+                <h2 class="mb-2 fw-bold">
+                    <i class="fas fa-user me-2 opacity-90" aria-hidden="true"></i><?php echo htmlspecialchars($patient['full_name'] ?: 'Patient #' . $patientId); ?>
+                </h2>
+                <p class="mb-0 opacity-90">Review profile, history, visits, images, and billing in one place.</p>
+            </div>
+            <div class="col-12 col-lg-4 mt-3 mt-lg-0 d-flex justify-content-center justify-content-lg-end gap-2 patient-view-top-actions">
+                <a href="edit.php?id=<?php echo $patientId; ?>" class="btn btn-secondary patient-view-top-btn">
                 <i class="fas fa-edit"></i> Edit Patient
-            </a>
-            <button class="btn btn-primary" onclick="scheduleAppointment()">
-                <i class="fas fa-calendar-plus"></i> New Appointment
-            </button>
+                </a>
+                <button class="btn btn-secondary patient-view-top-btn" onclick="scheduleAppointment()">
+                    <i class="fas fa-calendar-plus"></i> New Appointment
+                </button>
+            </div>
         </div>
     </div>
 
@@ -119,7 +136,14 @@ include '../layouts/header.php';
     <!-- Patient Summary Card -->
     <div class="row mb-4">
         <div class="col-md-12">
-            <div class="card">
+            <div class="card bills-dash-section-card patient-view-summary-card">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--subscriptions border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-address-card me-2" aria-hidden="true"></i>Patient summary</h5>
+                        </div>
+                    </div>
+                </div>
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-3">
@@ -172,9 +196,17 @@ include '../layouts/header.php';
     <!-- Tabs -->
     <div class="row">
         <div class="col-md-12">
-            <div class="card">
-                <div class="card-header">
-                    <ul class="nav nav-tabs card-header-tabs" id="patientViewTabs" role="tablist">
+            <div class="card bills-dash-section-card patient-view-tabs-card">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--payment border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-folder-open me-2" aria-hidden="true"></i>Patient Details</h5>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <ul class="nav nav-tabs patient-view-tabs-nav mb-3" id="patientViewTabs" role="tablist">
                         <li class="nav-item">
                             <button class="nav-link active" id="appointments-tab" data-bs-toggle="tab" 
                                     data-bs-target="#appointments" type="button" role="tab">
@@ -218,9 +250,7 @@ include '../layouts/header.php';
                             </button>
                         </li>
                     </ul>
-                </div>
-                
-                <div class="card-body">
+
                     <div class="tab-content">
                         <!-- Appointments Tab -->
                         <div class="tab-pane active" id="appointments" role="tabpanel">
@@ -248,10 +278,12 @@ include '../layouts/header.php';
                                                     <td><?php echo $apt['treatment_type']; ?></td>
                                                     <td><?php echo getStatusBadge($apt['status']); ?></td>
                                                     <td>
+                                                        <div class="table-card-actions">
                                                         <a href="../appointments/view.php?id=<?php echo $apt['id']; ?>" 
-                                                           class="btn btn-sm btn-info">
+                                                           class="btn btn-sm btn-info table-action-btn action-blue" title="View appointment">
                                                             <i class="fas fa-eye"></i>
                                                         </a>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             <?php endforeach; ?>
@@ -511,10 +543,12 @@ include '../layouts/header.php';
                                                         </span>
                                                     </td>
                                                     <td>
+                                                        <div class="table-card-actions">
                                                         <a href="../billing/invoice_view.php?id=<?php echo $invoice['id']; ?>" 
-                                                           class="btn btn-sm btn-info">
+                                                           class="btn btn-sm btn-info table-action-btn action-blue" title="View invoice">
                                                             <i class="fas fa-eye"></i>
                                                         </a>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             <?php endforeach; ?>

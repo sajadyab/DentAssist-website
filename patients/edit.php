@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../api/_helpers.php';
 
@@ -32,6 +32,22 @@ if (is_array($decodedMedical)) {
     $existingMedicalNotes = (string)($decodedMedical['notes'] ?? '');
 }
 
+// Current medications can be stored as JSON array (new format) or plain text (legacy).
+$existingMedications = [];
+$decodedMeds = json_decode((string)($patient['current_medications'] ?? ''), true);
+if (is_array($decodedMeds)) {
+    $existingMedications = array_values(array_unique(array_filter(array_map('strval', $decodedMeds))));
+} else {
+    $legacyMeds = trim((string) ($patient['current_medications'] ?? ''));
+    if ($legacyMeds !== '') {
+        $existingMedications = [$legacyMeds];
+    }
+}
+
+$existingAllergies = strtolower(trim((string) ($patient['allergies'] ?? '')));
+$allergiesYesChecked = $existingAllergies === 'yes';
+$allergiesNoChecked = !$allergiesYesChecked;
+
 // ------------------------------------------------------------------
 // Handle form submission
 // ------------------------------------------------------------------
@@ -55,6 +71,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ], JSON_UNESCAPED_UNICODE);
     if ($medicalHistoryPayload === false) $medicalHistoryPayload = null;
 
+    $meds = $_POST['medications'] ?? [];
+    if (!is_array($meds)) {
+        $meds = [];
+    }
+    $meds = array_values(array_unique(array_filter(array_map('strval', $meds))));
+    $medsPayload = json_encode($meds, JSON_UNESCAPED_UNICODE);
+    if ($medsPayload === false) {
+        $medsPayload = null;
+    }
+
+    $allergiesFlag = 'no';
+    $ay = !empty($_POST['allergies_yes']);
+    $an = !empty($_POST['allergies_no']);
+    if ($ay && !$an) {
+        $allergiesFlag = 'yes';
+    }
+    if ($an && !$ay) {
+        $allergiesFlag = 'no';
+    }
+
     if (empty($error)) {
         $updatePayload = [
             'full_name' => $_POST['full_name'] ?? null,
@@ -70,8 +106,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'insurance_type' => $_POST['insurance_type'] ?? 'None',
             'insurance_coverage' => (int) ($_POST['insurance_coverage'] ?? 0),
             'medical_history' => $medicalHistoryPayload,
-            'allergies' => $_POST['allergies'] ?? null,
-            'current_medications' => $_POST['current_medications'] ?? null,
+            'allergies' => $allergiesFlag,
+            'current_medications' => $medsPayload,
             'dental_history' => $_POST['dental_history'] ?? null,
             'last_visit_date' => normalizePatientOptionalDate($_POST['last_visit_date'] ?? null),
             'address' => $address !== '' ? $address : null,
@@ -116,6 +152,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Refresh patient data
             $patient = repo_patient_find_by_id($patientId);
             $dentalHistoryImage = repo_xray_find_latest_dental_history_handwritten($patientId);
+            $decodedMeds = json_decode((string)($patient['current_medications'] ?? ''), true);
+            $existingMedications = is_array($decodedMeds)
+                ? array_values(array_unique(array_filter(array_map('strval', $decodedMeds))))
+                : [];
+            $existingAllergies = strtolower(trim((string) ($patient['allergies'] ?? '')));
+            $allergiesYesChecked = $existingAllergies === 'yes';
+            $allergiesNoChecked = !$allergiesYesChecked;
         } else {
             $error = 'Database error: could not update patient.';
         }
@@ -125,16 +168,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 include '../layouts/header.php';
 ?>
 
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3">Edit Patient: <?php echo htmlspecialchars($patient['full_name']); ?></h1>
-        <div>
-            <a href="view.php?id=<?php echo $patientId; ?>" class="btn btn-info">
-                <i class="fas fa-eye"></i> View Patient
-            </a>
-            <a href="index.php" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i> Back to Patients
-            </a>
+<div class="container-fluid bills-page patients-edit-page">
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
+            <div class="col-12 col-lg-8">
+                <h2 class="mb-2 fw-bold">
+                    <i class="fas fa-user-edit me-2 opacity-90" aria-hidden="true"></i>Edit Patient: <?php echo htmlspecialchars($patient['full_name']); ?>
+                </h2>
+                <p class="mb-0 opacity-90">Update patient profile, medical details, and dental history records.</p>
+            </div>
+            <div class="col-12 col-lg-4 mt-3 mt-lg-0 d-flex justify-content-center justify-content-lg-end gap-2 patients-edit-top-actions">
+                <a href="view.php?id=<?php echo $patientId; ?>" class="btn btn-secondary patients-edit-top-btn">
+                    <i class="fas fa-eye"></i> View Patient
+                </a>
+                <a href="index.php" class="btn btn-secondary patients-edit-top-btn">
+                    <i class="fas fa-arrow-left"></i> Back to Patients
+                </a>
+            </div>
         </div>
     </div>
 
@@ -145,10 +195,17 @@ include '../layouts/header.php';
         <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
     <?php endif; ?>
 
-    <div class="card">
+    <div class="card bills-dash-section-card form-card patients-edit-form-card">
+        <div class="card-header bills-arrivals-header bills-arrivals-header--payment border-0">
+            <div class="bills-arrivals-section-header__inner align-items-center">
+                <div>
+                    <h5 class="card-title mb-0"><i class="fas fa-id-card me-2" aria-hidden="true"></i>Patient details</h5>
+                </div>
+            </div>
+        </div>
         <div class="card-body">
             <form method="POST" action="" enctype="multipart/form-data" id="patientForm">
-                <ul class="nav nav-tabs mb-4" id="patientTabs" role="tablist">
+                <ul class="nav nav-tabs mb-4 patients-edit-tabs-nav" id="patientTabs" role="tablist">
                     <li class="nav-item"><button class="nav-link active" id="info-tab" data-bs-toggle="tab" data-bs-target="#info" type="button">Patient Info</button></li>
                     <li class="nav-item"><button class="nav-link" id="dental-tab" data-bs-toggle="tab" data-bs-target="#dental" type="button">Dental History</button></li>
                 </ul>
@@ -189,7 +246,7 @@ include '../layouts/header.php';
                             </div>
                             <div class="col-12 mb-3">
                                 <label class="form-label">Address</label>
-                                <input type="text" class="form-control" name="address" value="<?php echo htmlspecialchars($patient['address'] ?? ''); ?>">
+                                <input type="text" class="form-control" name="address" value="<?php echo htmlspecialchars($patient['address'] ?? $patient['address_line1'] ?? ''); ?>">
                             </div>
 
                             <div class="col-12"><h5 class="mt-3">Emergency Contact</h5><hr></div>
@@ -272,12 +329,32 @@ include '../layouts/header.php';
                                 </div>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Allergies</label>
-                                <textarea class="form-control" name="allergies" rows="3"><?php echo htmlspecialchars($patient['allergies'] ?? ''); ?></textarea>
+                                <label class="form-label">Current Medications</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="medications[]" value="Anticoagulants" id="med_anticoag" <?php echo in_array('Anticoagulants', $existingMedications, true) ? 'checked' : ''; ?>>
+                                    <label class="form-check-label" for="med_anticoag">Anticoagulants</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="medications[]" value="Steroids" id="med_steroids" <?php echo in_array('Steroids', $existingMedications, true) ? 'checked' : ''; ?>>
+                                    <label class="form-check-label" for="med_steroids">Steroids</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="medications[]" value="Chemotherapy" id="med_chemo" <?php echo in_array('Chemotherapy', $existingMedications, true) ? 'checked' : ''; ?>>
+                                    <label class="form-check-label" for="med_chemo">Chemotherapy</label>
+                                </div>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Current Medications</label>
-                                <textarea class="form-control" name="current_medications" rows="3"><?php echo htmlspecialchars($patient['current_medications'] ?? ''); ?></textarea>
+                                <label class="form-label d-block">Allergies</label>
+                                <div class="d-flex gap-3 align-items-center">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="allergies_yes" value="1" id="allergies_yes" <?php echo $allergiesYesChecked ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="allergies_yes">Yes</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="allergies_no" value="1" id="allergies_no" <?php echo $allergiesNoChecked ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="allergies_no">No</label>
+                                    </div>
+                                </div>
                             </div>
                             <div class="col-12 mb-3">
                                 <label class="form-label">Additional Notes</label>
@@ -405,5 +482,16 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }, 200);
     }
+
+    // Keep allergies yes/no mutually exclusive
+    const allergiesYesEl = document.getElementById('allergies_yes');
+    const allergiesNoEl = document.getElementById('allergies_no');
+    allergiesYesEl?.addEventListener('change', function () {
+        if (this.checked && allergiesNoEl) allergiesNoEl.checked = false;
+    });
+    allergiesNoEl?.addEventListener('change', function () {
+        if (this.checked && allergiesYesEl) allergiesYesEl.checked = false;
+        if (!this.checked && allergiesYesEl && !allergiesYesEl.checked) this.checked = true;
+    });
 });
 </script>

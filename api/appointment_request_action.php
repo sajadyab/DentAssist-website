@@ -90,8 +90,8 @@ if ($action === 'approve') {
         $apptId = $db->insert(
             "INSERT INTO appointments (
                 patient_id, doctor_id, appointment_date, appointment_time, duration,
-                treatment_type, description, chair_number, status, notes, created_by
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 'scheduled', ?, ?)",
+                treatment_type, description, chair_number, status, notes, created_by, sync_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 'scheduled', ?, ?, ?)",
             [
                 (int) $req['patient_id'],
                 (int) $req['doctor_id'],
@@ -102,13 +102,15 @@ if ($action === 'approve') {
                 $req['description'] !== null && $req['description'] !== '' ? $req['description'] : null,
                 $notes,
                 $uid,
+                'pending',
             ],
-            'iississsi'
+            'iississsis'
         );
 
         if (!$apptId) {
             throw new RuntimeException('Could not save the appointment.');
         }
+        sync_push_row_now('appointments', (int) $apptId);
 
         if ($db->execute('DELETE FROM appointment_requests WHERE id = ?', [$reqId], 'i') < 1) {
             throw new RuntimeException('Could not remove the pending request after booking.');

@@ -16,7 +16,7 @@ class Auth
     public static function requireLogin()
     {
         if (!self::isLoggedIn()) {
-            header('Location: /Dental/login.php');
+            header('Location: /Dental_test/login.php');
             exit;
         }
     }
@@ -109,11 +109,22 @@ class Auth
             $_SESSION['profile_image'] = $user['profile_image'];
 
             // Update last login
-            $db->execute(
-                'UPDATE users SET last_login = NOW() WHERE id = ?',
-                [$user['id']],
-                'i'
-            );
+            if (function_exists('dbColumnExists') && dbColumnExists('users', 'sync_status')) {
+                $db->execute(
+                    "UPDATE users SET last_login = NOW(), sync_status = 'pending' WHERE id = ?",
+                    [$user['id']],
+                    'i'
+                );
+            } else {
+                $db->execute(
+                    'UPDATE users SET last_login = NOW() WHERE id = ?',
+                    [$user['id']],
+                    'i'
+                );
+            }
+            if (function_exists('sync_push_row_now')) {
+                sync_push_row_now('users', (int) $user['id']);
+            }
 
             return true;
         }

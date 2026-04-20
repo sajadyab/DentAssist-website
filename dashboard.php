@@ -19,6 +19,8 @@ if (Auth::hasRole('patient')) {
 $pageTitle = 'Dashboard';
 $db = Database::getInstance();
 
+$dashShowSubscription = getClinicSettingValue($db, 'allow_subscription_view', '1') === '1';
+
 $dashboardRole = $_SESSION['role'] ?? '';
 $dashboardUserId = (int) Auth::userId();
 
@@ -157,44 +159,51 @@ include 'layouts/header.php';
 ?>
 
 
-<div class="container-fluid dash-queue-page">
-    <!-- Dashboard Header -->
-    <div class="dashboard-header">
-        <h1>Dashboard</h1>
+<div class="container-fluid bills-page dash-queue-page dash-staff-dashboard">
+    <div class="bills-queue-header mb-3">
+        <div class="row align-items-center bills-queue-header-inner">
+            <div class="col-12">
+                <h2 class="mb-2 fw-bold">
+                    <i class="fas fa-tachometer-alt me-2 opacity-90" aria-hidden="true"></i>Dashboard
+                </h2>
+                <p class="mb-0 opacity-90">Today's overview, shortcuts, and key stats for your clinic.</p>
+            </div>
+        </div>
     </div>
-    
+
     <!-- Quick Actions Bar -->
     <div class="row mb-2">
         <div class="col-12">
             <div class="card quick-actions-card">
                 <div class="card-body">
                     <h6 class="mb-3 fw-semibold">Quick Actions</h6>
-                    <div class="d-flex flex-wrap gap-2">
-                        <a href="assistant_subscriptions.php" class="btn btn-warning quick-action-btn text-white" style="background-color: rgb(237, 219, 16); border-color: rgb(250, 236, 82);">
-                            <i class="fas fa-crown me-2"></i>
-                            Pending Subscriptions
-                            <?php if ($pendingSubscriptions > 0): ?>
-                                <span class="badge bg-danger ms-1"><?php echo $pendingSubscriptions; ?></span>
-                            <?php endif; ?>
-                        </a>
-                        <a href="patients/add.php" class="btn btn-primary quick-action-btn" style="background-color: rgb(23, 69, 185); border-color: rgb(34, 197, 94);">
+                    <div class="dash-quick-actions-grid">
+                        <a href="patients/add.php" class="btn btn-primary quick-action-btn dash-qa-cell">
                             <i class="fas fa-user-plus me-2"></i> Add Patient
                         </a>
-                        <a href="appointments/add.php" class="btn btn-success quick-action-btn">
+                        <a href="appointments/add.php" class="btn btn-warning quick-action-btn text-dark dash-qa-cell dash-qa-book">
                             <i class="fas fa-calendar-plus me-2"></i> Book Appointment
                         </a>
-                        <a href="billing/invoices.php" class="btn btn-info quick-action-btn text-white">
+                        <a href="billing/invoices.php" class="btn btn-info quick-action-btn text-white dash-qa-cell">
                             <i class="fas fa-file-invoice-dollar me-2"></i> View Invoices
                         </a>
                         <button type="button"
-                            class="btn btn-secondary quick-action-btn text-white quick-action-btn--online-requests"
+                            class="btn btn-secondary quick-action-btn text-white quick-action-btn--online-requests dash-qa-cell"
                             data-bs-toggle="collapse"
                             data-bs-target="#dashboardOnlineRequests"
                             aria-expanded="false"
                             aria-controls="dashboardOnlineRequests">
                             <i class="fas fa-globe me-2"></i> Online requests
-                          
                         </button>
+                        <?php if ($dashShowSubscription): ?>
+                            <a href="assistant_subscriptions.php" class="btn btn-success quick-action-btn text-white dash-qa-cell dash-qa-subscriptions">
+                                <i class="fas fa-crown me-2" aria-hidden="true"></i>
+                                Pending Subscriptions
+                                <?php if ($pendingSubscriptions > 0): ?>
+                                    <span class="badge bg-danger ms-1"><?php echo $pendingSubscriptions; ?></span>
+                                <?php endif; ?>
+                            </a>
+                        <?php endif; ?>
                     </div>
                     <div class="collapse mt-3" id="dashboardOnlineRequests">
                         <div class="dashboard-online-requests-panel">
@@ -239,16 +248,14 @@ include 'layouts/header.php';
                                                         <td class="text-muted small dor-notes"><?php echo htmlspecialchars((string) ($ar['description'] ?? '')); ?></td>
                                                         <td class="text-end">
                                                             <div class="d-inline-flex flex-wrap gap-1 justify-content-end">
-                                                                <form method="post" action="<?php echo htmlspecialchars(url('queue/index.php')); ?>" class="d-inline">
+                                                                <form method="post" action="queue/index.php" class="d-inline" onsubmit="return confirm('Confirm this appointment and notify the patient?');">
                                                                     <input type="hidden" name="request_id" value="<?php echo (int) $ar['id']; ?>">
-                                                                    <input type="hidden" name="return_url" value="<?php echo htmlspecialchars($dashCalReturnUrl); ?>">
                                                                     <button type="submit" name="approve_appointment_request" class="btn btn-sm btn-success">
                                                                         <i class="fas fa-check"></i> Accept
                                                                     </button>
                                                                 </form>
-                                                                <form method="post" action="<?php echo htmlspecialchars(url('queue/index.php')); ?>" class="d-inline">
+                                                                <form method="post" action="queue/index.php" class="d-inline" onsubmit="return confirm('Decline this request and notify the patient?');">
                                                                     <input type="hidden" name="request_id" value="<?php echo (int) $ar['id']; ?>">
-                                                                    <input type="hidden" name="return_url" value="<?php echo htmlspecialchars($dashCalReturnUrl); ?>">
                                                                     <button type="submit" name="deny_appointment_request" class="btn btn-sm btn-outline-danger">
                                                                         <i class="fas fa-times"></i> Decline
                                                                     </button>
@@ -269,9 +276,9 @@ include 'layouts/header.php';
         </div>
     </div>
     
-    <!-- Summary badges (non-clickable, single row) -->
-    <div class="dashboard-summary-row mb-4" role="presentation">
-        <div class="dashboard-summary-item text-white dashboard-summary-item--gradient-success">
+    <!-- Summary badges (2 per row on phone; subscription tile omitted when feature off) -->
+    <div class="dashboard-summary-row dashboard-summary-row--grid mb-4" role="presentation">
+        <div class="dashboard-summary-item dashboard-summary-tile-today text-white">
             <div class="inner">
                 <h6 class="text-white">Today's Appointments</h6>
                 <div class="summary-value-row">
@@ -280,17 +287,17 @@ include 'layouts/header.php';
                 </div>
             </div>
         </div>
-        <div class="dashboard-summary-item text-white dashboard-summary-item--gradient-info">
-            <div class="inner" style="background-color: rgb(55, 145, 248); ">
-                <h6 class="text-white" style="bac">Upcoming Appointments</h6>
+        <div class="dashboard-summary-item dashboard-summary-tile-upcoming text-white">
+            <div class="inner">
+                <h6 class="text-white">Upcoming Appointments</h6>
                 <div class="summary-value-row">
                     <i class="fas fa-calendar-alt summary-icon text-white" aria-hidden="true"></i>
                     <p class="stat-value text-white mb-0"><?php echo (int) $stats['upcoming_appointments']; ?></p>
                 </div>
             </div>
         </div>
-        <div class="dashboard-summary-item text-white dashboard-summary-item--gradient-warning">
-            <div class="inner" style="background-color: rgb(248, 161, 55);  ">
+        <div class="dashboard-summary-item dashboard-summary-tile-completed text-white">
+            <div class="inner">
                 <h6 class="text-white">Completed Today</h6>
                 <div class="summary-value-row">
                     <i class="fas fa-check-circle summary-icon text-white" aria-hidden="true"></i>
@@ -298,15 +305,17 @@ include 'layouts/header.php';
                 </div>
             </div>
         </div>
-        <div class="dashboard-summary-item text-white dashboard-summary-item--gradient-success">
-            <div class="inner">
-                <h6 class="text-white">Active Subscriptions</h6>
-                <div class="summary-value-row">
-                    <i class="fas fa-crown summary-icon text-white" aria-hidden="true"></i>
-                    <p class="stat-value text-white mb-0"><?php echo (int) $stats['active_subscriptions']; ?></p>
+        <?php if ($dashShowSubscription): ?>
+            <div class="dashboard-summary-item dashboard-summary-tile-subs text-white">
+                <div class="inner">
+                    <h6 class="text-white">Active Subscriptions</h6>
+                    <div class="summary-value-row">
+                        <i class="fas fa-crown summary-icon text-white" aria-hidden="true"></i>
+                        <p class="stat-value text-white mb-0"><?php echo (int) $stats['active_subscriptions']; ?></p>
+                    </div>
                 </div>
             </div>
-        </div>
+        <?php endif; ?>
     </div>
     
     
@@ -790,84 +799,6 @@ function dashStaffOpenRequest(btn) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    var reqAccept = document.getElementById('dashCalRequestAccept');
-    var reqDecline = document.getElementById('dashCalRequestDecline');
-
-    function setReqLoading(loading) {
-        if (reqAccept) {
-            reqAccept.disabled = loading;
-        }
-        if (reqDecline) {
-            reqDecline.disabled = loading;
-        }
-    }
-
-    if (reqAccept) {
-        reqAccept.addEventListener('click', function() {
-            if (!dashStaffPendingRequestId) {
-                return;
-            }
-            setReqLoading(true);
-            fetch(DASH_STAFF_REQ_ACTION, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify({ action: 'approve', request_id: dashStaffPendingRequestId })
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                setReqLoading(false);
-                if (data.success) {
-                    var elR = document.getElementById('dashCalModalRequest');
-                    var instR = elR ? bootstrap.Modal.getInstance(elR) : null;
-                    if (instR) {
-                        instR.hide();
-                    }
-                    window.location.reload();
-                } else {
-                    alert(data.message || 'Action failed.');
-                }
-            })
-            .catch(function() {
-                setReqLoading(false);
-                alert('Network error.');
-            });
-        });
-    }
-
-    if (reqDecline) {
-        reqDecline.addEventListener('click', function() {
-            if (!dashStaffPendingRequestId) {
-                return;
-            }
-            setReqLoading(true);
-            fetch(DASH_STAFF_REQ_ACTION, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify({ action: 'decline', request_id: dashStaffPendingRequestId })
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                setReqLoading(false);
-                if (data.success) {
-                    var elD = document.getElementById('dashCalModalRequest');
-                    var instD = elD ? bootstrap.Modal.getInstance(elD) : null;
-                    if (instD) {
-                        instD.hide();
-                    }
-                    window.location.reload();
-                } else {
-                    alert(data.message || 'Action failed.');
-                }
-            })
-            .catch(function() {
-                setReqLoading(false);
-                alert('Network error.');
-            });
-        });
-    }
-
     var bookForm = document.getElementById('dashCalBookForm');
     if (!bookForm) {
         return;
@@ -913,8 +844,7 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.disabled = true;
         fetch(DASH_STAFF_APPT_API, {
             method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         })
         .then(function(r) { return r.json(); })
@@ -932,6 +862,71 @@ document.addEventListener('DOMContentLoaded', function() {
             btn.disabled = false;
             errEl.textContent = 'Network error.';
             errEl.classList.remove('d-none');
+        });
+    });
+
+    function setReqLoading(loading) {
+        document.getElementById('dashCalRequestAccept').disabled = loading;
+        document.getElementById('dashCalRequestDecline').disabled = loading;
+    }
+
+    document.getElementById('dashCalRequestAccept').addEventListener('click', function() {
+        if (!dashStaffPendingRequestId || !confirm('Confirm this appointment and notify the patient?')) {
+            return;
+        }
+        setReqLoading(true);
+        fetch(DASH_STAFF_REQ_ACTION, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'approve', request_id: dashStaffPendingRequestId })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            setReqLoading(false);
+            if (data.success) {
+                var elR = document.getElementById('dashCalModalRequest');
+                var instR = elR ? bootstrap.Modal.getInstance(elR) : null;
+                if (instR) {
+                    instR.hide();
+                }
+                window.location.reload();
+            } else {
+                alert(data.message || 'Action failed.');
+            }
+        })
+        .catch(function() {
+            setReqLoading(false);
+            alert('Network error.');
+        });
+    });
+
+    document.getElementById('dashCalRequestDecline').addEventListener('click', function() {
+        if (!dashStaffPendingRequestId || !confirm('Deny this request and notify the patient?')) {
+            return;
+        }
+        setReqLoading(true);
+        fetch(DASH_STAFF_REQ_ACTION, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'decline', request_id: dashStaffPendingRequestId })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            setReqLoading(false);
+            if (data.success) {
+                var elD = document.getElementById('dashCalModalRequest');
+                var instD = elD ? bootstrap.Modal.getInstance(elD) : null;
+                if (instD) {
+                    instD.hide();
+                }
+                window.location.reload();
+            } else {
+                alert(data.message || 'Action failed.');
+            }
+        })
+        .catch(function() {
+            setReqLoading(false);
+            alert('Network error.');
         });
     });
 });

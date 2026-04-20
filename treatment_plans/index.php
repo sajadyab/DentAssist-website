@@ -61,12 +61,21 @@ $plans = $db->fetchAll(
 include '../layouts/header.php';
 ?>
 
-<div class="container-fluid">
-    <!-- Header with New Plan Button -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3"><i class="fas fa-notes-medical"></i> Treatment Plans</h1>
-        <a href="add.php" class="btn btn-primary">
-            <i class="fas fa-plus"></i> New Treatment Plan
+<div class="container-fluid bills-page treatment-plans-index-page">
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
+            <div class="col-12">
+                <h2 class="mb-2 fw-bold">
+                    <i class="fas fa-notes-medical me-2 opacity-90" aria-hidden="true"></i>Treatment Plans
+                </h2>
+                <p class="mb-0 opacity-90">Track multi-step care per patient, priorities, and progress at a glance.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-center justify-content-md-end mb-3 mb-md-4 treatment-plans-index-cta-wrap">
+        <a href="add.php" class="btn-green staff-cta-mobile-90">
+            <i class="fas fa-plus" aria-hidden="true"></i> New Treatment Plan
         </a>
     </div>
 
@@ -86,10 +95,10 @@ include '../layouts/header.php';
     <?php endif; ?>
 
     <!-- Filter Card -->
-    <div class="card mb-4">
+    <div class="card mb-4 treatment-plans-index-filter-card">
         <div class="card-body">
             <form method="GET" class="row g-3">
-                <div class="col-md-3">
+                <div class="col-12 col-md-6 col-lg-3">
                     <label class="form-label">Status</label>
                     <select class="form-select" name="status">
                         <option value="">All</option>
@@ -100,7 +109,7 @@ include '../layouts/header.php';
                         <option value="cancelled" <?php echo $status == 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-12 col-md-6 col-lg-3">
                     <label class="form-label">Priority</label>
                     <select class="form-select" name="priority">
                         <option value="">All</option>
@@ -110,7 +119,7 @@ include '../layouts/header.php';
                         <option value="emergency" <?php echo $priority == 'emergency' ? 'selected' : ''; ?>>Emergency</option>
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-12 col-md-8 col-lg-4">
                     <label class="form-label">Patient</label>
                     <select class="form-select" name="patient_id">
                         <option value="">All Patients</option>
@@ -121,9 +130,9 @@ include '../layouts/header.php';
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="col-md-2 d-flex align-items-end">
+                <div class="col-12 col-md-4 col-lg-2 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary w-100">
-                        <i class="fas fa-filter"></i> Apply
+                        <i class="fas fa-filter" aria-hidden="true"></i> Apply
                     </button>
                 </div>
             </form>
@@ -139,7 +148,7 @@ include '../layouts/header.php';
                         <i class="fas fa-notes-medical fa-3x text-muted mb-3"></i>
                         <h5>No Treatment Plans Found</h5>
                         <p class="text-muted">Create your first treatment plan to get started</p>
-                        <a href="add.php" class="btn btn-primary">Create Treatment Plan</a>
+                        <a href="add.php" class="btn-green">Create Treatment Plan</a>
                     </div>
                 </div>
             </div>
@@ -170,12 +179,12 @@ include '../layouts/header.php';
                     ? round(($plan['completed_steps'] / $plan['total_steps']) * 100) 
                     : 0;
                 ?>
-                <div class="col-md-6 col-lg-4 mb-4">
-                    <div class="card h-100 shadow-sm">
-                        <div class="card-header d-flex justify-content-between align-items-center">
+                <div class="col-12 col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100 shadow-sm treatment-plans-index-card">
+                        <div class="card-header treatment-plans-index-card-head d-flex flex-wrap justify-content-between align-items-center gap-2">
                             <h6 class="mb-0">Plan #<?php echo $plan['id']; ?></h6>
-                            <span class="badge bg-<?php echo $priorityColor; ?>">
-                                <i class="fas fa-flag"></i> <?php echo ucfirst($plan['priority']); ?>
+                            <span class="badge bg-<?php echo $priorityColor; ?> treatment-plans-index-priority-badge">
+                                <i class="fas fa-flag" aria-hidden="true"></i> <?php echo ucfirst($plan['priority']); ?>
                             </span>
                         </div>
                         <div class="card-body">
@@ -224,19 +233,23 @@ include '../layouts/header.php';
                                 </div>
                             <?php endif; ?>
                         </div>
-                        <div class="card-footer bg-transparent">
-                            <div class="btn-group w-100">
-                                <a href="view.php?id=<?php echo $plan['id']; ?>" class="btn btn-sm btn-primary">
-                                    <i class="fas fa-eye"></i> View
+                        <div class="card-footer bg-transparent border-top treatment-plans-index-card-footer">
+                            <div class="treatment-plans-index-card-actions" role="group" aria-label="Plan actions">
+                                <a href="view.php?id=<?php echo $plan['id']; ?>"
+                                   class="treatment-plans-index-action treatment-plans-index-action--view">
+                                    <i class="fas fa-eye" aria-hidden="true"></i><span>View</span>
                                 </a>
-                                <a href="edit.php?id=<?php echo $plan['id']; ?>" class="btn btn-sm btn-warning">
-                                    <i class="fas fa-edit"></i> Edit
+                                <a href="edit.php?id=<?php echo $plan['id']; ?>"
+                                   class="treatment-plans-index-action treatment-plans-index-action--edit">
+                                    <i class="fas fa-edit" aria-hidden="true"></i><span>Edit</span>
                                 </a>
-                                <button class="btn btn-sm btn-danger" onclick="deletePlan(<?php echo $plan['id']; ?>)">
-                                    <i class="fas fa-trash"></i>
+                                <button type="button" class="treatment-plans-index-action treatment-plans-index-action--delete"
+                                        onclick="deletePlan(<?php echo $plan['id']; ?>)">
+                                    <i class="fas fa-trash" aria-hidden="true"></i><span>Delete</span>
                                 </button>
-                                <button class="btn btn-sm btn-info" onclick="printPlan(<?php echo $plan['id']; ?>)">
-                                    <i class="fas fa-print"></i>
+                                <button type="button" class="treatment-plans-index-action treatment-plans-index-action--print"
+                                        onclick="printPlan(<?php echo $plan['id']; ?>)">
+                                    <i class="fas fa-print" aria-hidden="true"></i><span>Print</span>
                                 </button>
                             </div>
                         </div>

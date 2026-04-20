@@ -64,8 +64,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_appointment_r
         $apptId = $db->insert(
             "INSERT INTO appointments (
                 patient_id, doctor_id, appointment_date, appointment_time, duration,
-                treatment_type, description, chair_number, status, notes, created_by
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 'scheduled', ?, ?)",
+                treatment_type, description, chair_number, status, notes, created_by, sync_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 'scheduled', ?, ?, ?)",
             [
                 (int) $req['patient_id'],
                 (int) $req['doctor_id'],
@@ -76,18 +76,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_appointment_r
                 $req['description'] !== null && $req['description'] !== '' ? $req['description'] : null,
                 $notes,
                 $uid,
+                'pending',
             ],
-            'iississsi'
+            'iississsis'
         );
 
         if (!$apptId) {
             throw new RuntimeException('Could not save the appointment.');
         }
+        sync_push_row_now('appointments', (int) $apptId);
 
         if ($db->execute('DELETE FROM appointment_requests WHERE id = ?', [$reqId], 'i') < 1) {
             throw new RuntimeException('Could not remove the pending request after booking. Please try again or fix the queue entry manually.');
         }
         $db->commit();
+        queueCloudDeletion('appointment_requests', $reqId, 'local_id');
     } catch (Throwable $e) {
         $db->rollback();
         $_SESSION['queue_flash_error'] = $e->getMessage();
@@ -136,11 +139,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_appointment_r
     ]);
 
     $_SESSION['queue_flash_ok'] = 'Appointment saved and the patient was notified (WhatsApp when a phone number is on file).';
-    $returnTo = trim((string) ($_POST['return_url'] ?? ''));
-    if ($returnTo !== '' && preg_match('#^(?:\.\./)*dashboard\.php(?:\?[-\w.&=%]*)?$#i', $returnTo)) {
-        header('Location: ' . $returnTo);
-        exit;
-    }
     header('Location: index.php');
     exit;
 }
@@ -193,6 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deny_appointment_requ
             throw new RuntimeException('Could not remove that request. It may have been processed already.');
         }
         $db->commit();
+        queueCloudDeletion('appointment_requests', $reqId, 'local_id');
     } catch (Throwable $e) {
         $db->rollback();
         $_SESSION['queue_flash_error'] = $e->getMessage();
@@ -226,11 +225,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deny_appointment_requ
     }
 
     $_SESSION['queue_flash_ok'] = 'Request removed and the patient was notified (WhatsApp when a phone number is on file).';
-    $returnTo = trim((string) ($_POST['return_url'] ?? ''));
-    if ($returnTo !== '' && preg_match('#^(?:\.\./)*dashboard\.php(?:\?[-\w.&=%]*)?$#i', $returnTo)) {
-        header('Location: ' . $returnTo);
-        exit;
-    }
     header('Location: index.php');
     exit;
 }
@@ -262,7 +256,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resolve_weekly_queue'
             exit;
         }
     }
-    $db->execute('DELETE FROM waiting_queue WHERE id = ?', [$wid], 'i');
+    $deletedRows = (int) $db->execute('DELETE FROM waiting_queue WHERE id = ?', [$wid], 'i');
+    if ($deletedRows > 0) {
+        queueCloudDeletion('waiting_queue', $wid, 'local_id');
+    }
     logAction('DELETE', 'waiting_queue', $wid, $wq, null);
     $_SESSION['queue_flash_ok'] = 'Weekly request resolved and removed from the list.';
     $returnTo = trim((string) ($_POST['return_url'] ?? ''));
@@ -358,6 +355,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_staff_weekly_port
         );
     }
     if ($newWqId > 0) {
+        sync_push_row_now('waiting_queue', $newWqId);
         logAction('CREATE', 'waiting_queue', $newWqId, null, ['source' => 'staff_weekly_portal']);
     }
     $_SESSION['queue_flash_ok'] = 'Weekly queue request added.';
@@ -439,8 +437,17 @@ include '../layouts/header.php';
 
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
 
-<div class="container-fluid">
-    <h1 class="h3 mb-4">Requests &amp; Queue</h1>
+<div class="container-fluid bills-page queue-index-page">
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
+            <div class="col-12">
+                <h2 class="mb-2 fw-bold">
+                    <i class="fas fa-inbox me-2 opacity-90" aria-hidden="true"></i>Requests &amp; Queue
+                </h2>
+                <p class="mb-0 opacity-90">Approve online booking requests and manage today’s walk-in queue.</p>
+            </div>
+        </div>
+    </div>
 
     <?php if ($queueFlashOk !== ''): ?>
         <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -457,14 +464,17 @@ include '../layouts/header.php';
 
     <div class="row">
         <div class="col-lg-8 mb-4">
-            <div class="card border-info mb-4">
-                <div class="card-header bg-info text-white d-flex align-items-center justify-content-between flex-wrap gap-2">
-                    <h5 class="card-title mb-0"><i class="fas fa-calendar-plus me-2"></i>Slot requests</h5>
-                    <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <?php if (!empty($appointmentRequests)): ?>
-                            <span class="badge bg-light text-info"><?php echo count($appointmentRequests); ?> </span>
-                        <?php endif; ?>
-                       
+            <div class="card bills-dash-section-card mb-4">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--invoices border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-calendar-plus me-2" aria-hidden="true"></i>Slot requests</h5>
+                        </div>
+                        <div class="flex-shrink-0 d-flex align-items-center gap-2">
+                            <?php if (!empty($appointmentRequests)): ?>
+                                <span class="badge bg-light"><?php echo count($appointmentRequests); ?></span>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
                 <div class="card-body p-0 appointments-table-wrap">
@@ -505,17 +515,17 @@ include '../layouts/header.php';
                                             <td class="small text-muted"><?php echo htmlspecialchars((string) ($ar['description'] ?? '')); ?></td>
                                             <td class="small text-muted"><?php echo htmlspecialchars((string) ($ar['created_at'] ?? '')); ?></td>
                                             <td>
-                                                <div class="appointments-actions">
+                                                <div class="table-card-actions appointments-actions" role="group" aria-label="Request actions">
                                                     <form method="post" onsubmit="return confirm('Confirm this appointment and notify the patient?');">
                                                         <input type="hidden" name="request_id" value="<?php echo (int) $ar['id']; ?>">
-                                                        <button type="submit" name="approve_appointment_request" class="btn btn-sm btn-success" title="Accept">
-                                                            <i class="fas fa-check"></i>
+                                                        <button type="submit" name="approve_appointment_request" class="btn btn-sm table-action-btn action-green" title="Accept">
+                                                            <i class="fas fa-check" aria-hidden="true"></i>
                                                         </button>
                                                     </form>
                                                     <form method="post" onsubmit="return confirm('Decline this request and notify the patient?');">
                                                         <input type="hidden" name="request_id" value="<?php echo (int) $ar['id']; ?>">
-                                                        <button type="submit" name="deny_appointment_request" class="btn btn-sm btn-danger" title="Decline">
-                                                            <i class="fas fa-times"></i>
+                                                        <button type="submit" name="deny_appointment_request" class="btn btn-sm table-action-btn action-red" title="Decline">
+                                                            <i class="fas fa-times" aria-hidden="true"></i>
                                                         </button>
                                                     </form>
                                                 </div>
@@ -529,15 +539,21 @@ include '../layouts/header.php';
                 </div>
             </div>
 
-            <div class="card border-info mb-4">
-                <div class="card-header bg-info text-white d-flex flex-wrap align-items-center justify-content-between gap-2">
-                    <h5 class="card-title mb-0"><i class="fas fa-calendar-week me-2"></i>Waiting queue requests</h5>
-                    <?php
-                    $weeklyListCount = count($weeklyPortalQueue) + ($role !== 'doctor' ? count($weeklyClinicQueue) : 0);
-                    if ($weeklyListCount > 0):
-                    ?>
-                        <span class="badge bg-light text-info"><?php echo $weeklyListCount; ?> </span>
-                    <?php endif; ?>
+            <div class="card bills-dash-section-card mb-4">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--subscriptions border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-calendar-week me-2" aria-hidden="true"></i>Waiting queue requests</h5>
+                        </div>
+                        <div class="flex-shrink-0 d-flex align-items-center gap-2">
+                            <?php
+                            $weeklyListCount = count($weeklyPortalQueue) + ($role !== 'doctor' ? count($weeklyClinicQueue) : 0);
+                            if ($weeklyListCount > 0):
+                            ?>
+                                <span class="badge queue-waiting-header-count-badge"><?php echo $weeklyListCount; ?></span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body p-0 appointments-table-wrap">
                     <?php if (empty($weeklyPortalQueue)): ?>
@@ -589,11 +605,11 @@ include '../layouts/header.php';
                                             <td class="small text-muted"><?php echo htmlspecialchars((string) ($entry['notes'] ?? '')); ?></td>
                                             <td class="small text-muted"><?php echo htmlspecialchars((string) ($entry['joined_at'] ?? '')); ?></td>
                                             <td>
-                                                <div class="appointments-actions">
+                                                <div class="table-card-actions appointments-actions" role="group" aria-label="Resolve request">
                                                     <form method="post" onsubmit="return confirm('Resolve and remove this request from the list?');">
                                                         <input type="hidden" name="weekly_queue_id" value="<?php echo (int) $entry['id']; ?>">
-                                                        <button type="submit" name="resolve_weekly_queue" value="1" class="btn btn-sm btn-success" title="Resolve">
-                                                            <i class="fas fa-check"></i>
+                                                        <button type="submit" name="resolve_weekly_queue" value="1" class="btn btn-sm table-action-btn action-green" title="Resolve">
+                                                            <i class="fas fa-check" aria-hidden="true"></i>
                                                         </button>
                                                     </form>
                                                 </div>
@@ -643,11 +659,11 @@ include '../layouts/header.php';
                                             </td>
                                             <td class="small"><?php echo htmlspecialchars((string) $entry['reason']); ?></td>
                                             <td>
-                                                <div class="appointments-actions">
+                                                <div class="table-card-actions appointments-actions" role="group" aria-label="Resolve entry">
                                                     <form method="post" onsubmit="return confirm('Remove this entry?');">
                                                         <input type="hidden" name="weekly_queue_id" value="<?php echo (int) $entry['id']; ?>">
-                                                        <button type="submit" name="resolve_weekly_queue" value="1" class="btn btn-sm btn-success" title="Resolve">
-                                                            <i class="fas fa-check"></i>
+                                                        <button type="submit" name="resolve_weekly_queue" value="1" class="btn btn-sm table-action-btn action-green" title="Resolve">
+                                                            <i class="fas fa-check" aria-hidden="true"></i>
                                                         </button>
                                                     </form>
                                                 </div>
@@ -663,12 +679,15 @@ include '../layouts/header.php';
         </div>
 
         <div class="col-lg-4 mb-4">
-            <div class="form-card queue-compact-form queue-registration-card h-100 mb-0">
-                <div class="card-header bg-white border-0 py-3 queue-panel-card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-plus-circle me-2 text-primary" aria-hidden="true"></i>Add to queue
-                    </h5>
-                   </div>
+            <div class="card bills-dash-section-card form-card queue-compact-form queue-registration-card h-100 mb-0">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--payment border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-plus-circle me-2" aria-hidden="true"></i>Add to queue</h5>
+                        </div>
+                        <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
+                    </div>
+                </div>
                 <div class="card-body p-4">
                     <form method="post">
                         <input type="hidden" name="add_staff_weekly_portal" value="1">
@@ -732,7 +751,7 @@ include '../layouts/header.php';
                                 <option value="emergency">Emergency</option>
                             </select>
                         </div>
-                        <button type="submit" class="btn btn-queue-reg w-100">
+                        <button type="submit" class="btn-green w-100">
                            Submit Request
                         </button>
                     </form>

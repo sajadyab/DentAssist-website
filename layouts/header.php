@@ -28,9 +28,27 @@
     
     <?php if (Auth::isLoggedIn()): ?>
         <?php include __DIR__ . '/sidebar.php'; ?>
-        <button type="button" class="sidebar-mobile-toggle d-md-none" id="sidebarMobileOpen" aria-controls="app-sidebar" aria-expanded="false" aria-label="<?php echo htmlspecialchars(__('open_menu', 'Open menu')); ?>">
-            <i class="fas fa-bars" aria-hidden="true"></i>
-        </button>
+        <header class="app-mobile-toolbar d-md-none" role="banner">
+            <div class="app-mobile-toolbar__inner">
+                <div class="app-mobile-toolbar__brand">
+                    <?php
+                    // $appBrandLogo* set in sidebar.php (included above when present)
+                    $hasAppLogo = isset($appBrandLogoExists) && $appBrandLogoExists;
+                    ?>
+                    <?php if ($hasAppLogo): ?>
+                        <span class="app-mobile-toolbar__logo app-mobile-toolbar__logo--img">
+                            <img src="<?php echo htmlspecialchars($appBrandLogoUrl . ($appBrandLogoVer !== '' ? '?v=' . rawurlencode($appBrandLogoVer) : '')); ?>" alt="" width="40" height="40" decoding="async" loading="eager">
+                        </span>
+                    <?php else: ?>
+                        <span class="app-mobile-toolbar__logo" aria-hidden="true"><i class="fas fa-tooth"></i></span>
+                    <?php endif; ?>
+                    <span class="app-mobile-toolbar__title">DentAssist</span>
+                </div>
+                <button type="button" class="app-mobile-toolbar__menu-btn" id="sidebarMobileOpen" aria-controls="app-sidebar" aria-expanded="false" aria-label="<?php echo htmlspecialchars(__('open_menu', 'Open menu')); ?>">
+                    <i class="fas fa-bars" aria-hidden="true"></i>
+                </button>
+            </div>
+        </header>
         <div class="sidebar-backdrop d-md-none" id="sidebarBackdrop" hidden></div>
         <script>
         (function () {

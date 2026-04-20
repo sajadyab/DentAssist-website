@@ -12,7 +12,17 @@ $db = Database::getInstance();
 // Handle delete
 if (isset($_GET['delete'])) {
     $id = intval($_GET['delete']);
-    $db->execute("DELETE FROM inventory WHERE id = ?", [$id], "i");
+    $trxRows = $db->fetchAll('SELECT id FROM inventory_transactions WHERE inventory_id = ?', [$id], 'i');
+    $deletedRows = (int) $db->execute("DELETE FROM inventory WHERE id = ?", [$id], "i");
+    if ($deletedRows > 0) {
+        foreach ($trxRows as $trx) {
+            $trxId = (int) ($trx['id'] ?? 0);
+            if ($trxId > 0) {
+                queueCloudDeletion('inventory_transactions', $trxId, 'local_id');
+            }
+        }
+        queueCloudDeletion('inventory', $id, 'local_id');
+    }
     header('Location: index.php');
     exit;
 }
@@ -31,18 +41,28 @@ include '../layouts/header.php';
 ?>
 
 
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4 inventory-page-header">
-        <h1 class="h3 inventory-page-title">Inventory Management</h1>
-        <a href="add.php" class="btn btn-add-inventory">
-            <i class="fas fa-plus-circle"></i> Add New Item
+<div class="container-fluid bills-page inventory-index-page">
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
+            <div class="col-12">
+                <h2 class="mb-2 fw-bold inventory-page-title">
+                    <i class="fas fa-boxes me-2 opacity-90" aria-hidden="true"></i>Inventory Management
+                </h2>
+                <p class="mb-0 opacity-90">Monitor stock levels, expiries, and supply movements in one list.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-center justify-content-md-end mb-4 inventory-page-header">
+        <a href="add.php" class="btn-green staff-cta-mobile-90 inventory-add-cta">
+            <i class="fas fa-plus-circle" aria-hidden="true"></i> Add New Item
         </a>
     </div>
 
     <!-- Alerts summary: Expired | Expiring Soon | Low Stock (shared card system) -->
     <div class="row mb-4 g-3 inv-summary-cards">
         <div class="col-md-4">
-            <div class="card summary-card summary-expired">
+            <div class="card summary-card summary-expired" >
                 <div class="card-body">
                     <h5 class="card-title">Expired Items</h5>
                     <h2><?php
@@ -130,12 +150,12 @@ include '../layouts/header.php';
                             }
                         ?>
                         <tr>
-                            <td><?php echo htmlspecialchars($item['item_name']); ?></td>
-                            <td><?php echo htmlspecialchars($item['category'] ?? '-'); ?></td>
-                            <td><?php echo $item['quantity']; ?></td>
-                            <td><?php echo htmlspecialchars($item['unit'] ?? '-'); ?></td>
-                            <td><?php echo $item['reorder_level']; ?></td>
-                            <td><?php
+                            <td data-label="Item Name"><div class="inv-td-inner"><?php echo htmlspecialchars($item['item_name']); ?></div></td>
+                            <td data-label="Category"><div class="inv-td-inner"><?php echo htmlspecialchars($item['category'] ?? '-'); ?></div></td>
+                            <td data-label="Quantity"><div class="inv-td-inner"><?php echo $item['quantity']; ?></div></td>
+                            <td data-label="Unit"><div class="inv-td-inner"><?php echo htmlspecialchars($item['unit'] ?? '-'); ?></div></td>
+                            <td data-label="Reorder Level"><div class="inv-td-inner"><?php echo $item['reorder_level']; ?></div></td>
+                            <td data-label="Expiry Date"><div class="inv-td-inner"><?php
                                 $expiry = $item['expiry_date'];
                                 $validExpiry = (!empty($expiry) && $expiry !== '0000-00-00' && strtotime($expiry) !== false);
                                 if ($validExpiry) {
@@ -143,29 +163,31 @@ include '../layouts/header.php';
                                 } else {
                                     echo "-";
                                 }
-                            ?></td>
-                            <td><?php echo htmlspecialchars($item['supplier_name'] ?? '-'); ?></td>
-                            <td><?php echo isset($item['selling_price']) && $item['selling_price'] !== null && $item['selling_price'] !== '' ? formatCurrency((float) $item['selling_price']) : '-'; ?></td>
-                            <td>
+                            ?></div></td>
+                            <td data-label="Supplier"><div class="inv-td-inner"><?php echo htmlspecialchars($item['supplier_name'] ?? '-'); ?></div></td>
+                            <td data-label="Sell price"><div class="inv-td-inner"><?php echo isset($item['selling_price']) && $item['selling_price'] !== null && $item['selling_price'] !== '' ? formatCurrency((float) $item['selling_price']) : '-'; ?></div></td>
+                            <td data-label="Status">
+                                <div class="inv-td-inner inv-td-inner--badges">
                                 <?php foreach ($statusItems as $statusLabel): ?>
                                     <span class="badge <?php echo $statusClasses[$statusLabel]; ?> me-1 mb-1"><?php echo $statusLabel; ?></span>
                                 <?php endforeach; ?>
+                                </div>
                             </td>
-                            <td>
-                                <div class="inventory-actions">
-                                    <a href="view.php?id=<?php echo $item['id']; ?>" class="btn btn-sm btn-info inventory-btn-view-soft" title="View">
-                                        <i class="fas fa-eye"></i>
+                            <td class="inv-td-actions" data-label="Actions">
+                                <div class="table-card-actions" role="group" aria-label="Item actions">
+                                    <a href="view.php?id=<?php echo $item['id']; ?>" class="btn btn-sm table-action-btn action-blue" title="View">
+                                        <i class="fas fa-eye" aria-hidden="true"></i>
                                     </a>
-                                    <a href="edit.php?id=<?php echo $item['id']; ?>" class="btn btn-sm btn-warning" title="Edit">
-                                        <i class="fas fa-edit"></i>
+                                    <a href="edit.php?id=<?php echo $item['id']; ?>" class="btn btn-sm table-action-btn action-yellow" title="Edit">
+                                        <i class="fas fa-edit" aria-hidden="true"></i>
                                     </a>
-                                    <a href="transaction.php?id=<?php echo $item['id']; ?>" class="btn btn-sm btn-success" title="Add Transaction">
-                                        <i class="fas fa-exchange-alt"></i>
+                                    <a href="transaction.php?id=<?php echo $item['id']; ?>" class="btn btn-sm table-action-btn action-green" title="Add transaction">
+                                        <i class="fas fa-exchange-alt" aria-hidden="true"></i>
                                     </a>
-                                    <button type="button" class="btn btn-sm btn-danger btn-delete-inventory" title="Delete"
+                                    <button type="button" class="btn btn-sm table-action-btn action-red btn-delete-inventory" title="Delete"
                                        data-id="<?php echo (int) $item['id']; ?>"
                                        data-name="<?php echo htmlspecialchars($item['item_name'], ENT_QUOTES, 'UTF-8'); ?>">
-                                        <i class="fas fa-trash"></i>
+                                        <i class="fas fa-trash" aria-hidden="true"></i>
                                     </button>
                                 </div>
                             </td>

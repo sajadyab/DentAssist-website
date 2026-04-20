@@ -21,10 +21,20 @@ $patients = repo_patient_search((string) $search, $limit, $offset);
 include '../layouts/header.php';
 ?>
 
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3">Patients</h1>
-        <a href="add.php" class="btn btn-primary">
+<div class="container-fluid bills-page patients-index-page">
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
+            <div class="col-12">
+                <h2 class="mb-2 fw-bold">
+                    <i class="fas fa-users me-2 opacity-90" aria-hidden="true"></i>Patients
+                </h2>
+                <p class="mb-0 opacity-90">Search, open records, and manage everyone registered at the clinic.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-center justify-content-md-end mb-4">
+        <a href="add.php" class="btn-green staff-cta-mobile-90">
             <i class="fas fa-plus"></i> Add New Patient
         </a>
     </div>
@@ -52,8 +62,8 @@ include '../layouts/header.php';
     <!-- Patients Table -->
     <div class="card">
         <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-hover">
+            <div class="table-responsive patients-table-wrap">
+                <table class="table table-hover table-sm patients-index-table">
                     <thead>
                         <tr>
                             <th>ID</th>
@@ -93,17 +103,17 @@ include '../layouts/header.php';
                                             : 'No visits'; ?>
                                     </td>
                                     <td>
-                                        <div class="btn-group" role="group">
+                                        <div class="btn-group table-card-actions" role="group">
                                             <a href="view.php?id=<?php echo $patient['id']; ?>" 
-                                               class="btn btn-sm btn-info" title="View">
+                                               class="btn btn-sm btn-info table-action-btn action-blue" title="View">
                                                 <i class="fas fa-eye"></i>
                                             </a>
                                             <a href="edit.php?id=<?php echo $patient['id']; ?>" 
-                                               class="btn btn-sm btn-warning" title="Edit">
+                                               class="btn btn-sm btn-warning table-action-btn action-yellow" title="Edit">
                                                 <i class="fas fa-edit"></i>
                                             </a>
                                             <button type="button" 
-                                                    class="btn btn-sm btn-danger" 
+                                                    class="btn btn-sm btn-danger table-action-btn action-red" 
                                                     onclick="deletePatient(<?php echo $patient['id']; ?>)"
                                                     title="Delete">
                                                 <i class="fas fa-trash"></i>

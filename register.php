@@ -11,11 +11,16 @@ $authIncludeIntlTel = true;
 include 'layouts/auth_header.php';
 ?>
 
-    <div class="auth-card">
-        <div class="auth-header">
-            <h1>DentAssist<span class="d-none d-md-inline"> </span><br class="d-md-none">Smart Dental Clinic</h1>
-        
-        </div>
+<div class="auth-page">
+    <div class="auth-hero">
+        <h1 class="auth-app-title">DentAssist</h1>
+        <p class="auth-app-subtitle">Smart Dental Clinic</p>
+    </div>
+
+    <div class="auth-panel auth-card">
+        <p class="auth-panel-prompt auth-panel-toprow mb-3 text-center">
+            Already have an account? <a href="login.php">Sign in</a>
+        </p>
 
         <div id="message"></div>
 
@@ -75,13 +80,10 @@ include 'layouts/auth_header.php';
                 </div>
             </div>
 
-            <button type="submit" class="btn-register">Register</button>
+            <button type="submit" class="btn-blue auth-btn-primary">Register</button>
         </form>
-
-            <div class="text-center mt-3">
-                Already have an account? <a href="login.php">Sign in</a>
-            </div>
     </div>
+</div>
 
 <?php
 ob_start();

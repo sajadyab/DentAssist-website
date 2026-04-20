@@ -81,7 +81,7 @@ foreach ($rows as $row) {
         $sent++;
         try {
             $db->execute(
-                'UPDATE appointments SET reminder_sent_24h = TRUE, reminder_sent_at = NOW() WHERE id = ?',
+                "UPDATE appointments SET reminder_sent_24h = TRUE, reminder_sent_at = NOW(), sync_status = 'pending' WHERE id = ?",
                 [(int) $row['id']],
                 'i'
             );

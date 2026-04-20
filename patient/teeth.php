@@ -3,6 +3,7 @@ require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
+require_once '../includes/patient_cloud_repository.php';
 
 Auth::requireLogin();
 if ($_SESSION['role'] != 'patient') {
@@ -19,16 +20,17 @@ if (!$patientId) {
 }
 
 // Get patient info
-$patient = $db->fetchOne("SELECT full_name FROM patients WHERE id = ?", [$patientId], "i");
+$patient = patient_portal_fetch_patient_cloud_first((int) $patientId);
+if (!$patient) {
+    die("Patient record not found.");
+}
 
 $pageTitle = 'My Teeth';
 include '../layouts/header.php';
 ?>
 
 
-<div class="container-fluid bills-page">
-  
-
+<div class="container-fluid bills-page patient-portal teeth-page">
     <div class="bills-queue-header">
         <div class="row align-items-center bills-queue-header-inner">
             <div class="col-md-8">
@@ -53,14 +55,17 @@ include '../layouts/header.php';
     <div class="row">
         <div class="col-lg-9">
             <!-- Tooth Chart -->
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-0 py-3">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-chart-simple"></i> Dental Chart
-                    </h5>
-                    <small class="text-muted">Click on any tooth to view details</small>
+            <div class="card bills-dash-section-card">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--invoices border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-chart-simple me-2" aria-hidden="true"></i>Dental Chart</h5>
+                        </div>
+                        <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
+                    </div>
                 </div>
                 <div class="card-body">
+                    <p class="small text-muted mb-3 teeth-chart-intro">Click on any tooth to view details</p>
                     <div id="tooth-chart-container" class="tooth-chart-container text-center">
                         <div class="text-center py-5">
                             <div class="spinner-border text-primary" role="status">
@@ -71,15 +76,52 @@ include '../layouts/header.php';
                     </div>
                 </div>
             </div>
+
+            <!-- Dental Care Tips — desktop: directly under chart; hidden on small screens (copy in sidebar column) -->
+            <div class="card bills-dash-section-card d-none d-lg-block">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--help border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-lightbulb me-2" aria-hidden="true"></i>Dental Care Tips</h5>
+                        </div>
+                        <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="info-card">
+                        <i class="fas fa-brush text-primary"></i>
+                        <strong>Brush twice daily</strong>
+                        <p class="small text-muted mb-0 mt-1">Use fluoride toothpaste and brush for at least 2 minutes</p>
+                    </div>
+                    <div class="info-card">
+                        <i class="fas fa-floss text-primary"></i>
+                        <strong>Floss daily</strong>
+                        <p class="small text-muted mb-0 mt-1">Flossing removes plaque between teeth where brush can't reach</p>
+                    </div>
+                    <div class="info-card">
+                        <i class="fas fa-apple-alt text-primary"></i>
+                        <strong>Healthy diet</strong>
+                        <p class="small text-muted mb-0 mt-1">Limit sugary foods and drinks that cause cavities</p>
+                    </div>
+                    <div class="info-card">
+                        <i class="fas fa-calendar-check text-primary"></i>
+                        <strong>Regular checkups</strong>
+                        <p class="small text-muted mb-0 mt-1">Visit your dentist every 6 months for professional cleaning</p>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="col-lg-3">
             <!-- Legend -->
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-white border-0 py-3">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-palette"></i> Legend
-                    </h5>
+            <div class="card bills-dash-section-card mb-4">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--subscriptions border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-palette me-2" aria-hidden="true"></i>Legend</h5>
+                        </div>
+                        <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="legend-item">
@@ -113,12 +155,15 @@ include '../layouts/header.php';
                 </div>
             </div>
 
-            <!-- Dental Tips -->
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-0 py-3">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-lightbulb text-warning"></i> Dental Care Tips
-                    </h5>
+            <!-- Dental Tips — phone/tablet: below legend; hidden lg+ (tips shown under chart in main column) -->
+            <div class="card bills-dash-section-card d-lg-none">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--help border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-lightbulb me-2" aria-hidden="true"></i>Dental Care Tips</h5>
+                        </div>
+                        <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="info-card">

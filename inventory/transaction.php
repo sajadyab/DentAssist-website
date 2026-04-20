@@ -53,18 +53,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     if (!$error && $newQuantity !== null && $quantityChange !== null) {
-        $db->insert(
+        $transactionId = (int) $db->insert(
             "INSERT INTO inventory_transactions (inventory_id, transaction_type, quantity_change, new_quantity, reason, performed_by)
              VALUES (?, ?, ?, ?, ?, ?)",
             [$itemId, $type, $quantityChange, $newQuantity, $reason, Auth::userId()],
-            "isiiis"
+            "isiisi"
         );
 
         $db->execute(
-            "UPDATE inventory SET quantity = ? WHERE id = ?",
+            "UPDATE inventory SET quantity = ?, sync_status = 'pending' WHERE id = ?",
             [$newQuantity, $itemId],
             "ii"
         );
+        sync_push_row_now('inventory', (int) $itemId);
+        if ($transactionId > 0) {
+            sync_push_row_now('inventory_transactions', $transactionId);
+        }
 
         logAction('TRANSACTION', 'inventory', $itemId, null, $_POST);
         header('Location: view.php?id=' . $itemId);

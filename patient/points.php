@@ -3,6 +3,7 @@ require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
+require_once '../includes/patient_cloud_repository.php';
 
 Auth::requireLogin();
 if ($_SESSION['role'] != 'patient') {
@@ -18,20 +19,13 @@ if (!$patientId) {
     die('Patient record not found.');
 }
 
-$patient = $db->fetchOne('SELECT points, full_name FROM patients WHERE id = ?', [$patientId], 'i');
+$patient = patient_portal_fetch_patient_cloud_first((int) $patientId);
+$patient = is_array($patient) ? $patient : [];
 $points = (int) ($patient['points'] ?? 0);
 
-$referralCount = (int) $db->fetchOne(
-    'SELECT COUNT(*) as count FROM patients WHERE referred_by = ?',
-    [$patientId],
-    'i'
-)['count'];
+$referralCount = patient_portal_count_referred_patients_cloud_first((int) $patientId);
 
-$appointmentPoints = $db->fetchAll(
-    "SELECT appointment_date, treatment_type, 'appointment' as source FROM appointments WHERE patient_id = ? AND status = 'completed' ORDER BY appointment_date DESC LIMIT 10",
-    [$patientId],
-    'i'
-);
+$appointmentPoints = patient_portal_list_completed_appointments_cloud_first((int) $patientId, 10);
 
 $historyItems = [];
 foreach ($appointmentPoints as $apt) {
@@ -129,7 +123,7 @@ include '../layouts/header.php';
                     <?php if (empty($historyItems)): ?>
                         <div class="bills-empty-state text-center py-4 px-3">
                             <p class="text-muted small mb-3">No points yet.</p>
-                            <a href="queue.php" class="btn btn-sm bills-cta bills-cta--book">Book an Appointment</a>
+                            <a href="queue.php" class="btn-green">Book an Appointment</a>
                         </div>
                     <?php else: ?>
                         <?php foreach ($historyItems as $row): ?>

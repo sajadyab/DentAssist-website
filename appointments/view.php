@@ -51,71 +51,71 @@ include '../layouts/header.php';
 ?>
 
 
-<div class="container-fluid">
-<div class="d-flex justify-content-between align-items-center mb-4 appointment-view-header flex-wrap gap-2">
-        <h1 class="h3 appointment-view-title appointment-view-title-wrap mb-0">
-            <i class="fas fa-calendar-check"></i> Appointment Details
-        </h1>
-        <div class="appointment-view-header-btns">
-            <button type="button" class="btn btn-warning" onclick="editAppointment()">
-                <i class="fas fa-edit"></i> Edit
-            </button>
-            <button type="button" class="btn btn-danger" onclick="cancelAppointment()">
-                <i class="fas fa-times"></i> Cancel
-            </button>
-            <a href="index.php" class="btn btn-secondary btn-back-mobile">
-                <i class="fas fa-arrow-left"></i> Back
-            </a>
-        </div>
-    </div>
-    
-    <!-- Status Bar -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card appointment-status-card">
-                <div class="card-body">
-                    <div class="d-flex align-items-center appointment-status-bar-inner">
-                        <div class="me-3 status-group">
-                            <h6 class="mb-1">Status</h6>
-                            <?php echo getStatusBadge($appointment['status']); ?>
-                        </div>
-
-                        <div class="ms-md-4 status-group">
-                            <h6 class="mb-1">Check-in</h6>
-                            <span class="badge bg-<?php echo $appointment['status'] == 'checked-in' ? 'success' : 'secondary'; ?>">
-                                <?php echo $appointment['status'] == 'checked-in' ? 'Checked In' : 'Not Checked In'; ?>
-                            </span>
-                        </div>
-
-                        <div class="ms-md-4 status-group">
-                            <h6 class="mb-1">Reminders</h6>
-                            <div class="d-flex flex-wrap gap-1">
-                            <?php if ($appointment['reminder_sent_48h']): ?>
-                                <span class="badge bg-success">48h Sent</span>
-                            <?php endif; ?>
-                            <?php if ($appointment['reminder_sent_24h']): ?>
-                                <span class="badge bg-success">24h Sent</span>
-                            <?php endif; ?>
-                            <?php if (!$appointment['reminder_sent_48h'] && !$appointment['reminder_sent_24h']): ?>
-                                <span class="text-muted small">None sent</span>
-                            <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+<div class="container-fluid bills-page appointments-view-page">
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
+            <div class="col-12 col-lg-8">
+                <h2 class="mb-2 fw-bold appointment-view-title-wrap">
+                    <i class="fas fa-calendar-check me-2 opacity-90" aria-hidden="true"></i>Appointment details
+                </h2>
+                <p class="mb-0 opacity-90">
+                    <?php echo htmlspecialchars($appointment['patient_name']); ?>
+                    · <?php echo formatDate($appointment['appointment_date']); ?>
+                    · <?php echo formatTime($appointment['appointment_time']); ?>
+                </p>
+            </div>
+            <div class="col-12 col-lg-4 mt-3 mt-lg-0 d-flex justify-content-center justify-content-lg-end gap-2 appointments-add-top-actions appointments-view-top-actions">
+                <button type="button" class="btn appointments-add-top-btn appointments-view-header-edit-btn" onclick="editAppointment()">
+                    <i class="fas fa-edit" aria-hidden="true"></i> Edit
+                </button>
+                <a href="index.php" class="btn btn-secondary appointments-add-top-btn">
+                    <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                    <span class="d-none d-sm-inline">Back to Appointments</span><span class="d-sm-none">Back</span>
+                </a>
             </div>
         </div>
     </div>
-    
-    <div class="row appointment-view-cols">
+
+    <div class="row appointment-view-cols g-3">
         <!-- Main Details -->
         <div class="col-md-8 appointment-view-main">
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Appointment Information</h5>
+            <div class="card bills-dash-section-card mb-4">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--invoices border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-calendar-day me-2" aria-hidden="true"></i>Appointment information</h5>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="fw-bold">Status</label>
+                            <p class="mb-0"><?php echo getStatusBadge($appointment['status']); ?></p>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="fw-bold">Check-in</label>
+                            <p class="mb-0">
+                                <span class="badge bg-<?php echo $appointment['status'] === 'checked-in' ? 'success' : 'secondary'; ?>">
+                                    <?php echo $appointment['status'] === 'checked-in' ? 'Checked In' : 'Not Checked In'; ?>
+                                </span>
+                            </p>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="fw-bold">Reminders</label>
+                            <p class="mb-0 d-flex flex-wrap align-items-center gap-1">
+                                <?php if (!empty($appointment['reminder_sent_48h'])): ?>
+                                    <span class="badge bg-success">48h Sent</span>
+                                <?php endif; ?>
+                                <?php if (!empty($appointment['reminder_sent_24h'])): ?>
+                                    <span class="badge bg-success">24h Sent</span>
+                                <?php endif; ?>
+                                <?php if (empty($appointment['reminder_sent_48h']) && empty($appointment['reminder_sent_24h'])): ?>
+                                    <span class="text-muted small">None sent</span>
+                                <?php endif; ?>
+                            </p>
+                        </div>
+
                         <div class="col-md-6 mb-3">
                             <label class="fw-bold">Date:</label>
                             <p class="mb-0"><?php echo formatDate($appointment['appointment_date']); ?></p>
@@ -168,9 +168,13 @@ include '../layouts/header.php';
             </div>
             
             <!-- Patient Information -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Patient Information</h5>
+            <div class="card bills-dash-section-card mb-4">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--subscriptions border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-user me-2" aria-hidden="true"></i>Patient information</h5>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="row">
@@ -208,26 +212,23 @@ include '../layouts/header.php';
                         
                         <?php if ($appointment['allergies']): ?>
                         <div class="col-12 mb-3">
-                            <label class="fw-bold text-warning">Allergies:</label>
+                            <label class="fw-bold appointments-view-allergies-label">Allergies:</label>
                             <p class="mb-0"><?php echo nl2br(htmlspecialchars($appointment['allergies'])); ?></p>
                         </div>
                         <?php endif; ?>
                         
-                        <?php
-                        $medicalHistoryHtml = formatPatientMedicalHistoryForDisplay($appointment['medical_history'] ?? null);
-                        if ($medicalHistoryHtml !== ''):
-                        ?>
+                        <?php if ($appointment['medical_history']): ?>
                         <div class="col-12 mb-3">
                             <label class="fw-bold">Medical History:</label>
-                            <p class="mb-0"><?php echo $medicalHistoryHtml; ?></p>
+                            <p class="mb-0"><?php echo nl2br(htmlspecialchars($appointment['medical_history'])); ?></p>
                         </div>
                         <?php endif; ?>
                     </div>
                 </div>
-                <div class="card-footer">
-                    <a href="../patients/view.php?id=<?php echo $appointment['patient_id']; ?>" 
-                       class="btn btn-sm btn-primary">
-                        <i class="fas fa-user"></i> View Full Patient Profile
+                <div class="card-footer bg-white border-top appointments-view-patient-footer">
+                    <a href="../patients/view.php?id=<?php echo $appointment['patient_id']; ?>"
+                       class="btn btn-green btn-sm">
+                        <i class="fas fa-user" aria-hidden="true"></i> View Full Patient Profile
                     </a>
                 </div>
             </div>
@@ -236,35 +237,43 @@ include '../layouts/header.php';
         <!-- Sidebar -->
         <div class="col-md-4 appointment-view-side">
             <!-- Quick Actions -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Quick Actions</h5>
+            <div class="card bills-dash-section-card mb-4">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--help border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-bolt me-2" aria-hidden="true"></i>Quick actions</h5>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <div class="d-grid gap-2">
-                        <button class="btn btn-success" onclick="updateStatus('checked-in')">
-                            <i class="fas fa-sign-in-alt"></i> Check In Patient
+                    <div class="d-grid gap-2 appointments-view-quick-actions">
+                        <button type="button" class="btn btn-success" onclick="updateStatus('checked-in')">
+                            <i class="fas fa-sign-in-alt" aria-hidden="true"></i> Check In Patient
                         </button>
-                        <button class="btn btn-warning" onclick="updateStatus('in-treatment')">
-                            <i class="fas fa-tooth"></i> Start Treatment
+                        <button type="button" class="btn btn-warning" onclick="updateStatus('in-treatment')">
+                            <i class="fas fa-tooth" aria-hidden="true"></i> Start Treatment
                         </button>
-                        <button class="btn btn-info" onclick="updateStatus('completed')">
-                            <i class="fas fa-check"></i> Mark Completed
+                        <button type="button" class="btn btn-info" onclick="updateStatus('completed')">
+                            <i class="fas fa-check" aria-hidden="true"></i> Mark Completed
                         </button>
-                        <button class="btn btn-primary" onclick="sendReminder()">
-                            <i class="fas fa-bell"></i> Send Reminder
+                        <button type="button" class="btn btn-primary" onclick="sendReminder()">
+                            <i class="fas fa-bell" aria-hidden="true"></i> Send Reminder
                         </button>
-                        <button class="btn btn-secondary" onclick="createInvoice()">
-                            <i class="fas fa-file-invoice"></i> Create Invoice
+                        <button type="button" class="btn appointments-view-qa-invoice" onclick="createInvoice()">
+                            <i class="fas fa-file-invoice" aria-hidden="true"></i> Create Invoice
                         </button>
                     </div>
                 </div>
             </div>
             
             <!-- Treatment Instructions -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Post-Treatment Instructions</h5>
+            <div class="card bills-dash-section-card mb-4">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--payment border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-notes-medical me-2" aria-hidden="true"></i>Post-treatment instructions</h5>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
                     <?php
@@ -284,44 +293,28 @@ include '../layouts/header.php';
             </div>
             
             <!-- Metadata -->
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Metadata</h5>
+            <div class="card bills-dash-section-card">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--subscriptions border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-info-circle me-2" aria-hidden="true"></i>Metadata</h5>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
                     <p class="mb-1"><small><strong>Created:</strong> <?php echo formatDate($appointment['created_at'], 'M d, Y g:i A'); ?></small></p>
-                    <p class="mb-1"><small><strong>Created by:</strong> <?php echo $appointment['created_by_name']; ?></small></p>
+                    <p class="mb-1"><small><strong>Created by:</strong> <?php echo htmlspecialchars((string) ($appointment['created_by_name'] ?? '')); ?></small></p>
                     <p class="mb-1"><small><strong>Last updated:</strong> <?php echo formatDate($appointment['updated_at'], 'M d, Y g:i A'); ?></small></p>
                     <p class="mb-0"><small><strong>Invoice ID:</strong> <?php echo $appointment['invoice_id'] ?? 'Not generated'; ?></small></p>
                 </div>
             </div>
-            
-           
+        </div>
+    </div>
+</div>
+
 <script>
 function editAppointment() {
     window.location.href = 'edit.php?id=<?php echo $appointmentId; ?>';
-}
-
-function cancelAppointment() {
-    const reason = prompt('Please enter cancellation reason:');
-    if (reason) {
-        fetch('../api/appointments.php', {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                id: <?php echo $appointmentId; ?>,
-                reason: reason
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            }
-        });
-    }
 }
 
 function updateStatus(status) {
@@ -389,7 +382,8 @@ function createInvoice() {
 }
 
 function printInstructions() {
-    const instructions = document.querySelector('.card-body pre').textContent;
+    const pre = document.querySelector('.appointment-instructions-pre');
+    const instructions = pre ? pre.textContent : '';
     const printWindow = window.open('', '', 'width=600,height=400');
     printWindow.document.write(`
         <html>

@@ -21,26 +21,54 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_expenses'])) {
     $notes = $_POST['notes'] ?? null;
 
     if ($monthYear) {
+        $hasMonthlySync = dbColumnExists('monthly_expenses', 'sync_status');
         $existing = $db->fetchOne(
             "SELECT id FROM monthly_expenses WHERE month_year = ?",
             [$monthYear],
             "s"
         );
         if ($existing) {
+            $setParts = [
+                'salaries_total = ?',
+                'assistants_count = ?',
+                'electricity = ?',
+                'rent = ?',
+                'other_expenses = ?',
+                'notes = ?',
+            ];
+            $values = [$salariesTotal, $assistants, $electricity, $rent, $other, $notes];
+            $types = 'diddds';
+            if ($hasMonthlySync) {
+                $setParts[] = "sync_status = 'pending'";
+            }
+            $values[] = $monthYear;
+            $types .= 's';
+
             $db->execute(
-                "UPDATE monthly_expenses SET 
-                    salaries_total = ?, assistants_count = ?, electricity = ?, rent = ?, other_expenses = ?, notes = ?
-                 WHERE month_year = ?",
-                [$salariesTotal, $assistants, $electricity, $rent, $other, $notes, $monthYear],
-                "ddddsss"
+                'UPDATE monthly_expenses SET ' . implode(', ', $setParts) . ' WHERE month_year = ?',
+                $values,
+                $types
             );
+            if (!empty($existing['id'])) {
+                sync_push_row_now('monthly_expenses', (int) $existing['id']);
+            }
         } else {
-            $db->insert(
-                "INSERT INTO monthly_expenses (month_year, salaries_total, assistants_count, electricity, rent, other_expenses, notes)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [$monthYear, $salariesTotal, $assistants, $electricity, $rent, $other, $notes],
-                "sidddds"
+            $columns = ['month_year', 'salaries_total', 'assistants_count', 'electricity', 'rent', 'other_expenses', 'notes'];
+            $values = [$monthYear, $salariesTotal, $assistants, $electricity, $rent, $other, $notes];
+            $types = 'sdiddds';
+            if ($hasMonthlySync) {
+                $columns[] = 'sync_status';
+                $values[] = 'pending';
+                $types .= 's';
+            }
+            $newId = (int) $db->insert(
+                'INSERT INTO monthly_expenses (' . implode(', ', $columns) . ') VALUES (' . implode(', ', array_fill(0, count($columns), '?')) . ')',
+                $values,
+                $types
             );
+            if ($newId > 0) {
+                sync_push_row_now('monthly_expenses', $newId);
+            }
         }
 
         // Redirect back to the same month
@@ -182,26 +210,37 @@ for ($i = 11; $i >= 0; $i--) {
 include '../layouts/header.php';
 ?>
 
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3"><?php echo __('financial_dashboard', 'Financial Dashboard'); ?></h1>
-        <div class="btn-group">
-            <button class="btn btn-primary" onclick="showExpenseModal()">
-                <i class="fas fa-edit"></i> <?php echo __('edit_expenses', 'Edit Expenses'); ?>
-            </button>
-            <a href="?month=<?php echo date('Y-m', strtotime($selectedMonth . '-01 -1 month')); ?>" class="btn btn-outline-secondary">
-                <i class="fas fa-chevron-left"></i> <?php echo __('previous_month', 'Previous Month'); ?>
-            </a>
-            <a href="?month=<?php echo date('Y-m', strtotime($selectedMonth . '-01 +1 month')); ?>" class="btn btn-outline-secondary">
-                <?php echo __('next_month', 'Next Month'); ?> <i class="fas fa-chevron-right"></i>
-            </a>
+<div class="container-fluid bills-page financial-report-page">
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
+            <div class="col-12">
+                <h2 class="mb-2 fw-bold">
+                    <i class="fas fa-chart-line me-2 opacity-90" aria-hidden="true"></i><?php echo __('financial_dashboard', 'Financial Dashboard'); ?>
+                </h2>
+                <p class="mb-0 opacity-90"><?php echo __('financial_dashboard_summary', 'Revenue, expenses, and profit for the selected month in one place.'); ?></p>
+            </div>
         </div>
     </div>
 
-    <!-- Summary Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card bg-primary text-white">
+    <div class="financial-toolbar mb-4">
+        <div class="financial-toolbar-inner d-flex flex-column flex-md-row flex-md-nowrap align-items-stretch gap-2 justify-content-center justify-content-md-end">
+           
+            <a href="?month=<?php echo date('Y-m', strtotime($selectedMonth . '-01 -1 month')); ?>" class="btn btn-outline-secondary financial-toolbar-btn financial-month-btn text-center">
+                <i class="fas fa-chevron-left"></i> <?php echo __('previous_month', 'Previous Month'); ?>
+            </a>
+            <a href="?month=<?php echo date('Y-m', strtotime($selectedMonth . '-01 +1 month')); ?>" class="btn btn-outline-secondary financial-toolbar-btn financial-month-btn text-center">
+                <?php echo __('next_month', 'Next Month'); ?> <i class="fas fa-chevron-right"></i>
+            </a>
+            <button type="button" class="btn btn-success financial-toolbar-btn staff-cta-mobile-90" onclick="showExpenseModal()">
+                <i class="fas fa-edit"></i> <?php echo __('edit_expenses', 'Edit Expenses'); ?>
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Cards: 2 per row on phone, 4 on md+ (colors match dashboard tiles) -->
+    <div class="row row-cols-2 row-cols-md-4 mb-4 g-3 financial-stat-cards-row">
+        <div class="col">
+            <div class="card financial-stat-card financial-stat-card--revenue text-white border-0 shadow-sm">
                 <div class="card-body">
                     <h6 class="card-title"><?php echo __('revenue', 'Revenue'); ?></h6>
                     <h2 class="mb-0"><?php echo formatCurrency($revenue); ?></h2>
@@ -209,8 +248,8 @@ include '../layouts/header.php';
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card bg-danger text-white">
+        <div class="col">
+            <div class="card financial-stat-card financial-stat-card--expenses text-white border-0 shadow-sm">
                 <div class="card-body">
                     <h6 class="card-title"><?php echo __('expenses', 'Expenses'); ?></h6>
                     <h2 class="mb-0"><?php echo formatCurrency($totalExpenses); ?></h2>
@@ -218,8 +257,8 @@ include '../layouts/header.php';
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
+        <div class="col">
+            <div class="card financial-stat-card financial-stat-card--net text-white border-0 shadow-sm">
                 <div class="card-body">
                     <h6 class="card-title"><?php echo __('net_profit', 'Net Profit'); ?></h6>
                     <h2 class="mb-0"><?php echo formatCurrency($netProfit); ?></h2>
@@ -230,8 +269,8 @@ include '../layouts/header.php';
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
+        <div class="col">
+            <div class="card financial-stat-card financial-stat-card--margin text-white border-0 shadow-sm">
                 <div class="card-body">
                     <h6 class="card-title"><?php echo __('profit_margin', 'Profit Margin'); ?></h6>
                     <h2 class="mb-0"><?php echo $revenue > 0 ? number_format(($netProfit / $revenue) * 100, 1) : 0; ?>%</h2>
@@ -276,8 +315,10 @@ include '../layouts/header.php';
                 <div class="card-header">
                     <h5 class="card-title mb-0"><?php echo __('revenue_vs_expenses', 'Revenue vs Expenses'); ?></h5>
                 </div>
-                <div class="card-body">
-                    <canvas id="revenueExpenseChart" height="250"></canvas>
+                <div class="card-body financial-chart-card-body">
+                    <div class="financial-chart-canvas-wrap">
+                        <canvas id="revenueExpenseChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -286,8 +327,10 @@ include '../layouts/header.php';
                 <div class="card-header">
                     <h5 class="card-title mb-0"><?php echo __('net_profit_trend', 'Net Profit Trend'); ?></h5>
                 </div>
-                <div class="card-body">
-                    <canvas id="profitChart" height="250"></canvas>
+                <div class="card-body financial-chart-card-body">
+                    <div class="financial-chart-canvas-wrap">
+                        <canvas id="profitChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -372,6 +415,7 @@ include '../layouts/header.php';
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             scales: { y: { beginAtZero: true, ticks: { callback: v => '$' + v.toLocaleString() } } }
         }
     });
@@ -392,6 +436,7 @@ include '../layouts/header.php';
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             scales: { y: { beginAtZero: true, ticks: { callback: v => '$' + v.toLocaleString() } } }
         }
     });

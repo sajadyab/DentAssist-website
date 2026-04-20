@@ -120,14 +120,25 @@ function repo_patient_find_with_account_username(int $patientId): ?array
 function repo_patient_update_from_edit_payload(int $patientId, array $payload): bool
 {
     $db = Database::getInstance();
-    $sql = "UPDATE patients SET
-                full_name = ?, date_of_birth = ?, gender = ?, phone = ?, email = ?,
-                emergency_contact_name = ?, emergency_contact_phone = ?, emergency_contact_relation = ?,
-                insurance_provider = ?, insurance_id = ?, insurance_type = ?, insurance_coverage = ?,
-                medical_history = ?, allergies = ?, current_medications = ?,
-                dental_history = ?, last_visit_date = ?,
-                address = ?, country = ?
-            WHERE id = ?";
+    $setParts = [
+        'full_name = ?',
+        'date_of_birth = ?',
+        'gender = ?',
+        'phone = ?',
+        'email = ?',
+        'emergency_contact_name = ?',
+        'emergency_contact_phone = ?',
+        'emergency_contact_relation = ?',
+        'insurance_provider = ?',
+        'insurance_id = ?',
+        'insurance_type = ?',
+        'insurance_coverage = ?',
+        'medical_history = ?',
+        'allergies = ?',
+        'current_medications = ?',
+        'dental_history = ?',
+        'last_visit_date = ?',
+    ];
     $values = [
         $payload['full_name'] ?? null,
         $payload['date_of_birth'] ?? null,
@@ -140,19 +151,43 @@ function repo_patient_update_from_edit_payload(int $patientId, array $payload): 
         $payload['insurance_provider'] ?? null,
         $payload['insurance_id'] ?? null,
         $payload['insurance_type'] ?? null,
-        $payload['insurance_coverage'] ?? null,
+        (int) ($payload['insurance_coverage'] ?? 0),
         $payload['medical_history'] ?? null,
         $payload['allergies'] ?? null,
         $payload['current_medications'] ?? null,
         $payload['dental_history'] ?? null,
         $payload['last_visit_date'] ?? null,
-        $payload['address'] ?? null,
-        $payload['country'] ?? null,
-        $patientId,
     ];
-    $types = str_repeat('s', count($values));
+    $types = str_repeat('s', 11) . 'i' . str_repeat('s', 5);
 
-    return $db->execute($sql, $values, $types) !== false;
+    if (dbColumnExists('patients', 'address')) {
+        $setParts[] = 'address = ?';
+        $values[] = $payload['address'] ?? null;
+        $types .= 's';
+    } elseif (dbColumnExists('patients', 'address_line1')) {
+        $setParts[] = 'address_line1 = ?';
+        $values[] = $payload['address'] ?? null;
+        $types .= 's';
+    }
+
+    if (dbColumnExists('patients', 'country')) {
+        $setParts[] = 'country = ?';
+        $values[] = $payload['country'] ?? null;
+        $types .= 's';
+    }
+
+    $setParts[] = "sync_status = 'pending'";
+    $values[] = $patientId;
+    $types .= 'i';
+
+    $sql = 'UPDATE patients SET ' . implode(', ', $setParts) . ' WHERE id = ?';
+
+    $ok = $db->execute($sql, $values, $types) !== false;
+    if ($ok) {
+        sync_push_row_now('patients', $patientId);
+    }
+
+    return $ok;
 }
 
 /**
@@ -175,8 +210,27 @@ function repo_patient_find_for_api(int $patientId): ?array
 function repo_patient_delete_by_id(int $patientId): bool
 {
     $db = Database::getInstance();
+    queueCloudDeletion('patients', $patientId, 'local_id');
 
-    return $db->execute('DELETE FROM patients WHERE id = ?', [$patientId], 'i') !== false;
+    if (dbColumnExists('patients', 'deleted')) {
+        $ok = $db->execute(
+            "UPDATE patients SET deleted = 1, sync_status = 'pending' WHERE id = ?",
+            [$patientId],
+            'i'
+        ) !== false;
+        if ($ok) {
+            sync_push_row_now('patients', $patientId);
+        }
+
+        return $ok;
+    }
+
+    $ok = $db->execute('DELETE FROM patients WHERE id = ?', [$patientId], 'i') !== false;
+    if ($ok) {
+        sync_process_delete_queue_now(1);
+    }
+
+    return $ok;
 }
 
 function repo_patient_delete_cascade(int $patientId): bool
@@ -210,8 +264,42 @@ function repo_appointment_list_for_patient(int $patientId): array
 function repo_appointment_delete_for_patient(int $patientId): bool
 {
     $db = Database::getInstance();
+    $rows = $db->fetchAll(
+        "SELECT id FROM appointments WHERE patient_id = ?",
+        [$patientId],
+        'i'
+    );
+    foreach ($rows as $row) {
+        $aid = (int) ($row['id'] ?? 0);
+        if ($aid > 0) {
+            queueCloudDeletion('appointments', $aid, 'local_id');
+        }
+    }
 
-    return $db->execute('DELETE FROM appointments WHERE patient_id = ?', [$patientId], 'i') !== false;
+    if (dbColumnExists('appointments', 'deleted')) {
+        $ok = $db->execute(
+            "UPDATE appointments SET deleted = 1, sync_status = 'pending' WHERE patient_id = ?",
+            [$patientId],
+            'i'
+        ) !== false;
+        if ($ok) {
+            foreach ($rows as $row) {
+                $aid = (int) ($row['id'] ?? 0);
+                if ($aid > 0) {
+                    sync_push_row_now('appointments', $aid);
+                }
+            }
+        }
+
+        return $ok;
+    }
+
+    $ok = $db->execute('DELETE FROM appointments WHERE patient_id = ?', [$patientId], 'i') !== false;
+    if ($ok) {
+        sync_process_delete_queue_now(20);
+    }
+
+    return $ok;
 }
 
 /**
@@ -266,11 +354,11 @@ function repo_appointment_insert_staff_scheduled(array $data): int|false
 {
     $db = Database::getInstance();
 
-    return $db->insert(
+    $id = $db->insert(
         "INSERT INTO appointments (
             patient_id, doctor_id, appointment_date, appointment_time, duration,
-            treatment_type, description, chair_number, status, notes, created_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            treatment_type, description, chair_number, status, notes, created_by, sync_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             $data['patient_id'],
             $data['doctor_id'],
@@ -283,9 +371,15 @@ function repo_appointment_insert_staff_scheduled(array $data): int|false
             'scheduled',
             $data['notes'],
             $data['created_by'],
+            'pending',
         ],
-        'iississsssi'
+        'iississsssis'
     );
+    if ($id) {
+        sync_push_row_now('appointments', (int) $id);
+    }
+
+    return $id;
 }
 
 /**
@@ -297,7 +391,8 @@ function repo_appointment_update_staff(int $appointmentId, array $data): bool
     $result = $db->execute(
         "UPDATE appointments SET
             patient_id = ?, doctor_id = ?, appointment_date = ?, appointment_time = ?,
-            duration = ?, treatment_type = ?, description = ?, chair_number = ?, status = ?, notes = ?
+            duration = ?, treatment_type = ?, description = ?, chair_number = ?, status = ?, notes = ?,
+            sync_status = 'pending'
          WHERE id = ?",
         [
             $data['patient_id'],
@@ -315,7 +410,12 @@ function repo_appointment_update_staff(int $appointmentId, array $data): bool
         'iississsssi'
     );
 
-    return $result !== false;
+    $ok = $result !== false;
+    if ($ok) {
+        sync_push_row_now('appointments', $appointmentId);
+    }
+
+    return $ok;
 }
 
 /**
@@ -648,12 +748,25 @@ function repo_invoice_find_pending_subscription_invoice_id(int $patientId): ?int
 function repo_invoice_mark_paid(int $invoiceId): bool
 {
     $db = Database::getInstance();
+    if (dbColumnExists('invoices', 'total_amount')) {
+        $result = $db->execute(
+            'UPDATE invoices SET payment_status = \'paid\', paid_amount = total_amount, paid_at = NOW() WHERE id = ?',
+            [$invoiceId],
+            'i'
+        );
+    } else {
+        $result = $db->execute(
+            'UPDATE invoices SET payment_status = \'paid\', paid_amount = subtotal, paid_at = NOW() WHERE id = ?',
+            [$invoiceId],
+            'i'
+        );
+    }
 
-    return $db->execute(
-        'UPDATE invoices SET payment_status = \'paid\', paid_amount = total_amount, paid_at = NOW() WHERE id = ?',
-        [$invoiceId],
-        'i'
-    ) !== false;
+    if ($result !== false) {
+        sync_push_row_now('invoices', $invoiceId);
+    }
+
+    return $result !== false;
 }
 
 function repo_invoice_create_paid_subscription_invoice(
@@ -667,17 +780,68 @@ function repo_invoice_create_paid_subscription_invoice(
 ): int {
     $db = Database::getInstance();
 
-    return (int) $db->insert(
-        "INSERT INTO invoices (patient_id, invoice_number, subtotal, total_amount, payment_status, invoice_date, due_date, notes, created_by, paid_at)
-         VALUES (?, ?, ?, ?, 'paid', ?, ?, ?, ?, NOW())",
-        [$patientId, $invoiceNumber, $amount, $amount, $invoiceDate, $dueDate, $notes, $createdBy],
-        'isddsssi'
+    // Cloud-first: insert to Supabase first
+    $cloudPayload = [
+        'patient_id' => $patientId,
+        'invoice_number' => $invoiceNumber,
+        'subtotal' => $amount,
+        'total_amount' => $amount,
+        'payment_status' => 'paid',
+        'invoice_date' => $invoiceDate,
+        'due_date' => $dueDate,
+        'notes' => $notes,
+        'created_by' => $createdBy,
+        'paid_at' => date('Y-m-d H:i:s'),
+    ];
+
+    try {
+        $cloudId = patient_portal_cloud_insert_get_id('invoices', $cloudPayload);
+    } catch (Throwable $e) {
+        throw new RuntimeException('Failed to create invoice in cloud: ' . $e->getMessage());
+    }
+
+    // Now insert locally with cloud_id
+    $columns = ['patient_id', 'invoice_number', 'subtotal', 'payment_status', 'invoice_date', 'due_date', 'notes', 'created_by', 'cloud_id'];
+    $values = [$patientId, $invoiceNumber, $amount, 'paid', $invoiceDate, $dueDate, $notes, $createdBy, $cloudId];
+    $types = 'isdsssiis';
+
+    if (dbColumnExists('invoices', 'total_amount')) {
+        array_splice($columns, 3, 0, 'total_amount');
+        array_splice($values, 3, 0, $amount);
+        $types = 'isddsssiis';
+    }
+
+    $invoiceId = (int) $db->insert(
+        'INSERT INTO invoices (' . implode(', ', $columns) . ', paid_at) VALUES (' . implode(', ', array_fill(0, count($columns), '?')) . ', NOW())',
+        $values,
+        $types
     );
+
+    if ($invoiceId <= 0) {
+        // Local insert failed, but cloud was already inserted
+        // This is an error state that should be logged and handled
+        error_log("Local invoice insert failed after cloud success. Cloud ID: {$cloudId}");
+        throw new RuntimeException('Failed to create local invoice record');
+    }
+
+    return $invoiceId;
 }
 
 function repo_invoice_delete_for_patient(int $patientId): bool
 {
     $db = Database::getInstance();
+
+    // Get all invoice IDs for this patient before deleting
+    $invoiceIds = $db->fetchAll(
+        'SELECT id FROM invoices WHERE patient_id = ?',
+        [$patientId],
+        'i'
+    );
+
+    // Queue deletions for sync
+    foreach ($invoiceIds as $invoice) {
+        queueCloudDeletion('invoices', (int) $invoice['id']);
+    }
 
     return $db->execute('DELETE FROM invoices WHERE patient_id = ?', [$patientId], 'i') !== false;
 }
@@ -813,8 +977,33 @@ function repo_treatment_plan_list_for_patient(int $patientId): array
 function repo_treatment_plan_delete_for_patient(int $patientId): bool
 {
     $db = Database::getInstance();
+    $stepRows = $db->fetchAll(
+        "SELECT ts.id
+         FROM treatment_steps ts
+         INNER JOIN treatment_plans tp ON tp.id = ts.plan_id
+         WHERE tp.patient_id = ?",
+        [$patientId],
+        'i'
+    );
+    foreach ($stepRows as $sr) {
+        $sid = (int) ($sr['id'] ?? 0);
+        if ($sid > 0) {
+            queueCloudDeletion('treatment_steps', $sid, 'local_id');
+        }
+    }
+    $rows = $db->fetchAll('SELECT id FROM treatment_plans WHERE patient_id = ?', [$patientId], 'i');
+    foreach ($rows as $row) {
+        $planId = (int) ($row['id'] ?? 0);
+        if ($planId > 0) {
+            queueCloudDeletion('treatment_plans', $planId, 'local_id');
+        }
+    }
+    $ok = $db->execute('DELETE FROM treatment_plans WHERE patient_id = ?', [$patientId], 'i') !== false;
+    if ($ok) {
+        sync_process_delete_queue_now(20);
+    }
 
-    return $db->execute('DELETE FROM treatment_plans WHERE patient_id = ?', [$patientId], 'i') !== false;
+    return $ok;
 }
 
 /**
@@ -846,9 +1035,22 @@ function repo_subscription_get_patient_plan(int $patientId): ?string
 function repo_subscription_activate(int $patientId, string $startDateYmd, string $endDateYmd): bool
 {
     $db = Database::getInstance();
+    $patient = $db->fetchOne(
+        'SELECT subscription_type FROM patients WHERE id = ? LIMIT 1',
+        [$patientId],
+        'i'
+    );
+    $plan = trim((string) ($patient['subscription_type'] ?? ''));
+
+    patient_portal_cloud_upsert_by_local_id_first('patients', $patientId, [
+        'subscription_status' => 'active',
+        'subscription_start_date' => $startDateYmd,
+        'subscription_end_date' => $endDateYmd,
+        'subscription_type' => $plan !== '' ? $plan : 'basic',
+    ], []);
 
     return $db->execute(
-        "UPDATE patients SET subscription_status = 'active', subscription_start_date = ?, subscription_end_date = ? WHERE id = ?",
+        "UPDATE patients SET subscription_status = 'active', subscription_start_date = ?, subscription_end_date = ?, sync_status = 'pending' WHERE id = ?",
         [$startDateYmd, $endDateYmd, $patientId],
         'ssi'
     ) !== false;
@@ -858,10 +1060,40 @@ function repo_subscription_complete_pending_payment(int $patientId, string $refe
 {
     $db = Database::getInstance();
 
+    // First get the pending payment record
+    $payment = $db->fetchOne(
+        'SELECT id, cloud_id FROM subscription_payments WHERE patient_id = ? AND status = ?',
+        [$patientId, 'pending'],
+        'is'
+    );
+
+    if (!$payment) {
+        return false; // No pending payment found
+    }
+
+    $localId = (int) $payment['id'];
+    $cloudId = $payment['cloud_id'] ? (int) $payment['cloud_id'] : null;
+
+    // Cloud-first: update cloud if we have cloud_id
+    if ($cloudId !== null) {
+        try {
+            patient_portal_cloud_upsert_by_local_id_first('subscription_payments', $localId, [
+                'status' => 'completed',
+                'payment_reference' => $reference,
+                'payment_date' => date('Y-m-d H:i:s'),
+                'processed_by' => $processedBy,
+            ], []);
+        } catch (Throwable $e) {
+            // Log error but continue with local update
+            error_log('Failed to update subscription payment in cloud: ' . $e->getMessage());
+        }
+    }
+
+    // Update local
     return $db->execute(
         "UPDATE subscription_payments SET status = 'completed', payment_reference = ?, payment_date = NOW(), processed_by = ?
-         WHERE patient_id = ? AND status = 'pending'",
-        [$reference, $processedBy, $patientId],
+         WHERE id = ?",
+        [$reference, $processedBy, $localId],
         'sii'
     ) !== false;
 }
@@ -891,7 +1123,7 @@ function repo_subscription_reset_to_none(int $patientId): bool
     return $db->execute(
         "UPDATE patients
          SET subscription_status = 'none', subscription_type = 'none',
-             subscription_start_date = NULL, subscription_end_date = NULL
+             subscription_start_date = NULL, subscription_end_date = NULL, sync_status = 'pending'
          WHERE id = ?",
         [$patientId],
         'i'

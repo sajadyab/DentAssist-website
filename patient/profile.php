@@ -3,6 +3,7 @@ require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
+require_once '../includes/patient_cloud_repository.php';
 
 /**
  * Short labels for profile UI: no underscores, leading letter uppercased, and "password"/"passwords" get a capital P.
@@ -72,7 +73,10 @@ if (!$patientId) {
 }
 
 // Get patient and user details
-$patient = $db->fetchOne("SELECT * FROM patients WHERE id = ?", [$patientId], "i");
+$patient = patient_portal_fetch_patient_cloud_first((int) $patientId);
+if (!$patient) {
+    die("Patient record not found. Please contact support.");
+}
 $user = $db->fetchOne("SELECT * FROM users WHERE id = ?", [$userId], "i");
 
 $pageTitle = 'My Profile';
@@ -255,7 +259,7 @@ $profileHeaderRow2 = array_slice($profileHeaderItems, 3);
                             <div class="col-md-12 mb-3">
                                 <label class="form-label-modern">Address</label>
                                 <input type="text" class="form-control form-control-modern" name="address"
-                                       value="<?php echo htmlspecialchars($patient['address'] ?? ''); ?>"
+                                       value="<?php echo htmlspecialchars($patient['address'] ?? $patient['address_line1'] ?? ''); ?>"
                                        placeholder="Full address">
                             </div>
                         </div>
@@ -288,7 +292,7 @@ $profileHeaderRow2 = array_slice($profileHeaderItems, 3);
                     </div>
 
                     <div class="profile-section-card-actions">
-                        <button type="submit" name="save_profile" value="1" class="btn btn-profile-confirm">
+                        <button type="submit" name="save_profile" value="1" class="btn-green">
                             <i class="fas fa-save me-1"></i> <?php echo __('save_profile', 'Save Profile'); ?>
                         </button>
                     </div>
@@ -328,7 +332,7 @@ $profileHeaderRow2 = array_slice($profileHeaderItems, 3);
                         </div>
                     </div>
                     <div class="profile-section-card-actions">
-                        <button type="submit" name="change_password" value="1" class="btn btn-profile-confirm">
+                        <button type="submit" name="change_password" value="1" class="btn-green">
                             <i class="fas fa-key me-1"></i> <?php echo __('change_password', 'Change Password'); ?>
                         </button>
                     </div>
@@ -337,33 +341,7 @@ $profileHeaderRow2 = array_slice($profileHeaderItems, 3);
         </div>
 
         <div class="col-md-4">
-            <!-- Subscription Info Card (visible only if subscription feature is enabled) -->
-            <?php if (canViewSubscription()): ?>
-            <div class="profile-section">
-                <h5 class="section-title section-title--subscription">
-                    <i class="fas fa-crown section-icon"></i> Subscription
-                </h5>
-                <?php if ($patient['subscription_type'] != 'none'): ?>
-                    <div class="text-center mb-3">
-                        <div class="badge bg-success fs-6 p-2">
-                            <i class="fas fa-check-circle"></i> Active Plan
-                        </div>
-                        <h4 class="mt-3"><?php echo ucfirst($patient['subscription_type']); ?></h4>
-                        <p class="text-muted small">
-                            Valid until <?php echo formatDate($patient['subscription_end_date']); ?>
-                        </p>
-                    </div>
-                    <a href="subscription.php" class="btn btn-profile-green-outline w-100">
-                        <i class="fas fa-arrow-right"></i> Manage Subscription
-                    </a>
-                <?php else: ?>
-                    <p class="text-muted text-center mb-3">No active subscription</p>
-                    <a href="subscription.php" class="btn btn-profile-green-solid w-100">
-                        <i class="fas fa-gem"></i> Subscribe Now
-                    </a>
-                <?php endif; ?>
-            </div>
-            <?php endif; ?>
+            
 
             <!-- Referral Info Card (visible only if referrals feature is enabled) -->
             <?php if ($allowReferrals): ?>
@@ -372,7 +350,7 @@ $profileHeaderRow2 = array_slice($profileHeaderItems, 3);
                     <i class="fas fa-share-alt section-icon"></i> Referral Program
                 </h5>
                 <p class="text-muted small mb-3">Your referral code is shown in the profile header above.</p>
-                <button type="button" class="btn btn-profile-green-solid w-100 mb-2" onclick="copyReferralCode()">
+                <button type="button" class="btn-green" style="width: 100%;" onclick="copyReferralCode()">
                     <i class="fas fa-copy"></i> Copy referral code
                 </button>
                 <small class="text-muted d-block text-center">

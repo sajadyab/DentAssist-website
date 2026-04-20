@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../api/_helpers.php';
 
@@ -81,10 +81,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_in_appointment'
                     throw new RuntimeException('Could not add arrival.');
                 }
                 $db->execute(
-                    "UPDATE appointments SET status = 'checked-in', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'scheduled'",
+                    "UPDATE appointments SET status = 'checked-in', updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ? AND status = 'scheduled'",
                     [$apptId],
                     'i'
                 );
+                sync_push_row_now('appointments', $apptId);
                 $stRow = $db->fetchOne("SELECT status FROM appointments WHERE id = ?", [$apptId], 'i');
                 if (!$stRow || ($stRow['status'] ?? '') !== 'checked-in') {
                     throw new RuntimeException('Checked in, but could not update appointment status.');
@@ -168,8 +169,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_walkin_arriv
         $newApptId = (int) $db->insert(
             "INSERT INTO appointments (
                 patient_id, doctor_id, appointment_date, appointment_time,
-                duration, treatment_type, description, status, created_by
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ?)",
+                duration, treatment_type, description, status, created_by, sync_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)",
             [
                 $pid,
                 $docId,
@@ -179,12 +180,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_walkin_arriv
                 $treatmentType,
                 'Recorded from walk-in clinic arrival.',
                 $currentUserId,
+                'pending',
             ],
-            'iississi'
+            'iississis'
         );
         if ($newApptId <= 0) {
             throw new RuntimeException('Could not record completed visit.');
         }
+        sync_push_row_now('appointments', $newApptId);
         $db->execute('DELETE FROM clinic_arrivals WHERE id = ?', [$aid], 'i');
         logAction('CREATE', 'appointments', $newApptId, null, ['via' => 'walk_in_completed', 'clinic_arrival_id' => $aid, 'status' => 'completed']);
         logAction('DELETE', 'clinic_arrivals', $aid, $row, null);
@@ -232,13 +235,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_scheduled_ar
     $db->beginTransaction();
     try {
         $aff = $db->execute(
-            "UPDATE appointments SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status NOT IN ('cancelled', 'completed')",
+            "UPDATE appointments SET status = 'completed', updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ? AND status NOT IN ('cancelled', 'completed')",
             [$apptId],
             'i'
         );
         if ($aff < 1) {
             throw new RuntimeException('Could not mark that appointment completed (it may already be completed or cancelled).');
         }
+        sync_push_row_now('appointments', $apptId);
         $db->execute('DELETE FROM clinic_arrivals WHERE id = ?', [$aid], 'i');
         logAction('UPDATE', 'appointments', $apptId, null, ['status' => 'completed', 'via' => 'clinic_arrivals']);
         logAction('DELETE', 'clinic_arrivals', $aid, $row, null);
@@ -396,10 +400,21 @@ include '../layouts/header.php';
 
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
 
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4 appointments-page-header">
-        <h1 class="h3 appointments-page-title">Appointments</h1>
-        <div class="d-flex flex-wrap gap-2 align-items-center justify-content-end appointments-header-actions">
+<div class="container-fluid bills-page">
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
+            <div class="col-12">
+                <h2 class="mb-2 fw-bold">
+                    <i class="fas fa-calendar-alt me-2 opacity-90" aria-hidden="true"></i>Appointments
+                </h2>
+                <p class="mb-0 opacity-90">View and manage the schedule, check-ins, and day-of visit actions.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-4 appointments-page-header flex-wrap gap-2">
+        <div class="d-none d-md-block" aria-hidden="true"></div>
+        <div class="d-flex flex-wrap gap-2 align-items-center justify-content-end appointments-header-actions ms-md-auto">
             <button type="button" class="btn btn-success" id="btnWhatsAppTomorrowReminders"
                     title="Send a WhatsApp reminder to every patient with an appointment scheduled for tomorrow">
                 <i class="fab fa-whatsapp"></i> Send Tomorrow Reminders
@@ -430,40 +445,49 @@ include '../layouts/header.php';
         </div>
     <?php endif; ?>
     
-    <!-- Date Navigation -->
-    <div class="d-flex justify-content-between align-items-center mb-3 appointments-date-nav">
-        <a href="?date=<?php echo date('Y-m-d', strtotime($date . ' -1 day')); ?>&status=<?php echo urlencode($status); ?>&doctor_id=<?php echo urlencode($doctorId); ?>"
-           class="btn btn-outline-primary btn-date-nav">
-            <i class="fas fa-chevron-left"></i> <span class="d-none d-sm-inline">Previous</span><span class="d-sm-none">Prev</span>
-        </a>
-        <div class="appointments-date-heading mb-0">
+    <!-- Date Navigation: date picker row, then Prev | doctor | Next on one line (phone) -->
+    <div class="appointments-date-block mb-3">
+        <div class="appointments-date-heading text-center mb-2 px-1">
             <div class="fw-semibold"><?php echo date('l, F j, Y', strtotime($date)); ?></div>
-            <form method="get" class="appointments-date-tools mt-2">
+            <form method="get" class="appointments-date-tools mt-2 justify-content-center">
                 <input type="hidden" name="status" value="<?php echo htmlspecialchars($status); ?>">
                 <input type="hidden" name="doctor_id" value="<?php echo htmlspecialchars((string) $doctorId); ?>">
                 <input type="date" class="form-control form-control-sm" name="date" value="<?php echo htmlspecialchars($date); ?>" onchange="this.form.submit()">
             </form>
         </div>
-        <form method="get" class="appointments-date-tools">
-            <input type="hidden" name="date" value="<?php echo htmlspecialchars($date); ?>">
-            <input type="hidden" name="status" value="<?php echo htmlspecialchars($status); ?>">
-            <select class="form-select form-select-sm" name="doctor_id" onchange="this.form.submit()" aria-label="Filter by doctor">
-                <option value="">All doctors</option>
-                <?php foreach ($doctors as $doctor): ?>
-                    <option value="<?php echo (int) $doctor['id']; ?>" <?php echo $doctorId == $doctor['id'] ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars($doctor['full_name']); ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </form>
-        <a href="?date=<?php echo date('Y-m-d', strtotime($date . ' +1 day')); ?>&status=<?php echo urlencode($status); ?>&doctor_id=<?php echo urlencode($doctorId); ?>"
-           class="btn btn-outline-primary btn-date-nav">
-            <span class="d-none d-sm-inline">Next</span><span class="d-sm-none">Next</span> <i class="fas fa-chevron-right"></i>
-        </a>
+        <div class="d-flex flex-nowrap align-items-stretch gap-1 appointments-date-nav-row">
+            <a href="?date=<?php echo date('Y-m-d', strtotime($date . ' -1 day')); ?>&status=<?php echo urlencode($status); ?>&doctor_id=<?php echo urlencode($doctorId); ?>"
+               class="btn btn-outline-primary btn-date-nav flex-shrink-0">
+                <i class="fas fa-chevron-left"></i> <span class="d-none d-sm-inline">Previous</span><span class="d-sm-none">Prev</span>
+            </a>
+            <form method="get" class="appointments-date-tools flex-grow-1 min-w-0 d-flex align-items-center">
+                <input type="hidden" name="date" value="<?php echo htmlspecialchars($date); ?>">
+                <input type="hidden" name="status" value="<?php echo htmlspecialchars($status); ?>">
+                <select class="form-select form-select-sm w-100" name="doctor_id" onchange="this.form.submit()" aria-label="Filter by doctor">
+                    <option value="">All doctors</option>
+                    <?php foreach ($doctors as $doctor): ?>
+                        <option value="<?php echo (int) $doctor['id']; ?>" <?php echo $doctorId == $doctor['id'] ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($doctor['full_name']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </form>
+            <a href="?date=<?php echo date('Y-m-d', strtotime($date . ' +1 day')); ?>&status=<?php echo urlencode($status); ?>&doctor_id=<?php echo urlencode($doctorId); ?>"
+               class="btn btn-outline-primary btn-date-nav flex-shrink-0">
+                <span class="d-none d-sm-inline">Next</span><span class="d-sm-none">Next</span> <i class="fas fa-chevron-right"></i>
+            </a>
+        </div>
     </div>
     
     <!-- Appointments List -->
-    <div class="card" id="appointments-day-card">
+    <div class="card bills-dash-section-card" id="appointments-day-card">
+        <div class="card-header bills-arrivals-header bills-arrivals-header--payment border-0">
+            <div class="bills-arrivals-section-header__inner align-items-center">
+                <div>
+                    <h5 class="card-title mb-0"><i class="fas fa-calendar-day me-2" aria-hidden="true"></i>Day schedule</h5>
+                </div>
+            </div>
+        </div>
         <div class="card-body appointments-table-wrap">
             <?php if (empty($appointments)): ?>
                 <p class="text-muted text-center py-4">No appointments found for this date</p>
@@ -509,13 +533,13 @@ include '../layouts/header.php';
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <div class="appointments-actions">
-                                            <button type="button" class="btn btn-sm btn-info"
+                                        <div class="appointments-actions table-card-actions">
+                                            <button type="button" class="btn btn-sm btn-info table-action-btn action-blue"
                                                     onclick="viewAppointment(<?php echo $apt['id']; ?>)"
                                                     title="View">
                                                 <i class="fas fa-eye"></i>
                                             </button>
-                                            <button type="button" class="btn btn-sm btn-warning"
+                                            <button type="button" class="btn btn-sm btn-warning table-action-btn action-yellow"
                                                     onclick="editAppointment(<?php echo $apt['id']; ?>)"
                                                     title="Edit">
                                                 <i class="fas fa-edit"></i>
@@ -533,12 +557,12 @@ include '../layouts/header.php';
                                                     <input type="hidden" name="filter_date" value="<?php echo htmlspecialchars($date); ?>">
                                                     <input type="hidden" name="filter_status" value="<?php echo htmlspecialchars($status); ?>">
                                                     <input type="hidden" name="filter_doctor_id" value="<?php echo htmlspecialchars((string) $doctorId); ?>">
-                                                    <button type="submit" class="btn btn-sm btn-success" title="Check in">
+                                                    <button type="submit" class="btn btn-sm btn-success table-action-btn action-green" title="Check in">
                                                         <i class="fas fa-sign-in-alt"></i>
                                                     </button>
                                                 </form>
                                             <?php endif; ?>
-                                            <button type="button" class="btn btn-sm btn-danger"
+                                            <button type="button" class="btn btn-sm btn-danger table-action-btn action-red"
                                                     onclick="cancelAppointment(<?php echo $apt['id']; ?>)"
                                                     title="Cancel">
                                                 <i class="fas fa-times"></i>
@@ -564,7 +588,7 @@ include '../layouts/header.php';
         <?php else: ?>
             <div class="arrivals-narrow-wrap">
                 <div class="card mb-4">
-                    <div class="card-header arrivals-hdr-blue arrivals-section-header border-0">
+                    <div class="card-header bills-arrivals-header bills-arrivals-header--subscriptions border-0">
                         <div class="arrivals-section-header__inner align-items-center">
                             <div>
                                 <h5 class="card-title mb-0"><i class="fas fa-user-check me-2"></i>Scheduled arrivals</h5>
@@ -622,9 +646,9 @@ include '../layouts/header.php';
                                                     </td>
                                                     <td class="caution-cell"><?php echo renderCautionBadgesHtml($cautionRowSa); ?></td>
                                                     <td>
-                                                        <div class="appointments-actions">
+                                                        <div class="appointments-actions table-card-actions">
                                                             <?php if (!empty($sa['patient_id'])): ?>
-                                                                <button type="button" class="btn btn-sm btn-info" title="Safety Check" onclick="openSafetyCheck(<?php echo (int) $sa['patient_id']; ?>, this)">
+                                                                <button type="button" class="btn btn-sm btn-info table-action-btn action-blue" title="Safety Check" onclick="openSafetyCheck(<?php echo (int) $sa['patient_id']; ?>, this)">
                                                                     <i class="fas fa-shield-alt"></i>
                                                                 </button>
                                                             <?php endif; ?>
@@ -635,7 +659,7 @@ include '../layouts/header.php';
                                                                     <input type="hidden" name="filter_date" value="<?php echo htmlspecialchars($date); ?>">
                                                                     <input type="hidden" name="filter_status" value="<?php echo htmlspecialchars($status); ?>">
                                                                     <input type="hidden" name="filter_doctor_id" value="<?php echo htmlspecialchars((string) $doctorId); ?>">
-                                                                    <button type="submit" class="btn btn-sm btn-success" title="Mark completed">
+                                                                    <button type="submit" class="btn btn-sm btn-success table-action-btn action-green" title="Mark completed">
                                                                         <i class="fas fa-check"></i>
                                                                     </button>
                                                                 </form>
@@ -646,7 +670,7 @@ include '../layouts/header.php';
                                                                 <input type="hidden" name="filter_date" value="<?php echo htmlspecialchars($date); ?>">
                                                                 <input type="hidden" name="filter_status" value="<?php echo htmlspecialchars($status); ?>">
                                                                 <input type="hidden" name="filter_doctor_id" value="<?php echo htmlspecialchars((string) $doctorId); ?>">
-                                                                <button type="submit" class="btn btn-sm btn-danger" title="Remove">
+                                                                <button type="submit" class="btn btn-sm btn-danger table-action-btn action-red" title="Remove">
                                                                     <i class="fas fa-times"></i>
                                                                 </button>
                                                             </form>
@@ -661,7 +685,7 @@ include '../layouts/header.php';
                         </div>
                     </div>
                 <div class="card mb-0">
-                        <div class="card-header arrivals-hdr-yellow arrivals-section-header border-0">
+                        <div class="card-header bills-arrivals-header bills-arrivals-header--payment border-0">
                             <div class="arrivals-section-header__inner align-items-center">
                                 <div>
                                     <h5 class="card-title mb-0 d-flex align-items-center gap-2">
@@ -736,9 +760,9 @@ include '../layouts/header.php';
                                                     <td><?php echo htmlspecialchars($age); ?></td>
                                                     <td class="caution-cell"><?php echo renderCautionBadgesHtml($cautionRowWa); ?></td>
                                                     <td>
-                                                        <div class="appointments-actions">
+                                                        <div class="appointments-actions table-card-actions">
                                                             <?php if (!empty($wa['patient_id'])): ?>
-                                                                <button type="button" class="btn btn-sm btn-info" title="Safety Check" onclick="openSafetyCheck(<?php echo (int) $wa['patient_id']; ?>, this)">
+                                                                <button type="button" class="btn btn-sm btn-info table-action-btn action-blue" title="Safety Check" onclick="openSafetyCheck(<?php echo (int) $wa['patient_id']; ?>, this)">
                                                                     <i class="fas fa-shield-alt"></i>
                                                                 </button>
                                                             <?php endif; ?>
@@ -749,7 +773,7 @@ include '../layouts/header.php';
                                                                     <input type="hidden" name="filter_date" value="<?php echo htmlspecialchars($date); ?>">
                                                                     <input type="hidden" name="filter_status" value="<?php echo htmlspecialchars($status); ?>">
                                                                     <input type="hidden" name="filter_doctor_id" value="<?php echo htmlspecialchars((string) $doctorId); ?>">
-                                                                    <button type="submit" class="btn btn-sm btn-success" title="Mark completed">
+                                                                    <button type="submit" class="btn btn-sm btn-success table-action-btn action-green" title="Mark completed">
                                                                         <i class="fas fa-check"></i>
                                                                     </button>
                                                                 </form>
@@ -760,7 +784,7 @@ include '../layouts/header.php';
                                                                 <input type="hidden" name="filter_date" value="<?php echo htmlspecialchars($date); ?>">
                                                                 <input type="hidden" name="filter_status" value="<?php echo htmlspecialchars($status); ?>">
                                                                 <input type="hidden" name="filter_doctor_id" value="<?php echo htmlspecialchars((string) $doctorId); ?>">
-                                                                <button type="submit" class="btn btn-sm btn-danger" title="Remove">
+                                                                <button type="submit" class="btn btn-sm btn-danger table-action-btn action-red" title="Remove">
                                                                     <i class="fas fa-times"></i>
                                                                 </button>
                                                             </form>
@@ -887,21 +911,26 @@ include '../layouts/header.php';
 
 <!-- Add walk-in Modal -->
 <div class="modal fade" id="addWalkinModal" tabindex="-1" aria-labelledby="addWalkinModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="addWalkinModalLabel"><i class="fas fa-walking me-2"></i>Add walk-in</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    <div class="modal-dialog modal-dialog-centered appointments-modal-points-card">
+        <div class="modal-content bills-dash-section-card border-0 queue-registration-card">
+            <div class="card-header bills-arrivals-header bills-arrivals-header--payment border-0 rounded-0">
+                <div class="bills-arrivals-section-header__inner align-items-center w-100">
+                    <div class="flex-grow-1 min-w-0">
+                        <h5 class="card-title mb-0" id="addWalkinModalLabel"><i class="fas fa-walking me-2" aria-hidden="true"></i>Add walk-in</h5>
+                    </div>
+                </div>
             </div>
             <form method="post">
-                <div class="modal-body">
+                <div class="modal-body card-body pt-3 pb-3 px-3 px-md-4">
                     <input type="hidden" name="add_walkin_arrival" value="1">
                     <input type="hidden" name="filter_date" value="<?php echo htmlspecialchars($date); ?>">
                     <input type="hidden" name="filter_status" value="<?php echo htmlspecialchars($status); ?>">
                     <input type="hidden" name="filter_doctor_id" value="<?php echo htmlspecialchars((string) $doctorId); ?>">
                     <div class="mb-3 queue-add-patient-ts">
-                        <label class="form-label fw-semibold">Patient *</label>
-                        <select name="walkin_patient_id" id="walkinPatientSelect" required placeholder="Search patients…">
+                        <label class="form-label-modern">
+                            <i class="fas fa-user me-2" aria-hidden="true"></i>Patient *
+                        </label>
+                        <select name="walkin_patient_id" id="walkinPatientSelect" class="form-select form-control-modern" required placeholder="Search patients…">
                             <option value="">Select a patient…</option>
                             <?php foreach ($allPatientsForQueue as $p): ?>
                                 <option value="<?php echo (int) $p['id']; ?>"><?php echo htmlspecialchars($p['full_name']); ?></option>
@@ -910,8 +939,10 @@ include '../layouts/header.php';
                     </div>
                     <?php if ($role !== 'doctor'): ?>
                         <div class="mb-3">
-                            <label class="form-label fw-semibold">Dentist *</label>
-                            <select name="walkin_doctor_id" class="form-select" required>
+                            <label class="form-label-modern">
+                                <i class="fas fa-user-md me-2" aria-hidden="true"></i>Dentist *
+                            </label>
+                            <select name="walkin_doctor_id" class="form-select form-control-modern" required>
                                 <option value="">Select</option>
                                 <?php foreach ($doctorSelectList as $d): ?>
                                     <option value="<?php echo (int) $d['id']; ?>"><?php echo htmlspecialchars($d['full_name']); ?></option>
@@ -920,12 +951,16 @@ include '../layouts/header.php';
                         </div>
                     <?php endif; ?>
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Reason *</label>
-                        <input type="text" name="walkin_reason" class="form-control" required maxlength="255" placeholder="Reason for visit">
+                        <label class="form-label-modern">
+                            <i class="fas fa-comment-dots me-2" aria-hidden="true"></i>Reason *
+                        </label>
+                        <input type="text" name="walkin_reason" class="form-control form-control-modern" required maxlength="255" placeholder="Reason for visit">
                     </div>
                     <div class="mb-0">
-                        <label class="form-label fw-semibold">Priority *</label>
-                        <select name="walkin_priority" class="form-select">
+                        <label class="form-label-modern">
+                            <i class="fas fa-chart-line me-2" aria-hidden="true"></i>Priority *
+                        </label>
+                        <select name="walkin_priority" class="form-select form-control-modern">
                             <option value="low">Low</option>
                             <option value="medium" selected>Medium</option>
                             <option value="high">High</option>
@@ -933,9 +968,9 @@ include '../layouts/header.php';
                         </select>
                     </div>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer appointments-modal-card-footer border-0">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Record walk-in</button>
+                    <button type="submit" class="btn-green">Record walk-in</button>
                 </div>
             </form>
         </div>
@@ -944,14 +979,17 @@ include '../layouts/header.php';
 
 <!-- Safety Check Modal -->
 <div class="modal fade" id="safetyCheckModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header py-2">
-                <h5 class="modal-title fs-6"><i class="fas fa-shield-alt me-2 text-info"></i>Safety Check</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable appointments-modal-points-card appointments-modal-points-card--wide">
+        <div class="modal-content bills-dash-section-card border-0 queue-registration-card">
+            <div class="card-header bills-arrivals-header bills-arrivals-header--subscriptions border-0 rounded-0">
+                <div class="bills-arrivals-section-header__inner align-items-center w-100">
+                    <div class="flex-grow-1 min-w-0">
+                        <h5 class="card-title mb-0"><i class="fas fa-shield-alt me-2" aria-hidden="true"></i>Safety Check</h5>
+                    </div>
+                </div>
             </div>
-            <div class="modal-body py-3">
-                <form id="safetyCheckForm" class="row g-2">
+            <div class="modal-body card-body pt-3 pb-3 px-3 px-md-4">
+                <form id="safetyCheckForm" class="row g-3">
                     <input type="hidden" name="patient_id" value="">
 
                     <div class="col-12">
@@ -959,8 +997,10 @@ include '../layouts/header.php';
                     </div>
 
                     <div class="col-12">
-                        <label class="form-label fw-semibold small mb-1">Medical history</label>
-                        <div class="border rounded p-2 bg-light">
+                        <label class="form-label-modern mb-2">
+                            <i class="fas fa-notes-medical me-2" aria-hidden="true"></i>Medical history
+                        </label>
+                        <div class="safety-check-panel rounded p-2 p-md-3">
                             <?php
                             $diseaseOptions = [
                                 'Cardiovascular Diseases',
@@ -984,8 +1024,10 @@ include '../layouts/header.php';
                     </div>
 
                     <div class="col-12">
-                        <label class="form-label fw-semibold small mb-1">Medications</label>
-                        <div class="border rounded p-2 bg-light">
+                        <label class="form-label-modern mb-2">
+                            <i class="fas fa-pills me-2" aria-hidden="true"></i>Medications
+                        </label>
+                        <div class="safety-check-panel rounded p-2 p-md-3">
                             <?php
                             $medOptions = ['Anticoagulants', 'Steroids', 'Chemotherapy'];
                             foreach ($medOptions as $i => $label):
@@ -1000,8 +1042,10 @@ include '../layouts/header.php';
                     </div>
 
                     <div class="col-12">
-                        <label class="form-label fw-semibold small mb-1 d-block">Allergies</label>
-                        <div class="d-flex gap-3">
+                        <label class="form-label-modern mb-2 d-block">
+                            <i class="fas fa-allergies me-2" aria-hidden="true"></i>Allergies
+                        </label>
+                        <div class="d-flex flex-wrap gap-3 safety-check-allergies-row">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="allergies" id="scAllergiesYes" value="yes">
                                 <label class="form-check-label small" for="scAllergiesYes">Yes</label>
@@ -1014,9 +1058,9 @@ include '../layouts/header.php';
                     </div>
                 </form>
             </div>
-            <div class="modal-footer py-2">
-                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-sm btn-info text-white" id="safetyCheckSaveBtn"><i class="fas fa-check me-1"></i>Confirm</button>
+            <div class="modal-footer appointments-modal-card-footer border-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn-green" id="safetyCheckSaveBtn"><i class="fas fa-check me-1" aria-hidden="true"></i>Confirm</button>
             </div>
         </div>
     </div>

@@ -10,7 +10,7 @@ if (Auth::hasRole('patient')) {
 }
 
 $db = Database::getInstance();
-$appointmentId = $_GET['id'] ?? 0;
+$appointmentId = (int) ($_GET['id'] ?? 0);
 
 // Get appointment details
 $appointment = $db->fetchOne(
@@ -41,16 +41,28 @@ include '../layouts/header.php';
 ?>
 
 
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4 appointments-edit-header">
-        <h1 class="h3 appointments-edit-title">Edit Appointment</h1>
-        <div class="appointments-edit-actions">
-            <a href="view.php?id=<?php echo $appointmentId; ?>" class="btn btn-info">
-                <i class="fas fa-eye"></i> View
-            </a>
-            <a href="index.php" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i> Back
-            </a>
+<div class="container-fluid bills-page appointments-edit-page">
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
+            <div class="col-12 col-lg-8">
+                <h2 class="mb-2 fw-bold appointments-edit-title-wrap">
+                    <i class="fas fa-edit me-2 opacity-90" aria-hidden="true"></i>Edit appointment
+                </h2>
+                <p class="mb-0 opacity-90">
+                    <?php echo htmlspecialchars((string) ($appointment['patient_name'] ?? '')); ?>
+                    · <?php echo formatDate($appointment['appointment_date'] ?? null); ?>
+                    · <?php echo formatTime($appointment['appointment_time'] ?? null); ?>
+                </p>
+            </div>
+            <div class="col-12 col-lg-4 mt-3 mt-lg-0 d-flex justify-content-center justify-content-lg-end gap-2 appointments-add-top-actions">
+                <a href="view.php?id=<?php echo (int) $appointmentId; ?>" class="btn appointments-add-top-btn appointments-view-header-edit-btn">
+                    <i class="fas fa-eye" aria-hidden="true"></i> View
+                </a>
+                <a href="index.php" class="btn btn-secondary appointments-add-top-btn">
+                    <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                    <span class="d-none d-sm-inline">Back to Appointments</span><span class="d-sm-none">Back</span>
+                </a>
+            </div>
         </div>
     </div>
 
@@ -86,99 +98,111 @@ include '../layouts/header.php';
         <?php endif; ?>
     <?php endif; ?>
 
-    <div class="card appointment-edit-card">
-        <div class="card-body">
-            <form method="POST" action="<?php echo url('api/appointments_edit.php'); ?>" data-api="<?php echo url('api/appointments_edit.php'); ?>" data-message-target="#message">
-                <input type="hidden" name="id" value="<?php echo (int) $appointmentId; ?>">
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Patient *</label>
-                        <select class="form-select" name="patient_id" required>
-                            <option value="">Select Patient</option>
-                            <?php foreach ($patients as $p): ?>
-                                <option value="<?php echo $p['id']; ?>" <?php echo $appointment['patient_id'] == $p['id'] ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($p['full_name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Doctor *</label>
-                        <select class="form-select" name="doctor_id" required>
-                            <option value="">Select Doctor</option>
-                            <?php foreach ($doctors as $doc): ?>
-                                <option value="<?php echo $doc['id']; ?>" <?php echo $appointment['doctor_id'] == $doc['id'] ? 'selected' : ''; ?>>
-                                    Dr. <?php echo htmlspecialchars($doc['full_name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Date *</label>
-                        <input type="date" class="form-control" name="appointment_date" 
-                               value="<?php echo $appointment['appointment_date']; ?>" required>
-                    </div>
-
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Time *</label>
-                        <input type="time" class="form-control" name="appointment_time" 
-                               value="<?php echo substr($appointment['appointment_time'], 0, 5); ?>" required>
-                    </div>
-
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">Duration</label>
-                        <select class="form-select" name="duration">
-                            <option value="15" <?php echo $appointment['duration'] == 15 ? 'selected' : ''; ?>>15 min</option>
-                            <option value="30" <?php echo $appointment['duration'] == 30 ? 'selected' : ''; ?>>30 min</option>
-                            <option value="45" <?php echo $appointment['duration'] == 45 ? 'selected' : ''; ?>>45 min</option>
-                            <option value="60" <?php echo $appointment['duration'] == 60 ? 'selected' : ''; ?>>60 min</option>
-                            <option value="90" <?php echo $appointment['duration'] == 90 ? 'selected' : ''; ?>>90 min</option>
-                        </select>
-                    </div>
-
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Chair Number</label>
-                        <input type="number" class="form-control" name="chair_number" min="1" max="10"
-                               value="<?php echo $appointment['chair_number']; ?>">
-                    </div>
-
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Treatment Type *</label>
-                        <input type="text" class="form-control" name="treatment_type" 
-                               value="<?php echo htmlspecialchars($appointment['treatment_type']); ?>" required>
-                    </div>
-
-                    <div class="col-12 mb-3">
-                        <label class="form-label">Description</label>
-                        <textarea class="form-control" name="description" rows="2"><?php echo htmlspecialchars((string) ($appointment['description'] ?? '')); ?></textarea>
-                    </div>
-
-                    <div class="col-12 mb-3">
-                        <label class="form-label">Status</label>
-                        <select class="form-select" name="status">
-                            <option value="scheduled" <?php echo $appointment['status'] == 'scheduled' ? 'selected' : ''; ?>>Scheduled</option>
-                            <option value="checked-in" <?php echo $appointment['status'] == 'checked-in' ? 'selected' : ''; ?>>Checked In</option>
-                            <option value="in-treatment" <?php echo $appointment['status'] == 'in-treatment' ? 'selected' : ''; ?>>In Treatment</option>
-                            <option value="completed" <?php echo $appointment['status'] == 'completed' ? 'selected' : ''; ?>>Completed</option>
-                            <option value="cancelled" <?php echo $appointment['status'] == 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
-                            <option value="follow-up" <?php echo $appointment['status'] == 'follow-up' ? 'selected' : ''; ?>>Follow Up</option>
-                        </select>
-                    </div>
-
-                    <div class="col-12 mb-3">
-                        <label class="form-label">Notes</label>
-                        <textarea class="form-control" name="notes" rows="2"><?php echo htmlspecialchars((string) ($appointment['notes'] ?? '')); ?></textarea>
+    <div class="row g-3">
+        <div class="col-12">
+            <div class="card bills-dash-section-card appointments-edit-form-card queue-registration-card">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--payment border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-folder-open me-2" aria-hidden="true"></i>Appointment details</h5>
+                        </div>
                     </div>
                 </div>
+                <div class="card-body">
+                    <form method="POST" action="<?php echo url('api/appointments_edit.php'); ?>" data-api="<?php echo url('api/appointments_edit.php'); ?>" data-message-target="#message">
+                        <input type="hidden" name="id" value="<?php echo (int) $appointmentId; ?>">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label" for="editAptPatient">Patient *</label>
+                                <select class="form-select form-control-modern" id="editAptPatient" name="patient_id" required>
+                                    <option value="">Select Patient</option>
+                                    <?php foreach ($patients as $p): ?>
+                                        <option value="<?php echo (int) $p['id']; ?>" <?php echo (int) $appointment['patient_id'] === (int) $p['id'] ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($p['full_name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
 
-                <hr>
-                <div class="d-flex justify-content-end gap-2 appointment-edit-form-actions">
-                    <button type="submit" class="btn btn-primary">Update Appointment</button>
-                    <a href="view.php?id=<?php echo $appointmentId; ?>" class="btn btn-secondary">Cancel</a>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label" for="editAptDoctor">Doctor *</label>
+                                <select class="form-select form-control-modern" id="editAptDoctor" name="doctor_id" required>
+                                    <option value="">Select Doctor</option>
+                                    <?php foreach ($doctors as $doc): ?>
+                                        <option value="<?php echo (int) $doc['id']; ?>" <?php echo (int) $appointment['doctor_id'] === (int) $doc['id'] ? 'selected' : ''; ?>>
+                                            Dr. <?php echo htmlspecialchars($doc['full_name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label" for="editAptDate">Date *</label>
+                                <input type="date" class="form-control form-control-modern" id="editAptDate" name="appointment_date"
+                                       value="<?php echo htmlspecialchars((string) ($appointment['appointment_date'] ?? '')); ?>" required>
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label" for="editAptTime">Time *</label>
+                                <input type="time" class="form-control form-control-modern" id="editAptTime" name="appointment_time"
+                                       value="<?php echo htmlspecialchars(substr((string) ($appointment['appointment_time'] ?? ''), 0, 5)); ?>" required>
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label" for="editAptDuration">Duration</label>
+                                <select class="form-select form-control-modern" id="editAptDuration" name="duration">
+                                    <option value="15" <?php echo (int) $appointment['duration'] === 15 ? 'selected' : ''; ?>>15 min</option>
+                                    <option value="30" <?php echo (int) $appointment['duration'] === 30 ? 'selected' : ''; ?>>30 min</option>
+                                    <option value="45" <?php echo (int) $appointment['duration'] === 45 ? 'selected' : ''; ?>>45 min</option>
+                                    <option value="60" <?php echo (int) $appointment['duration'] === 60 ? 'selected' : ''; ?>>60 min</option>
+                                    <option value="90" <?php echo (int) $appointment['duration'] === 90 ? 'selected' : ''; ?>>90 min</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label" for="editAptChair">Chair Number</label>
+                                <input type="number" class="form-control form-control-modern" id="editAptChair" name="chair_number" min="1" max="10"
+                                       value="<?php echo htmlspecialchars((string) ($appointment['chair_number'] ?? '')); ?>">
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label" for="editAptTreatment">Treatment Type *</label>
+                                <input type="text" class="form-control form-control-modern" id="editAptTreatment" name="treatment_type"
+                                       value="<?php echo htmlspecialchars((string) ($appointment['treatment_type'] ?? '')); ?>" required>
+                            </div>
+
+                            <div class="col-12 mb-3">
+                                <label class="form-label" for="editAptDescription">Description</label>
+                                <textarea class="form-control form-control-modern" id="editAptDescription" name="description" rows="2"><?php echo htmlspecialchars((string) ($appointment['description'] ?? '')); ?></textarea>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label" for="editAptStatus">Status</label>
+                                <select class="form-select form-control-modern" id="editAptStatus" name="status">
+                                    <option value="scheduled" <?php echo $appointment['status'] === 'scheduled' ? 'selected' : ''; ?>>Scheduled</option>
+                                    <option value="checked-in" <?php echo $appointment['status'] === 'checked-in' ? 'selected' : ''; ?>>Checked In</option>
+                                    <option value="in-treatment" <?php echo $appointment['status'] === 'in-treatment' ? 'selected' : ''; ?>>In Treatment</option>
+                                    <option value="completed" <?php echo $appointment['status'] === 'completed' ? 'selected' : ''; ?>>Completed</option>
+                                    <option value="cancelled" <?php echo $appointment['status'] === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
+                                    <option value="follow-up" <?php echo $appointment['status'] === 'follow-up' ? 'selected' : ''; ?>>Follow Up</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12 mb-0">
+                                <label class="form-label" for="editAptNotes">Notes</label>
+                                <textarea class="form-control form-control-modern" id="editAptNotes" name="notes" rows="2"><?php echo htmlspecialchars((string) ($appointment['notes'] ?? '')); ?></textarea>
+                            </div>
+                        </div>
+
+                        <hr class="my-3">
+
+                        <div class="d-flex justify-content-lg-end gap-2 flex-wrap appointment-edit-form-actions">
+                            <button type="submit" class="btn-green">Update Appointment</button>
+                            <a href="view.php?id=<?php echo (int) $appointmentId; ?>" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>

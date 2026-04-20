@@ -30,11 +30,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $error = 'Please fill in all required fields.';
     } else {
         try {
-            $db->execute(
-                "INSERT INTO expenses (expense_type, description, amount, expense_date, vendor_supplier, invoice_number, payment_method, payment_status, notes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                [$expenseType, $description, $amount, $expenseDate, $vendorSupplier, $invoiceNumber, $paymentMethod, $paymentStatus, $notes, $userId],
-                "ssdssssssi"
+            $hasExpenseSync = dbColumnExists('expenses', 'sync_status');
+            $columns = ['expense_type', 'description', 'amount', 'expense_date', 'vendor_supplier', 'invoice_number', 'payment_method', 'payment_status', 'notes', 'created_by'];
+            $values = [$expenseType, $description, $amount, $expenseDate, $vendorSupplier, $invoiceNumber, $paymentMethod, $paymentStatus, $notes, $userId];
+            $types = 'ssdssssssi';
+            if ($hasExpenseSync) {
+                $columns[] = 'sync_status';
+                $values[] = 'pending';
+                $types .= 's';
+            }
+            $newExpenseId = (int) $db->insert(
+                'INSERT INTO expenses (' . implode(', ', $columns) . ') VALUES (' . implode(', ', array_fill(0, count($columns), '?')) . ')',
+                $values,
+                $types
             );
+            if ($newExpenseId > 0 && $hasExpenseSync) {
+                sync_push_row_now('expenses', $newExpenseId);
+            }
             $success = 'Expense recorded successfully.';
         } catch (Exception $e) {
             $error = 'Error recording expense: ' . $e->getMessage();

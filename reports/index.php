@@ -97,8 +97,17 @@ switch ($reportType) {
 include '../layouts/header.php';
 ?>
 
-<div class="container-fluid">
-    <h1 class="h3 mb-4">Reports & Analytics</h1>
+<div class="container-fluid bills-page">
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
+            <div class="col-12">
+                <h2 class="mb-2 fw-bold">
+                    <i class="fas fa-chart-bar me-2 opacity-90" aria-hidden="true"></i>Reports &amp; Analytics
+                </h2>
+                <p class="mb-0 opacity-90">Run appointment, patient, and revenue reports for any date range.</p>
+            </div>
+        </div>
+    </div>
 
     <!-- Report Filter -->
     <div class="card mb-4">
@@ -121,7 +130,7 @@ include '../layouts/header.php';
                     <input type="date" class="form-control" name="end_date" value="<?php echo $endDate; ?>">
                 </div>
                 <div class="col-md-3 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary w-100">Generate Report</button>
+                    <button type="submit" class="btn-green w-100">Generate Report</button>
                 </div>
             </form>
         </div>

@@ -30,7 +30,4 @@ $base = rtrim(SITE_URL, '/');
     } ?>
 </head>
 <body class="auth-layout <?php echo htmlspecialchars($authBodyClass); ?>">
-<header class="auth-site-header">
-  
-</header>
 <main class="auth-main" role="main">

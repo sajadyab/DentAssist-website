@@ -1,0 +1,5 @@
+{
+    "require": {
+        "supabase-php/supabase-client": "^1.0"
+    }
+}

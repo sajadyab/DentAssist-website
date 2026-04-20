@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../api/_helpers.php';
+require_once __DIR__ . '/../supabase_client.php';
+require_once __DIR__ . '/../includes/patient_cloud_repository.php';
 
 Auth::requireLogin();
 if ($_SESSION['role'] != 'patient') {
@@ -19,7 +21,10 @@ if (!$patientId) {
 $error = '';
 $success = '';
 
-$patient = $db->fetchOne('SELECT full_name FROM patients WHERE id = ?', [$patientId], 'i');
+$patient = patient_portal_fetch_patient_cloud_first((int) $patientId);
+if (!$patient) {
+    die('Patient record not found.');
+}
 $calendarConfig = getClinicBookingCalendarConfig($db);
 $slotMinutes = $calendarConfig['slot_minutes'];
 $hoursConfig = $calendarConfig['hours'];
@@ -36,6 +41,34 @@ $visitTypeOptions = [
     'Emergency / pain',
     'Other',
 ];
+
+function patientQueueSupabaseClient(): ?SupabaseAPI
+{
+    static $client = false;
+    if ($client !== false) {
+        return $client;
+    }
+    if (!defined('SUPABASE_URL') || !defined('SUPABASE_KEY')) {
+        $client = null;
+
+        return null;
+    }
+    $url = trim((string) SUPABASE_URL);
+    $key = trim((string) SUPABASE_KEY);
+    if ($url === '' || $key === '') {
+        $client = null;
+
+        return null;
+    }
+    try {
+        $client = new SupabaseAPI($url, $key);
+    } catch (Throwable $e) {
+        error_log('patientQueueSupabaseClient init failed: ' . $e->getMessage());
+        $client = null;
+    }
+
+    return $client;
+}
 
 $doctorId = isset($_GET['doctor_id']) ? (int) $_GET['doctor_id'] : 0;
 $weekOffset = isset($_GET['week']) ? (int) $_GET['week'] : 0;
@@ -157,6 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['book_appointment'])) 
                         $slotEndHis = $slotEnd->format('H:i:s');
                         $bookError = '';
                         $requestId = 0;
+                        $cloudRequestId = null;
                         $db->beginTransaction();
                         try {
                             if (patientQueueSlotConflict($db, $postDoctor, $postDate, $slotStartHis, $slotEndHis)) {
@@ -172,6 +206,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['book_appointment'])) 
                             if ($dup) {
                                 throw new RuntimeException('You already have a pending request for this slot.');
                             }
+
+                            $supabase = patientQueueSupabaseClient();
+                            if ($supabase === null) {
+                                throw new RuntimeException('Cloud booking is temporarily unavailable. Please try again in a moment.');
+                            }
+                            $cloudInsert = $supabase->insert('appointment_requests', [
+                                'patient_id' => $patientId,
+                                'doctor_id' => $postDoctor,
+                                'requested_date' => $postDate,
+                                'requested_time' => $postTime,
+                                'duration_minutes' => $slotMinutes,
+                                'treatment_type' => $treatmentType,
+                                'description' => ($description !== '' ? $description : null),
+                                'source' => 'patient_portal',
+                            ]);
+                            if (is_array($cloudInsert) && !empty($cloudInsert[0]['id'])) {
+                                $cloudRequestId = (int) $cloudInsert[0]['id'];
+                            }
+
                             $requestId = (int) $db->insert(
                                 "INSERT INTO appointment_requests (
                                     patient_id, doctor_id, requested_date, requested_time, duration_minutes,
@@ -195,9 +248,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['book_appointment'])) 
                             $db->commit();
                         } catch (RuntimeException $e) {
                             $db->rollback();
+                            if ($cloudRequestId !== null) {
+                                try {
+                                    $supabase = patientQueueSupabaseClient();
+                                    if ($supabase !== null) {
+                                        $supabase->delete('appointment_requests', ['id' => $cloudRequestId]);
+                                    }
+                                } catch (Throwable $ignored) {
+                                }
+                            }
                             $bookError = $e->getMessage();
                         } catch (Throwable $e) {
                             $db->rollback();
+                            if ($cloudRequestId !== null) {
+                                try {
+                                    $supabase = patientQueueSupabaseClient();
+                                    if ($supabase !== null) {
+                                        $supabase->delete('appointment_requests', ['id' => $cloudRequestId]);
+                                    }
+                                } catch (Throwable $ignored) {
+                                }
+                            }
                             $bookError = 'Could not submit your request. Please try again.';
                         }
 
@@ -287,56 +358,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['weekly_queue_request'
         $flexDays = isset($_POST['date_flexibility_days']) && $_POST['date_flexibility_days'] !== ''
             ? max(0, min(30, (int) $_POST['date_flexibility_days']))
             : 0;
-
-        if (dbColumnExists('waiting_queue', 'date_flexibility_days')) {
-            $db->insert(
-                "INSERT INTO waiting_queue (
-                    patient_id, patient_name, doctor_id, queue_type, priority, reason,
-                    preferred_treatment, preferred_day, preferred_date, notes, date_flexibility_days, status
-                ) VALUES (?, ?, ?, 'weekly', ?, ?, NULL, ?, ?, ?, ?, 'waiting')",
-                [
-                    $patientId,
-                    $patient['full_name'],
-                    $postDoctor,
-                    $priority,
-                    $reason,
-                    $preferredDayName,
-                    $preferredDate,
-                    $notesVal,
-                    $flexDays,
-                ],
-                'isisssssi'
-            );
-        } else {
-            $db->insert(
-                "INSERT INTO waiting_queue (
-                    patient_id, patient_name, doctor_id, queue_type, priority, reason,
-                    preferred_treatment, preferred_day, preferred_date, notes, status
-                ) VALUES (?, ?, ?, 'weekly', ?, ?, NULL, ?, ?, ?, 'waiting')",
-                [
-                    $patientId,
-                    $patient['full_name'],
-                    $postDoctor,
-                    $priority,
-                    $reason,
-                    $preferredDayName,
-                    $preferredDate,
-                    $notesVal,
-                ],
-                'isisssss'
-            );
-        }
-
-        $docLabel = '';
-        foreach ($doctors as $d) {
-            if ((int) $d['id'] === $postDoctor) {
-                $docLabel = (string) $d['full_name'];
-                break;
+        $cloudWaitingId = null;
+        try {
+            $supabase = patientQueueSupabaseClient();
+            if ($supabase === null) {
+                throw new RuntimeException('Cloud queue is temporarily unavailable. Please try again in a moment.');
             }
+            $cloudInsert = $supabase->insert('waiting_queue', [
+                'patient_id' => $patientId,
+                'patient_name' => $patient['full_name'],
+                'doctor_id' => $postDoctor,
+                'queue_type' => 'weekly',
+                'priority' => $priority,
+                'reason' => $reason,
+                'preferred_day' => $preferredDayName,
+                'preferred_date' => $preferredDate,
+                'notes' => $notesVal,
+                'date_flexibility_days' => $flexDays,
+                'status' => 'waiting',
+                'source' => 'patient_portal',
+            ]);
+            if (is_array($cloudInsert) && !empty($cloudInsert[0]['id'])) {
+                $cloudWaitingId = (int) $cloudInsert[0]['id'];
+            }
+
+            if (dbColumnExists('waiting_queue', 'date_flexibility_days')) {
+                $db->insert(
+                    "INSERT INTO waiting_queue (
+                        patient_id, patient_name, doctor_id, queue_type, priority, reason,
+                        preferred_treatment, preferred_day, preferred_date, notes, date_flexibility_days, status
+                    ) VALUES (?, ?, ?, 'weekly', ?, ?, NULL, ?, ?, ?, ?, 'waiting')",
+                    [
+                        $patientId,
+                        $patient['full_name'],
+                        $postDoctor,
+                        $priority,
+                        $reason,
+                        $preferredDayName,
+                        $preferredDate,
+                        $notesVal,
+                        $flexDays,
+                    ],
+                    'isisssssi'
+                );
+            } else {
+                $db->insert(
+                    "INSERT INTO waiting_queue (
+                        patient_id, patient_name, doctor_id, queue_type, priority, reason,
+                        preferred_treatment, preferred_day, preferred_date, notes, status
+                    ) VALUES (?, ?, ?, 'weekly', ?, ?, NULL, ?, ?, ?, 'waiting')",
+                    [
+                        $patientId,
+                        $patient['full_name'],
+                        $postDoctor,
+                        $priority,
+                        $reason,
+                        $preferredDayName,
+                        $preferredDate,
+                        $notesVal,
+                    ],
+                    'isisssss'
+                );
+            }
+        } catch (Throwable $e) {
+            if ($cloudWaitingId !== null) {
+                try {
+                    $supabase = patientQueueSupabaseClient();
+                    if ($supabase !== null) {
+                        $supabase->delete('waiting_queue', ['id' => $cloudWaitingId]);
+                    }
+                } catch (Throwable $ignored) {
+                }
+            }
+            $error = $e instanceof RuntimeException ? $e->getMessage() : 'Could not add your weekly queue request right now.';
         }
-        $success = 'Your request was added to the weekly queue for Dr. ' . $docLabel
-            . ' on ' . formatDate($preferredDate) . '. The clinic will follow up with you.';
-        $_POST = [];
+
+        if ($error !== '') {
+            // stop here and show the error
+        } else {
+
+            $docLabel = '';
+            foreach ($doctors as $d) {
+                if ((int) $d['id'] === $postDoctor) {
+                    $docLabel = (string) $d['full_name'];
+                    break;
+                }
+            }
+            $success = 'Your request was added to the weekly queue for Dr. ' . $docLabel
+                . ' on ' . formatDate($preferredDate) . '. The clinic will follow up with you.';
+            $_POST = [];
+        }
     }
 }
 
@@ -353,7 +464,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_appointment_re
         if (!$cancelRow) {
             $error = 'That request was not found or may have already been processed.';
         } else {
-            $db->execute('DELETE FROM appointment_requests WHERE id = ? AND patient_id = ?', [$cancelId, $patientId], 'ii');
+            try {
+                patient_portal_delete_appointment_request_cloud_first($cancelRow, $cancelId);
+            } catch (Throwable $e) {
+                $error = 'Cloud cancel failed. Please retry in a moment.';
+                $cancelRow = null;
+            }
+        }
+        if ($error === '' && $cancelRow) {
+            $deletedRows = (int) $db->execute('DELETE FROM appointment_requests WHERE id = ? AND patient_id = ?', [$cancelId, $patientId], 'ii');
             logAction('DELETE', 'appointment_requests', $cancelId, $cancelRow, null);
             sendNotification(
                 $userId,
@@ -503,27 +622,118 @@ $myPendingAppointmentRequests = $db->fetchAll(
 );
 $pendingRequestsCount = count($myPendingAppointmentRequests);
 
+/**
+ * Markup for the Pending requests card (used twice: mobile-first slot + desktop under Queue request).
+ */
+$queuePendingCardHtml = '';
+if (!empty($myPendingAppointmentRequests)) {
+    ob_start();
+    ?>
+            <div class="form-card mb-4 queue-compact-form queue-registration-card queue-pending-requests-card">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--invoices border-0 py-3 queue-panel-card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-hourglass-half me-2" aria-hidden="true"></i>Pending requests
+                    </h5>
+                </div>
+                <div class="card-body p-3 p-md-4">
+                    <?php foreach ($myPendingAppointmentRequests as $pr): ?>
+                        <?php
+                        $descShort = trim((string) ($pr['description'] ?? ''));
+                        if (strlen($descShort) > 80) {
+                            $descShort = substr($descShort, 0, 77) . '…';
+                        }
+                        $line = '<strong>' . htmlspecialchars((string) $pr['doctor_name']) . '</strong>'
+                            . ' · ' . htmlspecialchars(formatDate($pr['requested_date']) . ' · ' . formatTime($pr['requested_time']))
+                            . ' · ' . htmlspecialchars((string) $pr['treatment_type']);
+                        if ($descShort !== '') {
+                            $line .= ' · <span class="text-muted">' . htmlspecialchars($descShort) . '</span>';
+                        }
+                        if (!empty($pr['created_at'])) {
+                            $line .= ' · <span class="text-muted">Submitted ' . htmlspecialchars((string) $pr['created_at']) . '</span>';
+                        }
+                        ?>
+                        <div class="queue-pending-row">
+                            <div class="queue-pending-row-main"><?php echo $line; ?></div>
+                            <form method="post" class="flex-shrink-0" onsubmit="return confirm('Cancel this booking request?');">
+                                <input type="hidden" name="cancel_appointment_request" value="1">
+                                <input type="hidden" name="request_id" value="<?php echo (int) $pr['id']; ?>">
+                                <button type="submit" class="btn btn-cancel-pending btn-sm py-1 px-3">
+                                    <i class="fas fa-times me-1"></i> Cancel
+                                </button>
+                            </form>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+    <?php
+    $queuePendingCardHtml = ob_get_clean();
+}
+
+ob_start();
+?>
+            <div class="card border-0 shadow-sm mb-4 queue-before-visit-card">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--invoices border-0 py-3 queue-panel-card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-clinic-medical me-2" aria-hidden="true"></i>Before Your Visit
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex mb-3">
+                        <i class="fas fa-id-card text-primary me-3 mt-1"></i>
+                        <div>
+                            <strong>Bring Your ID & Insurance Card</strong>
+                            <p class="small text-muted mb-0">For verification and coverage</p>
+                        </div>
+                    </div>
+                    <div class="d-flex mb-3">
+                        <i class="fas fa-list-alt text-primary me-3 mt-1"></i>
+                        <div>
+                            <strong>List of Medications</strong>
+                            <p class="small text-muted mb-0">Current medications and allergies</p>
+                        </div>
+                    </div>
+                    <div class="d-flex mb-3">
+                        <i class="fas fa-file-medical text-primary me-3 mt-1"></i>
+                        <div>
+                            <strong>Previous Records</strong>
+                            <p class="small text-muted mb-0">X-rays or dental records if available</p>
+                        </div>
+                    </div>
+                    <div class="d-flex">
+                        <i class="fas fa-smile text-primary me-3 mt-1"></i>
+                        <div>
+                            <strong>Oral Hygiene</strong>
+                            <p class="small text-muted mb-0">Brush your teeth before arrival</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+<?php
+$queueBeforeVisitCardHtml = ob_get_clean();
+
 $pageTitle = 'Join Queue';
 include '../layouts/header.php';
 ?>
 
 
-<div class="container-fluid queue-page">
+<div class="container-fluid queue-page bills-page patient-portal">
 
 
-    <div class="queue-header">
-        <div class="row align-items-center">
-            <div class="col-md-7">
-                <h2 class="mb-2">
-                    <i class="fas fa-hourglass-half"></i> Join Waiting Queue
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
+            <div class="col-md-8">
+                <h2 class="mb-2 fw-bold">
+                    <i class="fas fa-hourglass-half me-2 opacity-90" aria-hidden="true"></i>Join Waiting Queue
                 </h2>
-                <p class="mb-0">Book a time below or join the walk-in queue — same-day care or a future slot</p>
+                <p class="mb-0 opacity-90">Book a time below or join the walk-in queue — same-day care or a future slot</p>
             </div>
-            <div class="col-md-5 text-md-end mt-3 mt-md-0">
-                <div class="queue-pending-stat" role="status" aria-live="polite">
-                    <span class="queue-pending-stat-label">Requests awaiting confirmation</span>
-                    <div class="queue-pending-stat-number"><?php echo (int) $pendingRequestsCount; ?></div>
-                    <span class="queue-pending-stat-hint"><?php echo $pendingRequestsCount === 1 ? 'online booking request' : 'online booking requests'; ?></span>
+            <div class="col-md-4 mt-3 mt-md-0">
+                <div class="bills-balance-wrap">
+                    <div class="bills-balance-box" role="status" aria-live="polite">
+                        <small>Requests awaiting confirmation</small>
+                        <p class="bills-balance-amount mb-0"><?php echo (int) $pendingRequestsCount; ?></p>
+                        <small class="d-block mt-1" style="font-size:0.6rem;text-transform:none;letter-spacing:0;"><?php echo $pendingRequestsCount === 1 ? 'online booking request' : 'online booking requests'; ?></small>
+                    </div>
                 </div>
             </div>
         </div>
@@ -544,15 +754,20 @@ include '../layouts/header.php';
     <?php endif; ?>
 
     <div class="row queue-main-layout">
+        <?php if ($queuePendingCardHtml !== ''): ?>
+        <div class="col-12 d-lg-none order-0 queue-pending-mobile-slot">
+            <?php echo $queuePendingCardHtml; ?>
+        </div>
+        <?php endif; ?>
         <div class="col-12 queue-cell-calendar order-1">
             <div class="card border-0 shadow-sm mb-4 queue-calendar-card">
-                <div class="card-header bg-white border-0 py-3 queue-panel-card-header">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--invoices border-0 py-3 queue-panel-card-header">
                     <h5 class="card-title mb-0">
                         <i class="fas fa-calendar-check me-2" aria-hidden="true"></i>Book a visit
                     </h5>
-                    <p class="small text-muted mb-0 mt-1">Tap <strong>+</strong> to request an appointment, you will be notified of your dentist's response via WhatsApp.</p>
                 </div>
                 <div class="card-body p-3 queue-main-calendar">
+                    <p class="queue-card-intro small text-muted mb-2 mb-md-3">Tap <strong>+</strong> to request an appointment, you will be notified of your dentist's response via WhatsApp.</p>
                     <form method="get" class="row g-2 align-items-end mb-2" id="doctorWeekForm">
                         <div class="col-sm-6 col-md-5">
                             <label class="form-label small text-muted mb-1">Dentist</label>
@@ -666,57 +881,20 @@ include '../layouts/header.php';
                     <?php endif; ?>
                 </div>
             </div>
-
-            <?php if (!empty($myPendingAppointmentRequests)): ?>
-            <div class="form-card mb-4 queue-compact-form queue-registration-card queue-pending-requests-card">
-                <div class="card-header bg-white border-0 py-3 queue-panel-card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-hourglass-half me-2" aria-hidden="true"></i>Pending requests
-                    </h5>
-                    
-                </div>
-                <div class="card-body p-3 p-md-4">
-                    <?php foreach ($myPendingAppointmentRequests as $pr): ?>
-                        <?php
-                        $descShort = trim((string) ($pr['description'] ?? ''));
-                        if (strlen($descShort) > 80) {
-                            $descShort = substr($descShort, 0, 77) . '…';
-                        }
-                        $line = '<strong>' . htmlspecialchars((string) $pr['doctor_name']) . '</strong>'
-                            . ' · ' . htmlspecialchars(formatDate($pr['requested_date']) . ' · ' . formatTime($pr['requested_time']))
-                            . ' · ' . htmlspecialchars((string) $pr['treatment_type']);
-                        if ($descShort !== '') {
-                            $line .= ' · <span class="text-muted">' . htmlspecialchars($descShort) . '</span>';
-                        }
-                        if (!empty($pr['created_at'])) {
-                            $line .= ' · <span class="text-muted">Submitted ' . htmlspecialchars((string) $pr['created_at']) . '</span>';
-                        }
-                        ?>
-                        <div class="queue-pending-row">
-                            <div class="queue-pending-row-main"><?php echo $line; ?></div>
-                            <form method="post" class="flex-shrink-0" onsubmit="return confirm('Cancel this booking request?');">
-                                <input type="hidden" name="cancel_appointment_request" value="1">
-                                <input type="hidden" name="request_id" value="<?php echo (int) $pr['id']; ?>">
-                                <button type="submit" class="btn btn-cancel-pending btn-sm py-1 px-3">
-                                    <i class="fas fa-times me-1"></i> Cancel
-                                </button>
-                            </form>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
+            <div class="d-none d-lg-block queue-before-desktop-slot">
+                <?php echo $queueBeforeVisitCardHtml; ?>
             </div>
-            <?php endif; ?>
         </div>
 
         <div class="col-12 queue-cell-sidebar order-2">
             <div class="form-card mb-4 queue-compact-form queue-registration-card" id="queue-walkin">
-                <div class="card-header bg-white border-0 py-3 queue-panel-card-header">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--invoices border-0 py-3 queue-panel-card-header">
                     <h5 class="card-title mb-0">
                         <i class="fas fa-calendar-week me-2" aria-hidden="true"></i>Queue request
                     </h5>
-                    <p class="small text-muted mb-0 mt-1"> No free slots? Join the queue to be prioritized if an opening appears within your chosen timeframe.</p>
                 </div>
                 <div class="card-body p-4">
+                    <p class="queue-card-intro small text-muted mb-3">No free slots? Join the queue to be prioritized if an opening appears within your chosen timeframe.</p>
                     <?php if (empty($doctors)): ?>
                         <p class="text-muted small mb-0">No dentists are available for requests right now. Please call the clinic.</p>
                     <?php else: ?>
@@ -779,7 +957,7 @@ include '../layouts/header.php';
                                 placeholder="Anything the clinic should know"></textarea>
                         </div>
                         <div class="d-flex gap-3 flex-wrap">
-                            <button type="submit" class="btn btn-queue-reg">
+                            <button type="submit" class="btn btn-green">
                                Submit Request
                             </button>
                             <a href="index.php" class="btn btn-cancel-reg">
@@ -790,80 +968,15 @@ include '../layouts/header.php';
                     <?php endif; ?>
                 </div>
             </div>
-
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-white border-0 py-3 queue-panel-card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-info-circle me-2" aria-hidden="true"></i>Queue Information
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="info-card">
-                        <div class="d-flex align-items-start">
-                            <i class="fas fa-clock text-warning fa-lg me-3 mt-1"></i>
-                            <div>
-                                <strong>Estimated Wait Times by Priority</strong>
-                                <p class="small mb-0 mt-1">
-                                    ðŸ”´ Emergency: Immediate<br>
-                                    ðŸŸ  High: 10-20 minutes<br>
-                                    ðŸŸ¡ Medium: 20-30 minutes<br>
-                                    ðŸŸ¢ Low: 30-45 minutes
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="info-card mb-0">
-                        <div class="d-flex align-items-start">
-                            <i class="fas fa-exclamation-triangle text-danger fa-lg me-3 mt-1"></i>
-                            <div>
-                                <strong>Emergency Cases</strong>
-                                <p class="small mb-0 mt-1">If you have severe pain, bleeding, or trauma, select Emergency priority or call us immediately.</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <?php if ($queuePendingCardHtml !== ''): ?>
+            <div class="d-none d-lg-block queue-pending-desktop-slot">
+                <?php echo $queuePendingCardHtml; ?>
             </div>
+            <?php endif; ?>
         </div>
 
-        <div class="col-12 queue-cell-before order-3">
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-white border-0 py-3 queue-panel-card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-clinic-medical me-2" aria-hidden="true"></i>Before Your Visit
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="d-flex mb-3">
-                        <i class="fas fa-id-card text-primary me-3 mt-1"></i>
-                        <div>
-                            <strong>Bring Your ID & Insurance Card</strong>
-                            <p class="small text-muted mb-0">For verification and coverage</p>
-                        </div>
-                    </div>
-                    <div class="d-flex mb-3">
-                        <i class="fas fa-list-alt text-primary me-3 mt-1"></i>
-                        <div>
-                            <strong>List of Medications</strong>
-                            <p class="small text-muted mb-0">Current medications and allergies</p>
-                        </div>
-                    </div>
-                    <div class="d-flex mb-3">
-                        <i class="fas fa-file-medical text-primary me-3 mt-1"></i>
-                        <div>
-                            <strong>Previous Records</strong>
-                            <p class="small text-muted mb-0">X-rays or dental records if available</p>
-                        </div>
-                    </div>
-                    <div class="d-flex">
-                        <i class="fas fa-smile text-primary me-3 mt-1"></i>
-                        <div>
-                            <strong>Oral Hygiene</strong>
-                            <p class="small text-muted mb-0">Brush your teeth before arrival</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="col-12 d-lg-none order-3 queue-before-visit-mobile-slot">
+            <?php echo $queueBeforeVisitCardHtml; ?>
         </div>
     </div>
 </div>
@@ -906,7 +1019,7 @@ include '../layouts/header.php';
                 </div>
                 <div class="modal-footer border-0 pt-0">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;"><i class="fas fa-check me-1"></i> Confirm</button>
+                    <button type="button" id="slotConfirmBtn" class="btn text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;"><i class="fas fa-check me-1"></i> Confirm</button>
                 </div>
             </form>
         </div>
@@ -918,12 +1031,42 @@ var slotModal;
 document.addEventListener('DOMContentLoaded', function() {
     var el = document.getElementById('slotModal');
     if (el && window.bootstrap) slotModal = new bootstrap.Modal(el);
+
+    var form = document.getElementById('slotBookForm');
+    var confirmBtn = document.getElementById('slotConfirmBtn');
+    if (form && confirmBtn) {
+        confirmBtn.addEventListener('click', function() {
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+            confirmBtn.disabled = true;
+            if (typeof form.requestSubmit === 'function') {
+                form.requestSubmit();
+            } else {
+                form.submit();
+            }
+        });
+        form.addEventListener('submit', function() {
+            confirmBtn.disabled = true;
+        });
+    }
 });
 function openSlotModal(btn) {
     document.getElementById('modalApptDate').value = btn.getAttribute('data-date');
     document.getElementById('modalApptTime').value = btn.getAttribute('data-time');
     document.getElementById('modalDoctorName').textContent = btn.getAttribute('data-doctor');
     document.getElementById('modalWhen').textContent = btn.getAttribute('data-label');
+    var form = document.getElementById('slotBookForm');
+    if (form) {
+        form.reset();
+        document.getElementById('modalApptDate').value = btn.getAttribute('data-date');
+        document.getElementById('modalApptTime').value = btn.getAttribute('data-time');
+    }
+    var confirmBtn = document.getElementById('slotConfirmBtn');
+    if (confirmBtn) {
+        confirmBtn.disabled = false;
+    }
     if (slotModal) slotModal.show();
 }
 </script>

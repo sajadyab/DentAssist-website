@@ -7,26 +7,31 @@ $authNavActive = '';
 include __DIR__ . '/layouts/auth_header.php';
 ?>
 
-    <div class="reset-card">
+<div class="auth-page">
+    <div class="auth-hero">
+        <h1 class="auth-app-title">DentAssist</h1>
+        <p class="auth-app-subtitle">Smart Dental Clinic</p>
+        <p class="auth-hero-page">Password reset</p>
+    </div>
 
-        <div class="reset-header">
-            <h4><?php echo htmlspecialchars($authBrandPlain); ?> — password reset</h4>
-            <p>Please enter your username. A reset link will be sent to your <strong>registered</strong> phone number via <strong>WhatsApp</strong>.</p>
-        </div>
+    <div class="auth-panel reset-card">
+        <p class="auth-panel-lead text-center mb-3">
+            Please enter your username. A reset link will be sent to your <strong>registered</strong> phone number via <strong>WhatsApp</strong>.
+        </p>
 
         <div id="message"></div>
 
         <form id="resetForm" action="api/forgot_pass.php" method="post">
+            <div class="mb-3">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" name="username" id="username" class="form-control" required autocomplete="username">
+            </div>
+            <button type="submit" class="btn-blue auth-btn-primary mt-1" id="submitBtn">Reset Password</button>
 
-            <label for="username">Username</label>
-            <input type="text" name="username" id="username" class="form-control" required autocomplete="username">
-            <button type="submit" class="btn-reset mt-3" id="submitBtn">Reset Password</button>
-
-            <p class="text-center mt-3 mb-0 small"><a href="login.php">Back to login</a></p>
-
+            <p class="auth-inline-link text-center mt-3 mb-0"><a href="login.php">Back to login</a></p>
         </form>
-
     </div>
+</div>
 
 <?php
 ob_start();

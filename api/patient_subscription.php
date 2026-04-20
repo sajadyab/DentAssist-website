@@ -32,36 +32,66 @@ if ($action === 'clinic_payment') {
 
     try {
         $db->execute(
-            "UPDATE patients SET subscription_type = ?, subscription_start_date = ?, subscription_end_date = ?, subscription_status = 'pending' WHERE id = ?",
+            "UPDATE patients SET subscription_type = ?, subscription_start_date = ?, subscription_end_date = ?, subscription_status = 'pending', sync_status = 'pending' WHERE id = ?",
             [$plan, $startDate, $endDate, (int) $patientId],
             'sssi'
         );
 
         $invoiceNumber = generateInvoiceNumber();
+        $invoiceColumns = ['patient_id', 'invoice_number', 'subtotal', 'payment_status', 'invoice_date', 'due_date', 'notes', 'created_by'];
+        $invoiceParams = [
+            (int) $patientId,
+            $invoiceNumber,
+            $annualAmount,
+            'pending',
+            $startDate,
+            $startDate,
+            "Subscription: {$plan} plan (Annual) - Pending Payment",
+            $userId,
+        ];
+        $invoiceTypes = 'isdssssi';
+        if (dbColumnExists('invoices', 'total_amount')) {
+            array_splice($invoiceColumns, 3, 0, 'total_amount');
+            array_splice($invoiceParams, 3, 0, $annualAmount);
+            $invoiceTypes = 'isddssssi';
+        }
+
         $invoiceId = $db->insert(
-            "INSERT INTO invoices (patient_id, invoice_number, subtotal, total_amount, payment_status, invoice_date, due_date, notes, created_by)
-             VALUES (?, ?, ?, ?, 'pending', ?, DATE_ADD(?, INTERVAL 7 DAY), ?, ?)",
-            [
-                (int) $patientId,
-                $invoiceNumber,
-                $annualAmount,
-                $annualAmount,
-                $startDate,
-                $startDate,
-                "Subscription: {$plan} plan (Annual) - Pending Payment",
-                $userId,
-            ],
-            'isddsssi'
+            'INSERT INTO invoices (' . implode(', ', $invoiceColumns) . ')'
+            . ' VALUES (' . implode(', ', array_fill(0, count($invoiceColumns), '?')) . ')',
+            $invoiceParams,
+            $invoiceTypes
         );
         if (!$invoiceId) {
             throw new RuntimeException('Failed to create invoice.');
         }
 
+        sync_push_row_now('invoices', $invoiceId);
+
+        // Cloud-first: insert subscription_payment to cloud first
+        $cloudPaymentPayload = [
+            'patient_id' => (int) $patientId,
+            'subscription_type' => $plan,
+            'amount' => $annualAmount,
+            'payment_method' => 'clinic',
+            'payment_date' => date('Y-m-d H:i:s'),
+            'status' => 'pending',
+            'processed_by' => $userId,
+            'notes' => 'Pending payment at clinic - Please visit assistant',
+        ];
+
+        try {
+            $cloudPaymentId = patient_portal_cloud_insert_get_id('subscription_payments', $cloudPaymentPayload);
+        } catch (Throwable $e) {
+            throw new RuntimeException('Failed to create payment record in cloud: ' . $e->getMessage());
+        }
+
+        // Now insert locally with cloud_id
         $db->insert(
-            "INSERT INTO subscription_payments (patient_id, subscription_type, amount, payment_method, payment_date, status, processed_by, notes)
-             VALUES (?, ?, ?, 'clinic', NOW(), 'pending', ?, 'Pending payment at clinic - Please visit assistant')",
-            [(int) $patientId, $plan, $annualAmount, $userId],
-            'isdi'
+            "INSERT INTO subscription_payments (patient_id, subscription_type, amount, payment_method, payment_date, status, processed_by, notes, cloud_id)
+             VALUES (?, ?, ?, 'clinic', NOW(), 'pending', ?, 'Pending payment at clinic - Please visit assistant', ?)",
+            [(int) $patientId, $plan, $annualAmount, $userId, $cloudPaymentId],
+            'isdii'
         );
 
         api_ok(['redirect' => url('patient/subscription.php?success=1')], 'Subscription request created. Please visit the clinic assistant to complete payment.');
@@ -86,4 +116,3 @@ if ($action === 'online_payment') {
 }
 
 api_error('Invalid action.', 400);
-
