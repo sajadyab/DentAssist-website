@@ -2,6 +2,10 @@
 require_once __DIR__ . '/../includes/bootstrap.php';
 
 Auth::requireLogin();
+if (!Auth::isAdmin() && !hasPermission((int) Auth::userId(), 'manage_billing') && !hasPermission((int) Auth::userId(), 'view_billing')) {
+    http_response_code(403);
+    exit('Access denied.');
+}
 
 $db = Database::getInstance();
 $invoiceId = (int) ($_GET['id'] ?? 0);
@@ -31,6 +35,8 @@ $invoiceTax = (float) ($invoice['tax_amount'] ?? 0);
 $invoiceTotal = (float) ($invoice['total_amount'] ?? max(0, $invoiceSubtotal - $invoiceDiscount + $invoiceTax));
 $invoicePaid = (float) ($invoice['paid_amount'] ?? 0);
 $invoiceBalance = (float) ($invoice['balance_due'] ?? max(0, $invoiceTotal - $invoicePaid));
+$invoicePaymentMethod = trim((string) ($invoice['payment_method'] ?? ''));
+$invoicePaymentMethodLabel = $invoicePaymentMethod !== '' ? ucfirst($invoicePaymentMethod) : 'Unspecified';
 
 $statusColors = [
     'paid' => 'success',
@@ -114,6 +120,10 @@ include '../layouts/header.php';
                             <p class="mb-0">
                                 <span class="badge bg-<?php echo $statusColor; ?>"><?php echo ucfirst((string) $invoice['payment_status']); ?></span>
                             </p>
+                        </div>
+                        <div class="col-12 col-md-6 mb-3">
+                            <label class="fw-bold">Payment Method</label>
+                            <p class="mb-0"><?php echo htmlspecialchars($invoicePaymentMethodLabel); ?></p>
                         </div>
                         <div class="col-12 col-md-6 mb-3">
                             <label class="fw-bold">Invoice Date</label>

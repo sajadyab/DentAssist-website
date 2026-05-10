@@ -1634,6 +1634,20 @@ body.section-patient .sidebar-lang .form-select {
     color: rgba(15, 23, 42, 0.8);
     user-select: none;
   }
+
+  /* patient/view_invoice — summary hero on phone matches staff appointments/add title scale */
+  body.section-patient .patient-view-invoice-page .bills-queue-header h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+
+  body.section-patient .patient-view-invoice-page .bills-queue-header h2 > i {
+    font-size: 1.25rem;
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    text-align: center;
+  }
 }
 
 /* --- Bills / portal stat tiles (formerly inline partials) --- */
@@ -1757,6 +1771,27 @@ body.section-patient .sidebar-lang .form-select {
   z-index: 1;
 }
 
+/* patient/view_invoice — status line in hero: white text (not a colored badge) */
+.bills-page.patient-view-invoice-page .bills-queue-header .patient-invoice-hero-status {
+  color: #fff;
+  font-weight: 600;
+}
+
+/* patient/view_invoice — print control: white (light) button on gradient header */
+.bills-page.patient-view-invoice-page .bills-queue-header .patient-invoice-print-btn {
+  background-color: #fff !important;
+  border-color: #fff !important;
+  color: #0f172a !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.bills-page.patient-view-invoice-page .bills-queue-header .patient-invoice-print-btn:hover,
+.bills-page.patient-view-invoice-page .bills-queue-header .patient-invoice-print-btn:focus {
+  background-color: #f8fafc !important;
+  border-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
 /* Staff app: same hero card as patient/points on small screens (gradient, radius, no animated dots) */
 @media (max-width: 767.98px) {
   body:not(.section-patient) .bills-page .bills-queue-header {
@@ -1854,6 +1889,16 @@ body.section-patient .sidebar-lang .form-select {
 
 /* Patients index — tighter table on phone */
 @media (max-width: 767.98px) {
+  .patients-index-page .card.mb-4 form.row.g-3 > [class*="col-md"] {
+    flex: 0 0 100%;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .patients-index-page .card.mb-4 form.row.g-3 button[type="submit"].btn {
+    width: 100%;
+  }
+
   .patients-table-wrap .patients-index-table {
     font-size: 0.8125rem;
   }
@@ -1874,6 +1919,35 @@ body.section-patient .sidebar-lang .form-select {
   .patients-table-wrap .patients-index-table .btn-group .btn {
     padding: 0.2rem 0.45rem;
     font-size: 0.75rem;
+  }
+}
+
+/* Patients index — desktop: search input = remainder, Search button = 30% */
+@media (min-width: 768px) {
+  .patients-index-page .card.mb-4 form.row.g-3 {
+    flex-wrap: nowrap;
+    align-items: stretch;
+  }
+
+  .patients-index-page .card.mb-4 form.row.g-3 > .col-md-8 {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+    max-width: none;
+  }
+
+  .patients-index-page .card.mb-4 form.row.g-3 > .col-md-4 {
+    flex: 0 0 30%;
+    width: 30%;
+    max-width: 30%;
+    min-width: 0;
+  }
+
+  .patients-index-page .card.mb-4 form.row.g-3 button[type="submit"].btn {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 
@@ -2682,6 +2756,195 @@ body.section-patient .sidebar-lang .form-select {
     .bills-stats-card.pps-stat-text
     .bills-stats-number {
     font-size: clamp(0.72rem, 3.2vw, 0.95rem) !important;
+  }
+}
+
+/* Patient /bills — Treatment Invoices: desktop — balanced grid + anchored action column */
+@media (min-width: 768px) {
+  body.section-patient .bills-page.patient-portal .patient-bills-treatment-invoices .bills-dash-row {
+    grid-template-columns: minmax(5rem, 7rem) minmax(0, 1fr) minmax(10.25rem, 12rem);
+    column-gap: 1.35rem;
+    align-items: center;
+    padding: 1rem 1.15rem 1rem 1.1rem;
+  }
+
+  body.section-patient .bills-page.patient-portal .patient-bills-treatment-invoices .bills-side-id {
+    line-height: 1.35;
+    font-size: 0.875rem;
+  }
+
+  body.section-patient .bills-page.patient-portal .patient-bills-treatment-invoices .bills-dash-actions {
+    justify-content: center;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0;
+    background: none;
+    border: none;
+    box-shadow: none;
+    align-self: center;
+    justify-self: center;
+    width: fit-content;
+    max-width: 100%;
+    min-width: 0;
+    margin-inline: auto;
+  }
+
+  body.section-patient .bills-page.patient-portal .patient-bills-treatment-invoices .bills-dash-balance {
+    text-align: center;
+    letter-spacing: 0;
+    font-size: 0.825rem;
+    width: 100%;
+  }
+
+  body.section-patient .bills-page.patient-portal .patient-bills-treatment-invoices .bills-dash-actions .bills-badge {
+    align-self: center;
+  }
+
+  body.section-patient .bills-page.patient-portal .patient-bills-treatment-invoices .bills-dash-actions .btn.btn-sm.btn-primary {
+    width: auto;
+    min-width: 0;
+    min-height: 0;
+    margin-top: 0;
+    padding: 0.205rem 0.68rem;
+    font-size: 0.7425rem;
+    font-weight: 600;
+    line-height: 1.22;
+    border-radius: var(--da-btn-radius, 5px);
+  }
+}
+
+/* Patient /bills — Treatment Invoices: stack & center on phone */
+@media (max-width: 767.98px) {
+  body.section-patient .bills-page.patient-portal .patient-bills-treatment-invoices .bills-dash-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem 0.35rem;
+    justify-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 1rem 1.1rem;
+  }
+
+  body.section-patient .bills-page.patient-portal .patient-bills-treatment-invoices .bills-side-id {
+    font-size: 0.9375rem;
+    letter-spacing: 0.01em;
+    text-align: center;
+    width: 100%;
+    max-width: 22rem;
+  }
+
+  body.section-patient .bills-page.patient-portal .patient-bills-treatment-invoices .bills-dash-col-main {
+    width: 100%;
+    max-width: 22rem;
+    text-align: center;
+  }
+
+  body.section-patient
+    .bills-page.patient-portal
+    .patient-bills-treatment-invoices
+    .bills-dash-col-main
+    .bills-dash-strong {
+    margin-bottom: 0.25rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  body.section-patient
+    .bills-page.patient-portal
+    .patient-bills-treatment-invoices
+    .bills-dash-col-main
+    .bills-dash-muted {
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 20rem;
+  }
+
+  body.section-patient .bills-page.patient-portal .patient-bills-treatment-invoices .bills-dash-actions {
+    width: 100%;
+    max-width: 18rem;
+    align-items: center;
+    margin-top: 0.35rem;
+  }
+
+  body.section-patient .bills-page.patient-portal .patient-bills-treatment-invoices .bills-dash-actions .bills-dash-balance {
+    text-align: center !important;
+    width: 100%;
+    font-size: 0.9375rem;
+  }
+
+  body.section-patient .bills-page.patient-portal .patient-bills-treatment-invoices .bills-dash-actions .btn.btn-sm.btn-primary {
+    align-self: center;
+    width: auto;
+    min-width: 5.5rem;
+    min-height: 0;
+    padding: 0.33rem 0.8rem;
+    font-size: 0.8rem;
+    line-height: 1.22;
+  }
+
+  body.section-patient .bills-page.patient-portal .patient-bills-subscription-payments .bills-dash-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem 0.35rem;
+    justify-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 1rem 1.1rem;
+  }
+
+  body.section-patient .bills-page.patient-portal .patient-bills-subscription-payments .bills-side-id {
+    font-size: 0.995rem;
+    text-align: center;
+    width: 100%;
+    max-width: 22rem;
+  }
+
+  body.section-patient .bills-page.patient-portal .patient-bills-subscription-payments .bills-dash-col-main {
+    width: 100%;
+    max-width: 22rem;
+    text-align: center;
+  }
+
+  body.section-patient
+    .bills-page.patient-portal
+    .patient-bills-subscription-payments
+    .bills-dash-col-main
+    .bills-dash-strong {
+    margin-bottom: 0.25rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  body.section-patient
+    .bills-page.patient-portal
+    .patient-bills-subscription-payments
+    .bills-dash-col-main
+    .bills-dash-muted {
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 20rem;
+    text-align: center;
+    display: block;
+  }
+
+  body.section-patient .bills-page.patient-portal .patient-bills-subscription-payments .bills-dash-actions {
+    width: 100%;
+    max-width: 18rem;
+    align-items: center;
+    margin-top: 0.35rem;
+  }
+
+  body.section-patient .bills-page.patient-portal .patient-bills-subscription-payments .patient-bills-sub-ref {
+    text-align: center !important;
+    max-width: 18rem !important;
+  }
+}
+
+/* Patient /bills — Subscription payments: desktop ref alignment */
+@media (min-width: 768px) {
+  body.section-patient .bills-page.patient-portal .patient-bills-subscription-payments .patient-bills-sub-ref {
+    max-width: 10rem;
+    text-align: right;
+    align-self: flex-end;
+    display: inline-block;
   }
 }
 
@@ -4631,9 +4894,25 @@ input.form-control.error-field:-webkit-autofill {
 }
 
 /* ===== appointments-edit.css ===== */
-/* Appointment / treatment plan add form card: 80% width desktop (left-aligned ≥992px), full width on phone */
-.appointments-edit-page .appointments-edit-form-card,
-.appointments-add-page .appointments-add-tabs-card,
+/* Schedule new appointment (add): detail card fills the left column beside slots / quick actions */
+.appointments-add-page .appointments-add-tabs-card {
+  margin-bottom: 1.25rem;
+  width: 100%;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* Edit appointment: same full-width tabs card beside sidebar (matches add layout) */
+.appointments-edit-page .appointments-add-tabs-card {
+  margin-bottom: 1.25rem;
+  width: 100%;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* Appointment edit / other form cards: 80% width desktop (left-aligned ≥992px), full width on phone */
 .treatment-plans-add-page .treatment-plans-add-form-card,
 .billing-create-invoice-page .billing-create-invoice-form-card,
 .billing-edit-invoice-page .billing-create-invoice-form-card,
@@ -4646,8 +4925,6 @@ input.form-control.error-field:-webkit-autofill {
 }
 
 @media (min-width: 992px) {
-  .appointments-edit-page .appointments-edit-form-card,
-  .appointments-add-page .appointments-add-tabs-card,
   .treatment-plans-add-page .treatment-plans-add-form-card,
   .billing-create-invoice-page .billing-create-invoice-form-card,
   .billing-edit-invoice-page .billing-create-invoice-form-card,
@@ -4659,7 +4936,7 @@ input.form-control.error-field:-webkit-autofill {
 
 @media (max-width: 767.98px) {
   /* Phone: full-width card (override 80% max-width) */
-  .appointments-edit-page .appointments-edit-form-card,
+  .appointments-edit-page .appointments-add-tabs-card,
   .appointments-add-page .appointments-add-tabs-card,
   .treatment-plans-add-page .treatment-plans-add-form-card,
   .billing-create-invoice-page .billing-create-invoice-form-card,
@@ -4671,27 +4948,27 @@ input.form-control.error-field:-webkit-autofill {
     margin-right: auto;
   }
 
-  .appointments-edit-page .appointments-edit-form-card .card-body {
+  .appointments-edit-page .appointments-add-tabs-card .card-body {
     padding: 0.85rem 1rem;
   }
 
-  .appointments-edit-page .appointments-edit-form-card .form-control,
-  .appointments-edit-page .appointments-edit-form-card .form-select {
+  .appointments-edit-page .appointments-add-tabs-card .form-control,
+  .appointments-edit-page .appointments-add-tabs-card .form-select {
     padding: 0.6rem 0.75rem;
     font-size: 14px;
   }
 
-  .appointments-edit-page .appointments-edit-form-card .form-label {
+  .appointments-edit-page .appointments-add-tabs-card .form-label {
     font-size: 14px;
   }
 
-  .appointments-edit-page .appointment-edit-form-actions {
+  .appointments-edit-page .appointment-form-actions {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .appointments-edit-page .appointment-edit-form-actions .btn,
-  .appointments-edit-page .appointment-edit-form-actions .btn-green {
+  .appointments-edit-page .appointment-form-actions .btn,
+  .appointments-edit-page .appointment-form-actions .btn-green {
     width: 100%;
     padding: 0.55rem 0.85rem;
     font-size: 14px;
@@ -5587,13 +5864,13 @@ h1 {
 }
 
 /* ===== inventory-add.css ===== */
-.inventory-card {
+.inventory-add-page .inventory-card {
   max-width: 75%;
   margin: 0 auto 1rem;
 }
 
-.inventory-card select.form-select:hover,
-.inventory-card select.form-select:focus {
+.inventory-add-page .inventory-card select.form-select:hover,
+.inventory-add-page .inventory-card select.form-select:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
 }
@@ -5612,7 +5889,7 @@ h1 {
 }
 
 @media (max-width: 992px) {
-  .inventory-card {
+  .inventory-add-page .inventory-card {
     max-width: 90%;
   }
 }
@@ -5622,87 +5899,66 @@ h1 {
     font-size: 1.15rem;
   }
 
-  .inventory-card {
+  .inventory-add-page .inventory-card {
     max-width: 100%;
     border-radius: 12px;
   }
 
-  .inventory-card .card-body {
+  .inventory-add-page .inventory-card .card-body {
     padding: 1rem;
   }
 
-  .inventory-card .form-control,
-  .inventory-card .form-select {
+  .inventory-add-page .inventory-card .form-control,
+  .inventory-add-page .inventory-card .form-select {
     padding: 0.6rem 0.75rem;
     font-size: 14px;
   }
 
-  .inventory-card .form-label {
+  .inventory-add-page .inventory-card .form-label {
     font-size: 14px;
   }
 
-  .inventory-card .btn {
+  .inventory-add-page .inventory-card .btn {
     padding: 0.55rem 0.85rem;
     font-size: 14px;
   }
 }
 
 /* ===== inventory-edit.css ===== */
-.inventory-card {
-  max-width: 75%;
-  margin: 0 auto 1rem;
+.inventory-edit-page .inventory-card {
+  max-width: 100%;
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  margin-bottom: 0;
 }
 
-.inventory-card select.form-select:hover,
-.inventory-card select.form-select:focus {
+.inventory-edit-page .inventory-card select.form-select:hover,
+.inventory-edit-page .inventory-card select.form-select:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
 }
 
-.cancel-btn {
-  background-color: #dc3545;
-  border-color: #dc3545;
-  padding: 0.375rem 0.65rem;
-  width: auto;
-  min-width: 4.25rem;
-}
-
-.cancel-btn:hover {
-  background-color: #c82333;
-  border-color: #bd2130;
-}
-
-@media (max-width: 992px) {
-  .inventory-card {
-    max-width: 90%;
-  }
-}
-
 @media (max-width: 768px) {
-  .inventory-add-title {
-    font-size: 1.15rem;
-  }
-
-  .inventory-card {
-    max-width: 100%;
+  .inventory-edit-page .inventory-card {
     border-radius: 12px;
   }
 
-  .inventory-card .card-body {
+  .inventory-edit-page .inventory-card .card-body {
     padding: 1rem;
   }
 
-  .inventory-card .form-control,
-  .inventory-card .form-select {
+  .inventory-edit-page .inventory-card .form-control,
+  .inventory-edit-page .inventory-card .form-select {
     padding: 0.6rem 0.75rem;
     font-size: 14px;
   }
 
-  .inventory-card .form-label {
+  .inventory-edit-page .inventory-card .form-label {
     font-size: 14px;
   }
 
-  .inventory-card .btn {
+  .inventory-edit-page .inventory-card .btn {
     padding: 0.55rem 0.85rem;
     font-size: 14px;
   }
@@ -6025,72 +6281,43 @@ body.section-inventory .badge.text-bg-danger {
 }
 
 /* ===== inventory-transaction.css ===== */
-.transaction-card {
-  max-width: 520px;
-  margin: 0 auto 1rem;
+.inventory-transaction-page .transaction-card {
+  max-width: 90%;
+  margin-left: 0;
+  margin-right: auto;
 }
 
-.transaction-page-inner {
-  max-width: 720px;
-  margin: 0 auto;
+@media (max-width: 767.98px) {
+  .inventory-transaction-page .transaction-card {
+    max-width: 100%;
+  }
 }
 
 @media (max-width: 768px) {
-  .transaction-mobile-wrap {
-    min-height: calc(100vh - 7rem);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 1rem 0.75rem 1.5rem;
-    box-sizing: border-box;
-  }
-
-  .transaction-page-inner {
-    width: 100%;
-    max-width: 380px;
-  }
-
-  .transaction-page-title {
-    font-size: 1.05rem;
-    text-align: center;
-    margin-bottom: 1rem !important;
-    line-height: 1.35;
-  }
-
-  .transaction-card {
-    max-width: 100%;
-    margin-bottom: 0;
-    border-radius: 12px;
-    width: 100%;
-  }
-
-  .transaction-card .card-body {
+  .inventory-transaction-page .transaction-card .card-body {
     padding: 1rem;
   }
 
-  .transaction-card .form-control,
-  .transaction-card .form-select {
+  .inventory-transaction-page .transaction-card .form-control,
+  .inventory-transaction-page .transaction-card .form-select {
     padding: 0.6rem 0.75rem;
     font-size: 14px;
   }
 
-  .transaction-card .form-label {
+  .inventory-transaction-page .transaction-card .form-label {
     font-size: 14px;
   }
 
-  .transaction-card .btn {
+  .inventory-transaction-page .transaction-card .btn {
     padding: 0.55rem 0.85rem;
     font-size: 14px;
   }
 }
 
 /* ===== inventory-view.css ===== */
-.inventory-header-btns {
-  display: flex;
+.inventory-view-page .patient-add-back-wrap {
   flex-wrap: wrap;
   gap: 0.5rem;
-  justify-content: flex-end;
 }
 
 .inventory-view-table .table th,
@@ -6116,57 +6343,6 @@ body.section-inventory .badge.text-bg-danger {
 }
 
 @media (max-width: 768px) {
-  .inventory-view-title {
-    font-size: 1.1rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .inventory-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.75rem;
-  }
-
-  .inventory-header-btns {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.45rem;
-    justify-content: stretch;
-  }
-
-  .inventory-header-btns .btn {
-    width: 100%;
-    padding: 0.5rem 0.6rem;
-    font-size: 14px;
-    white-space: nowrap;
-  }
-
-  .inventory-header-btns .btn:nth-child(3) {
-    grid-column: 1 / -1;
-  }
-
-  .inventory-header-btns .btn-back-mobile {
-    background-color: var(--primary);
-    border-color: var(--primary);
-    color: #fff;
-  }
-
-  .inventory-header-btns .btn-back-mobile:hover {
-    background-color: #2980b9;
-    border-color: #2980b9;
-    color: #fff;
-  }
-
-  .inventory-cols .col-md-6 {
-    flex: 0 0 100%;
-    max-width: 100%;
-  }
-
-  .inventory-header > h1 {
-    flex: 1 1 100%;
-    margin-bottom: 0;
-  }
-
   .transaction-history-table th,
   .transaction-history-table td {
     white-space: nowrap;
@@ -6305,8 +6481,44 @@ body.section-inventory .badge.text-bg-danger {
   padding-right: 0.25rem;
 }
 
+.treatment-plans-index-page .treatment-plans-index-filter-card {
+  overflow: visible;
+}
+
 .treatment-plans-index-page .treatment-plans-index-filter-card .card-body {
-  padding: 1rem 1rem;
+  padding: 1.1rem 1.1rem 1.2rem;
+  overflow: visible;
+}
+
+.treatment-plans-index-page .treatment-plans-index-filter-row {
+  --bs-gutter-y: 0.75rem;
+}
+
+.treatment-plans-index-page .treatment-plans-index-filter-apply-btn {
+  min-height: calc(2.45rem + 2px);
+  padding: 0.5rem 0.85rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.treatment-plans-index-page .treatment-plans-index-filter-apply-col {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ----- treatment_plans/edit.php ----- */
+/* Full width inside col-xl-9 (patients/add pattern); overrides global treatment-plans 80% form width */
+.treatment-plans-edit-page .treatment-plans-edit-main-card.treatment-plans-add-form-card {
+  max-width: 100%;
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.treatment-plans-edit-page #tpEditPatientName {
+  background-color: rgba(248, 250, 252, 0.98);
+  cursor: default;
 }
 
 .treatment-plans-index-page .treatment-plans-index-card {
@@ -6336,7 +6548,22 @@ body.section-inventory .badge.text-bg-danger {
   width: 100%;
 }
 
-.treatment-plans-index-page .treatment-plans-index-action {
+.treatment-plans-view-page .treatment-plans-view-steps-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.35rem;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.treatment-plans-index-page .treatment-plans-index-action,
+.treatment-plans-view-page .treatment-plans-index-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -6355,44 +6582,68 @@ body.section-inventory .badge.text-bg-danger {
   white-space: nowrap;
 }
 
-.treatment-plans-index-page .treatment-plans-index-action i {
+.treatment-plans-view-page .treatment-plans-view-steps-actions .treatment-plans-index-action {
+  flex: 0 0 auto;
+  min-height: 2.05rem;
+  font-size: 0.74rem;
+  padding: 0.28rem 0.42rem;
+  gap: 0.3rem;
+}
+
+.treatment-plans-index-page .treatment-plans-index-action i,
+.treatment-plans-view-page .treatment-plans-index-action i {
   font-size: 0.85em;
   opacity: 0.95;
 }
 
 .treatment-plans-index-page .treatment-plans-index-action:hover,
-.treatment-plans-index-page .treatment-plans-index-action:focus {
+.treatment-plans-index-page .treatment-plans-index-action:focus,
+.treatment-plans-view-page .treatment-plans-index-action:hover,
+.treatment-plans-view-page .treatment-plans-index-action:focus {
   filter: brightness(1.03);
   transform: translateY(-1px);
 }
 
-.treatment-plans-index-page a.treatment-plans-index-action:focus {
+.treatment-plans-index-page a.treatment-plans-index-action:focus,
+.treatment-plans-view-page a.treatment-plans-index-action:focus {
   color: inherit;
 }
 
-.treatment-plans-index-page .treatment-plans-index-action:active {
+.treatment-plans-index-page .treatment-plans-index-action:active,
+.treatment-plans-view-page .treatment-plans-index-action:active {
   transform: translateY(0);
 }
 
-.treatment-plans-index-page .treatment-plans-index-action--view {
+.treatment-plans-index-page .treatment-plans-index-action--view,
+.treatment-plans-view-page .treatment-plans-index-action--view {
   background: #8cc7f1;
   border-color: #6bb3e8;
   color: #0f172a !important;
 }
 
-.treatment-plans-index-page .treatment-plans-index-action--edit {
+.treatment-plans-index-page .treatment-plans-index-action--edit,
+.treatment-plans-view-page .treatment-plans-index-action--edit {
   background: #faec52;
   border-color: #e8dc3a;
   color: #0f172a !important;
 }
 
-.treatment-plans-index-page .treatment-plans-index-action--delete {
+.treatment-plans-index-page .treatment-plans-index-action--delete,
+.treatment-plans-view-page .treatment-plans-index-action--delete {
   background: #f7331d;
   border-color: #e02e1a;
   color: #fff !important;
 }
 
-.treatment-plans-index-page .treatment-plans-index-action--print {
+.treatment-plans-index-page .treatment-plans-index-action--complete,
+.treatment-plans-view-page .treatment-plans-index-action--complete {
+  background: #74d193;
+  border-color: #55c078;
+  color: #0f172a !important;
+}
+
+.treatment-plans-index-page .treatment-plans-index-action--print,
+.treatment-plans-view-page .treatment-plans-index-action--print {
   background: #e2e8f0;
   border-color: #cbd5e1;
   color: #0f172a !important;
@@ -6404,10 +6655,17 @@ body.section-inventory .badge.text-bg-danger {
     gap: 0.4rem;
   }
 
-  .treatment-plans-index-page .treatment-plans-index-action {
+  .treatment-plans-index-page .treatment-plans-index-action,
+  .treatment-plans-view-page .treatment-plans-index-action {
     min-height: 2.35rem;
     font-size: 0.78rem;
     padding: 0.35rem 0.45rem;
+  }
+
+  .treatment-plans-view-page .treatment-plans-view-steps-actions .treatment-plans-index-action {
+    min-height: 1.95rem;
+    font-size: 0.72rem;
+    padding: 0.24rem 0.38rem;
   }
 }
 
@@ -6425,9 +6683,19 @@ body.section-inventory .badge.text-bg-danger {
     line-height: 1.35;
   }
 
-  .treatment-plans-index-page .treatment-plans-index-action {
+  .treatment-plans-index-page .treatment-plans-index-action,
+  .treatment-plans-view-page .treatment-plans-index-action {
     min-height: 2.45rem;
     font-size: 0.76rem;
+  }
+
+  /* Single horizontal row on phone; labels hidden under sm via Bootstrap d-none d-sm-inline */
+  .treatment-plans-view-page .treatment-plans-view-steps-actions .treatment-plans-index-action {
+    flex: 0 0 auto;
+    min-height: 2rem;
+    min-width: 2.35rem;
+    font-size: 0.68rem;
+    padding: 0.22rem 0.34rem;
   }
 }
 
@@ -6613,9 +6881,12 @@ body.section-inventory .badge.text-bg-danger {
 .appointments-add-page .appointments-add-top-actions,
 .appointments-view-page .appointments-add-top-actions,
 .appointments-edit-page .appointments-add-top-actions,
+.inventory-edit-page .appointments-add-top-actions,
+.patients-manage-points-page .appointments-add-top-actions,
 .treatment-plans-add-page .appointments-add-top-actions,
 .billing-create-invoice-page .appointments-add-top-actions,
-.inventory-add-page .appointments-add-top-actions {
+.inventory-add-page .appointments-add-top-actions,
+.patient-view-invoice-page .appointments-add-top-actions {
   flex-direction: column;
   align-items: stretch;
 }
@@ -6623,22 +6894,277 @@ body.section-inventory .badge.text-bg-danger {
 .appointments-add-page .appointments-add-top-btn,
 .appointments-view-page .appointments-add-top-btn,
 .appointments-edit-page .appointments-add-top-btn,
+.inventory-edit-page .appointments-add-top-btn,
+.patients-manage-points-page .appointments-add-top-btn,
 .treatment-plans-add-page .appointments-add-top-btn,
 .billing-create-invoice-page .appointments-add-top-btn,
-.inventory-add-page .appointments-add-top-btn {
+.inventory-add-page .appointments-add-top-btn,
+.patient-view-invoice-page .appointments-add-top-btn {
   width: 100%;
   justify-content: center;
-  font-size: 0.85rem;
+  font-size: 1.5rem;
   padding: 0.45rem 0.85rem;
   min-height: 2.15rem;
 }
 
-.appointments-add-page .patient-view-tabs-nav {
+/* Patients manage points — tables + cards aligned with appointments/add */
+.patients-manage-points-page .manage-points-main-card .appointments-table-wrap .table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.patients-manage-points-page .manage-points-main-card .appointments-table-wrap .table thead th {
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+
+.patients-manage-points-page .manage-points-main-card .appointments-table-wrap .table tbody td {
+  vertical-align: middle;
+}
+
+.patients-manage-points-page .manage-points-main-card .appointments-table-wrap .table tbody tr:last-child td {
+  border-bottom-width: 0;
+}
+
+.patients-manage-points-page #manage-points-patients-card .manage-points-all-patients-pts-badge {
+  background-color: #07b5ff !important;
+  color: #fff !important;
+}
+
+/* All patients + subscription tables: phone / email icons solid black */
+.patients-manage-points-page .table tbody td.small.text-muted i.fa-phone-alt,
+.patients-manage-points-page .table tbody td.small.text-muted i.fa-envelope {
+  color: #000 !important;
+  opacity: 1 !important;
+}
+
+/* Subscription reminders — plan column (cyan), status badges match legend / btn colors */
+.patients-manage-points-page #manage-points-subscriptions-card .manage-points-sub-plan-badge {
+  background-color: #07b5ff !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+
+.patients-manage-points-page #manage-points-subscriptions-card .manage-points-sub-status-active {
+  background: var(--da-btn-grad-green) !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+
+.patients-manage-points-page #manage-points-subscriptions-card .manage-points-sub-status-expiring {
+  background-color: #faec52 !important;
+  color: #000 !important;
+  font-weight: 600;
+}
+
+.patients-manage-points-page #manage-points-subscriptions-card .manage-points-sub-status-expired {
+  background-color: #f7331d !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+
+/*
+ * Send reminder (Subscription reminders): full .btn-blue look, compact size.
+ * Manual size tweaks: change padding, font-size, line-height below.
+ * Markup: patients/manage_points.php — class `manage-points-sub-reminder-btn` on the link.
+ */
+.patients-manage-points-page #manage-points-subscriptions-card .table td .btn.btn-blue.manage-points-sub-reminder-btn {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+  width: max-content;
+  max-width: 100%;
+  background: var(--da-btn-grad-blue) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgba(108, 163, 245, 0.3) !important;
+  padding: 0.4rem 0.65rem !important;
+  font-size: 0.7rem !important;
+  min-height: 0 !important;
+  line-height: 1.25;
+  border-radius: 0.35rem !important;
+}
+
+.patients-manage-points-page #manage-points-subscriptions-card .table td .btn.btn-blue.manage-points-sub-reminder-btn:hover,
+.patients-manage-points-page #manage-points-subscriptions-card .table td .btn.btn-blue.manage-points-sub-reminder-btn:focus {
+  color: #fff !important;
+  opacity: 0.92;
+}
+
+.patients-manage-points-page #manage-points-subscriptions-card .table td .btn.btn-blue.manage-points-sub-reminder-btn i {
+  color: #fff !important;
+  font-size: 0.68rem;
+}
+
+.patients-manage-points-page #noResults {
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+/* Sidebar “Available rewards” / “How to earn points”: pts badges = .btn-green gradient, white label */
+.patients-manage-points-page .manage-points-side-card .list-group-item .badge {
+  background: var(--da-btn-grad-green) !important;
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  font-weight: 600;
+}
+
+/* Manage points — preset + custom row matches table-card-actions density */
+.patients-manage-points-page .manage-points-adjust-wrap.table-card-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 0.35rem;
+}
+
+.patients-manage-points-page .manage-points-custom-form .manage-points-custom-input {
+  width: 5.75rem;
+  height: 1.75rem;
+  min-height: 1.75rem;
+  max-height: 1.75rem;
+  padding: 0.12rem 1.15rem 0.12rem 0.28rem;
+  font-size: 0.85rem;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.patients-manage-points-page .manage-points-custom-form .table-action-btn.action-green {
+  width: 1.75rem !important;
+  height: 1.75rem !important;
+  min-width: 1.75rem !important;
+  min-height: 1.75rem !important;
+  background: var(--da-btn-grad-green) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgba(83, 197, 88, 0.28);
+}
+
+.patients-manage-points-page .manage-points-custom-form .table-action-btn.action-green:hover,
+.patients-manage-points-page .manage-points-custom-form .table-action-btn.action-green:focus {
+  background: var(--da-btn-grad-green) !important;
+  color: #fff !important;
+  opacity: 0.92;
+  filter: brightness(1.02);
+}
+
+.patients-manage-points-page .manage-points-custom-form .table-action-btn.action-green i {
+  color: #fff !important;
+}
+
+@media (max-width: 767.98px) {
+  .patients-manage-points-page .manage-points-custom-form .manage-points-custom-input {
+    width: 4.75rem;
+    height: 1.4rem;
+    min-height: 1.4rem;
+    max-height: 1.4rem;
+    padding-right: 1rem;
+    padding-left: 0.22rem;
+    font-size: 0.72rem;
+  }
+
+  .patients-manage-points-page .manage-points-custom-form .table-action-btn.action-green {
+    width: 1.4rem !important;
+    height: 1.4rem !important;
+    min-width: 1.4rem !important;
+    min-height: 1.4rem !important;
+  }
+}
+
+/* Manage points — +50 / +10 / −10: same table-action-btn box, text label (colors via action-*) */
+.patients-manage-points-page .table .table-card-actions .table-action-btn.manage-points-preset-text {
+  width: 1.75rem !important;
+  min-width: 1.75rem !important;
+  height: 1.75rem !important;
+  min-height: 1.75rem !important;
+  padding: 0 !important;
+  font-size: 0.78rem !important;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: -0.02em;
+}
+
+.patients-manage-points-page .table .table-card-actions .table-action-btn.manage-points-preset-text--wide {
+  width: 1.92rem !important;
+  min-width: 1.92rem !important;
+}
+
+@media (max-width: 767.98px) {
+  .patients-manage-points-page .table .table-card-actions .table-action-btn.manage-points-preset-text {
+    width: 1.5rem !important;
+    min-width: 1.5rem !important;
+    height: 1.4rem !important;
+    min-height: 1.4rem !important;
+    font-size: 0.48rem !important;
+  }
+
+  .patients-manage-points-page .table .table-card-actions .table-action-btn.manage-points-preset-text--wide {
+    width: 1.78rem !important;
+    min-width: 1.78rem !important;
+  }
+
+  /*
+   * All patients — phone: row1 (+50/+10/−10) total width = row2 (input + apply).
+   * Tweak gap / preset font-size on the rules below if labels clip.
+   */
+  .patients-manage-points-page #manage-points-patients-card .table tbody td:last-child {
+    text-align: center !important;
+  }
+
+  .patients-manage-points-page #manage-points-patients-card .manage-points-adjust-wrap.table-card-actions {
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 0.28rem;
+  }
+
+  .patients-manage-points-page #manage-points-patients-card .manage-points-adjust-wrap > form:not(.manage-points-custom-form) {
+    display: flex;
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .patients-manage-points-page #manage-points-patients-card .manage-points-adjust-wrap > form:not(.manage-points-custom-form) .table-action-btn {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 1.4rem !important;
+    min-height: 1.4rem !important;
+    font-size: 0.6rem !important;
+  }
+
+  .patients-manage-points-page #manage-points-patients-card .manage-points-adjust-wrap > form.manage-points-custom-form {
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    display: inline-flex !important;
+    align-items: center;
+    gap: 0.28rem;
+  }
+
+  .patients-manage-points-page #manage-points-patients-card .manage-points-custom-form .manage-points-custom-input {
+    flex: 1 1 auto;
+    width: auto !important;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .patients-manage-points-page #manage-points-patients-card .manage-points-custom-form .table-action-btn.action-green {
+    flex: 0 0 1.4rem;
+    width: 1.4rem !important;
+    min-width: 1.4rem !important;
+    max-width: 1.4rem !important;
+  }
+}
+
+.appointments-add-page .patient-view-tabs-nav,
+.appointments-edit-page .patient-view-tabs-nav {
   flex-wrap: wrap;
   row-gap: 0.3rem;
 }
 
-.appointments-add-page .patient-view-tabs-nav .nav-link {
+.appointments-add-page .patient-view-tabs-nav .nav-link,
+.appointments-edit-page .patient-view-tabs-nav .nav-link {
   font-size: 0.86rem;
 }
 
@@ -6646,25 +7172,34 @@ body.section-inventory .badge.text-bg-danger {
   .appointments-add-page .bills-queue-header,
   .appointments-view-page .bills-queue-header,
   .appointments-edit-page .bills-queue-header,
+  .patients-manage-points-page .bills-queue-header,
   .treatment-plans-add-page .bills-queue-header,
   .treatment-plans-view-page .bills-queue-header,
   .billing-create-invoice-page .bills-queue-header,
   .billing-edit-invoice-page .bills-queue-header,
   .billing-invoice-view-page .bills-queue-header,
-  .inventory-add-page .bills-queue-header {
+  .inventory-add-page .bills-queue-header,
+  .inventory-view-page .bills-queue-header,
+  .inventory-edit-page .bills-queue-header,
+  .inventory-transaction-page .bills-queue-header,
+  .patient-view-invoice-page .bills-queue-header {
     margin-bottom: 1rem;
   }
 
-  .appointments-add-page .patient-view-tabs-card .card-body {
+  .appointments-add-page .patient-view-tabs-card .card-body,
+  .appointments-edit-page .patient-view-tabs-card .card-body {
     padding: 0.85rem;
   }
 
   .appointments-add-page .appointments-add-top-actions,
   .appointments-view-page .appointments-add-top-actions,
   .appointments-edit-page .appointments-add-top-actions,
+  .inventory-edit-page .appointments-add-top-actions,
+  .patients-manage-points-page .appointments-add-top-actions,
   .treatment-plans-add-page .appointments-add-top-actions,
   .billing-create-invoice-page .appointments-add-top-actions,
-  .inventory-add-page .appointments-add-top-actions {
+  .inventory-add-page .appointments-add-top-actions,
+  .patient-view-invoice-page .appointments-add-top-actions {
     flex-direction: column;
     align-items: center;
     width: 100%;
@@ -6673,9 +7208,12 @@ body.section-inventory .badge.text-bg-danger {
   .appointments-add-page .appointments-add-top-btn,
   .appointments-view-page .appointments-add-top-btn,
   .appointments-edit-page .appointments-add-top-btn,
+  .inventory-edit-page .appointments-add-top-btn,
+  .patients-manage-points-page .appointments-add-top-btn,
   .treatment-plans-add-page .appointments-add-top-btn,
   .billing-create-invoice-page .appointments-add-top-btn,
-  .inventory-add-page .appointments-add-top-btn {
+  .inventory-add-page .appointments-add-top-btn,
+  .patient-view-invoice-page .appointments-add-top-btn {
     width: 85%;
     max-width: 85%;
     font-size: 0.76rem;
@@ -6683,7 +7221,8 @@ body.section-inventory .badge.text-bg-danger {
     min-height: 1.9rem;
   }
 
-  .appointments-add-page .patient-view-tabs-nav {
+  .appointments-add-page .patient-view-tabs-nav,
+  .appointments-edit-page .patient-view-tabs-nav {
     display: flex;
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -6695,25 +7234,30 @@ body.section-inventory .badge.text-bg-danger {
     gap: 0.35rem;
   }
 
-  .appointments-add-page .patient-view-tabs-nav::-webkit-scrollbar {
+  .appointments-add-page .patient-view-tabs-nav::-webkit-scrollbar,
+  .appointments-edit-page .patient-view-tabs-nav::-webkit-scrollbar {
     height: 8px;
   }
 
-  .appointments-add-page .patient-view-tabs-nav::-webkit-scrollbar-track {
+  .appointments-add-page .patient-view-tabs-nav::-webkit-scrollbar-track,
+  .appointments-edit-page .patient-view-tabs-nav::-webkit-scrollbar-track {
     background: #e5e7eb;
     border-radius: 999px;
   }
 
-  .appointments-add-page .patient-view-tabs-nav::-webkit-scrollbar-thumb {
+  .appointments-add-page .patient-view-tabs-nav::-webkit-scrollbar-thumb,
+  .appointments-edit-page .patient-view-tabs-nav::-webkit-scrollbar-thumb {
     background: #9ca3af;
     border-radius: 999px;
   }
 
-  .appointments-add-page .patient-view-tabs-nav .nav-item {
+  .appointments-add-page .patient-view-tabs-nav .nav-item,
+  .appointments-edit-page .patient-view-tabs-nav .nav-item {
     flex: 0 0 auto;
   }
 
-  .appointments-add-page .patient-view-tabs-nav .nav-link {
+  .appointments-add-page .patient-view-tabs-nav .nav-link,
+  .appointments-edit-page .patient-view-tabs-nav .nav-link {
     width: auto;
     text-align: center;
     white-space: nowrap;
@@ -6722,41 +7266,51 @@ body.section-inventory .badge.text-bg-danger {
   }
 
   .appointments-add-page .appointments-add-tabs-card .form-control,
+  .appointments-edit-page .appointments-add-tabs-card .form-control,
   .appointments-add-page .appointments-add-tabs-card .form-select,
-  .appointments-add-page .appointment-side-card .form-control {
+  .appointments-edit-page .appointments-add-tabs-card .form-select,
+  .appointments-add-page .appointment-side-card .form-control,
+  .appointments-edit-page .appointment-side-card .form-control {
     padding: 0.6rem 0.75rem;
     font-size: 14px;
   }
 
   .appointments-add-page .appointments-add-tabs-card .form-label,
-  .appointments-add-page .appointment-side-card .form-label {
+  .appointments-edit-page .appointments-add-tabs-card .form-label,
+  .appointments-add-page .appointment-side-card .form-label,
+  .appointments-edit-page .appointment-side-card .form-label {
     font-size: 14px;
   }
 
-  .appointments-add-page .appointment-form-actions {
+  .appointments-add-page .appointment-form-actions,
+  .appointments-edit-page .appointment-form-actions {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .appointments-add-page .appointment-form-actions .btn {
+  .appointments-add-page .appointment-form-actions .btn,
+  .appointments-edit-page .appointment-form-actions .btn {
     width: 100%;
     padding: 0.55rem 0.85rem;
     font-size: 14px;
   }
 
-  .appointments-add-page .appointment-side-card .card-body {
+  .appointments-add-page .appointment-side-card .card-body,
+  .appointments-edit-page .appointment-side-card .card-body {
     padding: 1rem;
   }
 
-  .appointments-add-page .appointment-side-card .btn {
+  .appointments-add-page .appointment-side-card .btn,
+  .appointments-edit-page .appointment-side-card .btn {
     padding: 0.5rem 0.75rem;
     font-size: 14px;
   }
 }
 
-/* Appointments view / edit — hero white CTA (Edit on view, View on edit) */
+/* Appointments view / edit + inventory edit — hero white CTA (Edit on view, View on edit / view item) */
 .appointments-view-page .bills-queue-header .appointments-view-header-edit-btn,
-.appointments-edit-page .bills-queue-header .appointments-view-header-edit-btn {
+.appointments-edit-page .bills-queue-header .appointments-view-header-edit-btn,
+.inventory-edit-page .bills-queue-header .appointments-view-header-edit-btn {
   background: #fff !important;
   color: #0f172a !important;
   border: 1px solid rgba(255, 255, 255, 0.95) !important;
@@ -6768,18 +7322,22 @@ body.section-inventory .badge.text-bg-danger {
 .appointments-view-page .bills-queue-header .appointments-view-header-edit-btn:hover,
 .appointments-view-page .bills-queue-header .appointments-view-header-edit-btn:focus,
 .appointments-edit-page .bills-queue-header .appointments-view-header-edit-btn:hover,
-.appointments-edit-page .bills-queue-header .appointments-view-header-edit-btn:focus {
+.appointments-edit-page .bills-queue-header .appointments-view-header-edit-btn:focus,
+.inventory-edit-page .bills-queue-header .appointments-view-header-edit-btn:hover,
+.inventory-edit-page .bills-queue-header .appointments-view-header-edit-btn:focus {
   background: rgba(255, 255, 255, 0.94) !important;
   color: #0f172a !important;
 }
 
 .appointments-view-page .bills-queue-header .appointments-view-header-edit-btn i,
-.appointments-edit-page .bills-queue-header .appointments-view-header-edit-btn i {
+.appointments-edit-page .bills-queue-header .appointments-view-header-edit-btn i,
+.inventory-edit-page .bills-queue-header .appointments-view-header-edit-btn i {
   color: #0f172a !important;
 }
 
-/* Treatment plan view — hero: row1 Back + Edit, row2 Delete (desktop); white / black */
-.treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-actions {
+/* Treatment plan view + inventory item view — hero queue actions (btn-secondary, stacked rows) */
+.treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-actions,
+.inventory-view-page .bills-queue-header .treatment-plans-view-hero-actions {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -6788,16 +7346,19 @@ body.section-inventory .badge.text-bg-danger {
 }
 
 @media (min-width: 992px) {
-  .treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-actions-wrap {
+  .treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-actions-wrap,
+  .inventory-view-page .bills-queue-header .treatment-plans-view-hero-actions-wrap {
     align-items: flex-end !important;
   }
 
-  .treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-actions {
+  .treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-actions,
+  .inventory-view-page .bills-queue-header .treatment-plans-view-hero-actions {
     max-width: min(100%, 24rem);
   }
 }
 
-.treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-row--primary {
+.treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-row--primary,
+.inventory-view-page .bills-queue-header .treatment-plans-view-hero-row--primary {
   display: flex;
   flex-direction: row;
   flex-wrap: nowrap;
@@ -6805,26 +7366,27 @@ body.section-inventory .badge.text-bg-danger {
   width: 100%;
 }
 
-.treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-row--primary .treatment-plans-view-hero-btn {
+.treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-row--primary .treatment-plans-view-hero-btn,
+.inventory-view-page .bills-queue-header .treatment-plans-view-hero-row--primary .treatment-plans-view-hero-btn {
   flex: 1 1 auto;
   min-width: 0;
 }
 
-.treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-row--delete {
+.treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-row--delete,
+.inventory-view-page .bills-queue-header .treatment-plans-view-hero-row--delete {
   width: 100%;
 }
 
-.treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-row--delete .treatment-plans-view-hero-btn {
+.treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-row--delete .treatment-plans-view-hero-btn,
+.inventory-view-page .bills-queue-header .treatment-plans-view-hero-row--delete .treatment-plans-view-hero-btn {
   width: 100%;
 }
 
-.treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-btn {
-  background: #fff !important;
-  color: #0f172a !important;
-  border: 1px solid rgba(255, 255, 255, 0.95) !important;
+/* Match patients/edit summary: btn-secondary (global gradient + border) */
+.treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-btn,
+.inventory-view-page .bills-queue-header .treatment-plans-view-hero-btn {
   font-weight: 600;
   text-shadow: none;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
   font-size: 0.85rem;
   padding: 0.45rem 0.65rem;
   min-height: 2.15rem;
@@ -6835,14 +7397,9 @@ body.section-inventory .badge.text-bg-danger {
   white-space: nowrap;
 }
 
-.treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-btn:hover,
-.treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-btn:focus {
-  background: rgba(255, 255, 255, 0.94) !important;
-  color: #0f172a !important;
-}
-
-.treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-btn i {
-  color: #0f172a !important;
+.treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-btn i,
+.inventory-view-page .bills-queue-header .treatment-plans-view-hero-btn i {
+  color: inherit;
 }
 
 /* Billing invoice view / edit — hero: 2×2 grid (or 1×2), white actions, aligned block */
@@ -6923,27 +7480,18 @@ body.section-inventory .badge.text-bg-danger {
   }
 }
 
-/* Treatment steps — Add Step: white / black; compact on phone */
+/* Add Step: same btn-secondary as patients/edit header */
 .treatment-plans-view-page .treatment-plans-add-step-btn {
-  background: #fff !important;
-  color: #0f172a !important;
-  border: 1px solid rgba(15, 23, 42, 0.12) !important;
   font-weight: 600;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-}
-
-.treatment-plans-view-page .treatment-plans-add-step-btn:hover,
-.treatment-plans-view-page .treatment-plans-add-step-btn:focus {
-  background: rgba(255, 255, 255, 0.92) !important;
-  color: #0f172a !important;
 }
 
 .treatment-plans-view-page .treatment-plans-add-step-btn i {
-  color: #0f172a !important;
+  color: inherit;
 }
 
 @media (max-width: 767.98px) {
-  .treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-actions {
+  .treatment-plans-view-page .bills-queue-header .treatment-plans-view-hero-actions,
+  .inventory-view-page .bills-queue-header .treatment-plans-view-hero-actions {
     max-width: 100%;
   }
 
@@ -7524,6 +8072,140 @@ select.form-control-modern {
   }
 }
 
+/* User management — staff role / admin / active badges (staff + patient tables) */
+.settings-page .settings-user-role-doctor {
+  background-color: #faec52 !important;
+  color: #fff !important;
+}
+
+.settings-page .settings-user-role-assistant {
+  background-color: rgba(13, 202, 240, 1) !important;
+  color: #fff !important;
+}
+
+.settings-page .settings-user-admin-yes {
+  background-color: #8cc7f1 !important;
+  background-image: none !important;
+  color: #0f172a !important;
+}
+
+.settings-page .settings-user-admin-no {
+  background-color: #f7331d !important;
+  color: #fff !important;
+}
+
+.settings-page .settings-user-status-active {
+  background: var(--da-btn-grad-green) !important;
+  color: #fff !important;
+}
+
+/* User management — Doctor / Assistant / Patient tables: full row light blue hover (overrides Bootstrap table-hover tint) */
+.settings-page .settings-users-doctor-table.table-hover > tbody > tr:hover,
+.settings-page .settings-users-assistant-table.table-hover > tbody > tr:hover,
+.settings-page .settings-users-patient-table.table-hover > tbody > tr:hover {
+  background-color: #e8f4fc !important;
+}
+
+.settings-page .settings-users-doctor-table.table-hover > tbody > tr:hover > *,
+.settings-page .settings-users-assistant-table.table-hover > tbody > tr:hover > *,
+.settings-page .settings-users-patient-table.table-hover > tbody > tr:hover > * {
+  --bs-table-accent-bg: #e8f4fc;
+  --bs-table-hover-bg: #e8f4fc;
+  background-color: #e8f4fc !important;
+  box-shadow: inset 0 0 0 9999px #e8f4fc !important;
+  color: inherit;
+}
+
+/* Change password card — 70% width on desktop; profile card stays full width */
+@media (min-width: 992px) {
+  .settings-page .settings-change-password-desktop-width {
+    width: 70%;
+    max-width: 70%;
+  }
+}
+
+/* Change password — full-width inputs within columns when current/new are side by side */
+.settings-page .settings-change-password-fields .form-control {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Confirm password — half row on desktop */
+@media (min-width: 992px) {
+  .settings-page .settings-change-password-confirm-wrap .form-control {
+    width: 50%;
+    max-width: 100%;
+  }
+}
+
+/* My profile / Add user — weekly schedule: no inner box; table matches other settings cards */
+.settings-page .settings-booking-schedule-block {
+  margin-top: 0.25rem;
+}
+/* Uses same thead/body rules as .settings-page .table; reinforce hover like user-management tables */
+.settings-page .doctor-booking-hours-table.table-hover > tbody > tr:hover,
+.settings-page .doctor-booking-hours-table.table-hover > tbody > tr:hover > * {
+  --bs-table-accent-bg: #e8f4fc;
+  --bs-table-hover-bg: #e8f4fc;
+  background-color: #e8f4fc !important;
+  box-shadow: inset 0 0 0 9999px #e8f4fc !important;
+  color: inherit;
+}
+
+/* Weekly schedule: column dividers + closed column width */
+.settings-page .doctor-booking-hours-table > thead > tr > th:nth-child(2),
+.settings-page .doctor-booking-hours-table > tbody > tr > td:nth-child(2),
+.settings-page .doctor-booking-hours-table > thead > tr > th:nth-child(3),
+.settings-page .doctor-booking-hours-table > tbody > tr > td:nth-child(3) {
+  border-left: 1px solid var(--bs-border-color, #dee2e6);
+}
+
+.settings-page .doctor-booking-hours-table__closed-col,
+.settings-page .doctor-booking-hours-table tbody td:nth-child(2) {
+  width: 6rem;
+  min-width: 3.25rem;
+}
+
+/* Default appointment slot length — narrow input (20% of card row) */
+.settings-page .doctor-booking-slot-input-wrap {
+  width: 20%;
+  max-width: 100%;
+  min-width: 3.75rem;
+}
+
+.settings-page .doctor-booking-slot-input-wrap .form-control {
+  width: 100%;
+}
+
+@media (max-width: 575.98px) {
+  .settings-page .settings-booking-schedule-block .doctor-booking-hours-table {
+    font-size: 0.875rem;
+  }
+
+  .settings-page .settings-booking-schedule-block .doctor-booking-hours-table > thead > tr > th,
+  .settings-page .settings-booking-schedule-block .doctor-booking-hours-table > tbody > tr > th,
+  .settings-page .settings-booking-schedule-block .doctor-booking-hours-table > tbody > tr > td {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    vertical-align: middle;
+  }
+
+  .settings-page .settings-booking-schedule-block .doctor-booking-hours-table > tbody > tr > td:nth-child(3) {
+    vertical-align: top;
+  }
+
+  .settings-page .settings-booking-schedule-block .doctor-booking-hours-table__closed-col,
+  .settings-page .settings-booking-schedule-block .doctor-booking-hours-table tbody td:nth-child(2) {
+    width: 3.25rem;
+    min-width: 3.25rem;
+  }
+
+  .settings-page .doctor-booking-slot-input-wrap {
+    width: 20%;
+    min-width: 5rem;
+  }
+}
+
 /* User management — shared table-action-btn row (forms wrap with icon buttons) */
 .settings-page .table .settings-user-row-actions.table-card-actions {
   display: inline-flex !important;
@@ -7690,8 +8372,211 @@ select.form-control-modern {
   font-weight: 600;
 }
 .settings-page .table tbody tr:hover {
-  background-color: #fef9c3; /* light yellow tint */
+  background-color: #e8f4fc; /* light blue — matches user/points tables */
 }
+.settings-page .settings-points-management .table tbody tr:hover {
+  background-color: #e8f4fc;
+}
+
+/*
+ * Points management tables — fixed layout:
+ * Points: room for 3 digits + spinners. Order: unchanged (narrower than Points).
+ * Active / Delete: wide enough for header labels + checkbox.
+ */
+.settings-page .settings-points-management {
+  --settings-points-points-col-width: calc(3ch + 4.45rem);
+  --settings-points-order-col-width: calc(3ch + 3.1rem);
+  --settings-points-checkbox-col-width: 5.35rem;
+}
+
+.settings-page .settings-points-management .settings-points-table--earning,
+.settings-page .settings-points-management .settings-points-table--rewards {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.settings-page .settings-points-management .settings-points-table--earning th:nth-child(4),
+.settings-page .settings-points-management .settings-points-table--earning td:nth-child(4) {
+  width: var(--settings-points-points-col-width);
+  max-width: var(--settings-points-points-col-width);
+  box-sizing: border-box;
+}
+
+.settings-page .settings-points-management .settings-points-table--earning th:nth-child(5),
+.settings-page .settings-points-management .settings-points-table--earning td:nth-child(5) {
+  width: var(--settings-points-order-col-width);
+  max-width: var(--settings-points-order-col-width);
+  box-sizing: border-box;
+}
+
+.settings-page .settings-points-management .settings-points-table--earning th:nth-child(6),
+.settings-page .settings-points-management .settings-points-table--earning td:nth-child(6),
+.settings-page .settings-points-management .settings-points-table--earning th:nth-child(7),
+.settings-page .settings-points-management .settings-points-table--earning td:nth-child(7) {
+  width: var(--settings-points-checkbox-col-width);
+  max-width: var(--settings-points-checkbox-col-width);
+  min-width: var(--settings-points-checkbox-col-width);
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+  box-sizing: border-box;
+}
+
+.settings-page .settings-points-management .settings-points-table--earning th:nth-child(6),
+.settings-page .settings-points-management .settings-points-table--earning th:nth-child(7),
+.settings-page .settings-points-management .settings-points-table--rewards th:nth-child(5),
+.settings-page .settings-points-management .settings-points-table--rewards th:nth-child(6) {
+  white-space: nowrap;
+}
+
+.settings-page .settings-points-management .settings-points-table--rewards th:nth-child(3),
+.settings-page .settings-points-management .settings-points-table--rewards td:nth-child(3) {
+  width: var(--settings-points-points-col-width);
+  max-width: var(--settings-points-points-col-width);
+  box-sizing: border-box;
+}
+
+.settings-page .settings-points-management .settings-points-table--rewards th:nth-child(4),
+.settings-page .settings-points-management .settings-points-table--rewards td:nth-child(4) {
+  width: var(--settings-points-order-col-width);
+  max-width: var(--settings-points-order-col-width);
+  box-sizing: border-box;
+}
+
+.settings-page .settings-points-management .settings-points-table--rewards th:nth-child(5),
+.settings-page .settings-points-management .settings-points-table--rewards td:nth-child(5),
+.settings-page .settings-points-management .settings-points-table--rewards th:nth-child(6),
+.settings-page .settings-points-management .settings-points-table--rewards td:nth-child(6) {
+  width: var(--settings-points-checkbox-col-width);
+  max-width: var(--settings-points-checkbox-col-width);
+  min-width: var(--settings-points-checkbox-col-width);
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+  box-sizing: border-box;
+}
+
+.settings-page .settings-points-management .settings-points-table--earning td:nth-child(4) input[type="number"],
+.settings-page .settings-points-management .settings-points-table--earning td:nth-child(5) input[type="number"],
+.settings-page .settings-points-management .settings-points-table--rewards td:nth-child(3) input[type="number"],
+.settings-page .settings-points-management .settings-points-table--rewards td:nth-child(4) input[type="number"] {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.settings-page .settings-points-management .settings-points-table--earning td,
+.settings-page .settings-points-management .settings-points-table--rewards td {
+  min-width: 0;
+}
+
+.settings-page .settings-points-management .settings-points-table--earning th:nth-child(1),
+.settings-page .settings-points-management .settings-points-table--earning td:nth-child(1),
+.settings-page .settings-points-management .settings-points-table--earning th:nth-child(2),
+.settings-page .settings-points-management .settings-points-table--earning td:nth-child(2),
+.settings-page .settings-points-management .settings-points-table--earning th:nth-child(3),
+.settings-page .settings-points-management .settings-points-table--earning td:nth-child(3) {
+  width: auto;
+}
+
+.settings-page .settings-points-management .settings-points-table--rewards th:nth-child(1),
+.settings-page .settings-points-management .settings-points-table--rewards td:nth-child(1),
+.settings-page .settings-points-management .settings-points-table--rewards th:nth-child(2),
+.settings-page .settings-points-management .settings-points-table--rewards td:nth-child(2) {
+  width: auto;
+}
+
+.settings-page .settings-points-management .settings-points-table--earning .form-control,
+.settings-page .settings-points-management .settings-points-table--rewards .form-control {
+  max-width: 100%;
+}
+
+/* Points management — phone: compact tables, horizontal scroll */
+@media (max-width: 767.98px) {
+  .settings-page .settings-points-management .card-header .card-title {
+    font-size: 0.95rem;
+    line-height: 1.35;
+  }
+
+  .settings-page .settings-points-management .card-body {
+    padding: 0.75rem 0.6rem;
+  }
+
+  .settings-page .settings-points-management .settings-points-table-responsive {
+    margin-left: -0.4rem;
+    margin-right: -0.4rem;
+    padding: 0 0.15rem 0.4rem;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #94a3b8 #e2e8f0;
+  }
+
+  .settings-page .settings-points-management .settings-points-table-responsive::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .settings-page .settings-points-management .settings-points-table-responsive::-webkit-scrollbar-track {
+    background: #e2e8f0;
+    border-radius: 4px;
+  }
+
+  .settings-page .settings-points-management .settings-points-table-responsive::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 4px;
+  }
+
+  .settings-page .settings-points-management .settings-points-table {
+    font-size: 0.72rem;
+    margin-bottom: 0;
+    overflow: hidden;
+    border-radius: 10px;
+    min-width: 700px;
+  }
+
+  .settings-page .settings-points-management .settings-points-table--rewards {
+    min-width: 580px;
+  }
+
+  .settings-page .settings-points-management .settings-points-table th,
+  .settings-page .settings-points-management .settings-points-table td {
+    padding: 0.32rem 0.28rem;
+    vertical-align: middle;
+  }
+
+  .settings-page .settings-points-management .settings-points-table .form-control-sm {
+    font-size: 0.72rem;
+    padding: 0.18rem 0.32rem;
+    min-height: 1.85rem;
+  }
+
+  .settings-page .settings-points-management .settings-points-table td.text-center {
+    min-width: 2.25rem;
+  }
+
+  .settings-page .settings-points-management .settings-points-table td.text-center input[type="checkbox"] {
+    margin: 0;
+    width: 1rem;
+    height: 1rem;
+    vertical-align: middle;
+  }
+
+  .settings-page .settings-points-management .btn.settings-save-btn {
+    display: block;
+    width: 100%;
+    margin-top: 0.85rem !important;
+  }
+
+  .settings-page .settings-points-management .alert.alert-info {
+    font-size: 0.85rem;
+    padding: 0.65rem 0.8rem;
+    line-height: 1.45;
+    margin-top: 1rem !important;
+    border-radius: 12px;
+  }
+
+  .settings-page .settings-points-management .alert.alert-info i {
+    margin-right: 0.35rem;
+  }
+}
+
 .settings-page .badge {
   border-radius: 30px;
   padding: 0.35em 0.8em;
@@ -7841,21 +8726,23 @@ select.form-control-modern {
 
 @media (max-width: 767.98px) {
   .settings-page .settings-route-layout__inner {
+    background: transparent;
+    box-shadow: none;
     border: none;
-    border-radius: var(--dental-border-radius);
-    box-shadow: var(--dental-card-shadow);
-    background: #fff;
-    overflow: hidden;
-    margin-bottom: 1rem;
-  }
-
-  .settings-page .settings-route-layout__mobile-head .card-header {
     border-radius: 0;
+    overflow: visible;
+    margin-bottom: 0;
+    padding: 0;
   }
 
-  .settings-page .settings-route-layout__mobile-tabs-wrap .card-body {
-    padding: 0.85rem;
-    padding-bottom: 0.65rem;
+  .settings-page .settings-route-layout__mobile-tabs-wrap {
+    margin-bottom: 0.35rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  }
+
+  .settings-page .settings-route-layout__mobile-tabs-inner {
+    padding: 0.35rem 0 0.15rem;
   }
 
   .settings-page .settings-route-layout__mobile-tabs-wrap .settings-nav-tabs {
@@ -7901,15 +8788,14 @@ select.form-control-modern {
   }
 
   .settings-page .settings-route-layout__content {
-    border-top: 1px solid rgba(148, 163, 184, 0.28);
-    padding: 0.85rem;
-    padding-top: 1rem;
+    border-top: none;
+    padding: 0.75rem 0 0;
   }
 
-  /* Avoid heavy “card in card” when section bodies sit inside the mobile shell */
+  /* Section cards on page background (no outer white shell) */
   .settings-page .settings-route-layout__content > .card.bills-dash-section-card {
-    box-shadow: none;
-    border: 1px solid rgba(148, 163, 184, 0.35);
+    box-shadow: var(--dental-card-shadow);
+    border: 1px solid rgba(148, 163, 184, 0.28);
     margin-bottom: 0;
   }
 
@@ -8072,7 +8958,7 @@ body.section-reports .card.bg-danger {
 }
 
 body.section-reports .card.bg-primary {
-  background: rgb(34, 197, 94) !important;
+  background: #07b5ff ;
 }
 body.section-reports .card.bg-danger {
   background: rgb(250, 236, 82) !important;
@@ -8551,7 +9437,7 @@ body.section-billing .btn-warning:hover {
 .step-circle {
   width: 40px;
   height: 40px;
-  background: #667eea;
+  background: rgb(85, 189, 245);
   color: white;
   border-radius: 50%;
   display: inline-flex;
@@ -8619,8 +9505,41 @@ body.section-billing .btn-warning:hover {
   align-items: flex-end;
 }
 
-/* Rewards rows: keep cost + title + redeem on one row on phones */
+/* Rewards: redeem slightly tighter than plain btn-sm on tablet/desktop */
+@media (min-width: 577px) {
+  .points-page .points-area-rewards .points-redeem-btn {
+    padding: 0.21rem 0.46rem;
+    font-size: 0.76rem;
+    line-height: 1.28;
+    min-height: 0;
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+}
+
+/* Points history stays 3-column like desktop; rewards row tweaks below */
 @media (max-width: 576px) {
+  .bills-page.points-page .points-area-history .bills-dash-row {
+    grid-template-columns: minmax(3.5rem, 5.75rem) minmax(0, 1fr) auto;
+    gap: 0.4rem 0.65rem;
+    align-items: center;
+    text-align: start;
+    justify-items: stretch;
+    padding: 0.75rem 0.85rem;
+  }
+
+  .bills-page.points-page .points-area-history .bills-side-id,
+  .bills-page.points-page .points-area-history .bills-dash-col-main,
+  .bills-page.points-page .points-area-history .bills-dash-muted {
+    text-align: start;
+    width: auto;
+  }
+
+  .bills-page.points-page .points-area-history .bills-dash-actions {
+    align-items: flex-end;
+    width: auto;
+  }
+
   .points-page .points-row-three-col-mobile.bills-dash-row {
     grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 0.35rem 0.5rem;
@@ -8645,6 +9564,16 @@ body.section-billing .btn-warning:hover {
   .points-page .points-row-three-col-mobile .btn-sm {
     padding: 0.28rem 0.55rem;
     font-size: 0.72rem;
+    white-space: nowrap;
+  }
+
+  .points-page .points-area-rewards .points-redeem-btn {
+    padding: 0.14rem 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 0.8;
+    min-height: 0;
+    border-radius: 6px;
     white-space: nowrap;
   }
   .points-page .points-earn-row.bills-dash-row {
@@ -9899,75 +10828,115 @@ select.form-control-modern option {
 }
 
 /* ===== patient-referrals.css ===== */
-.bills-page.referrals-page .ref-code-panel {
-  border: 1px solid var(--bills-cal-line);
-  border-radius: 14px;
-  padding: 1.25rem;
-  background: #f8fafc;
-  margin-bottom: 1rem;
+
+/* Share / how cards use .bills-dash-section-card + .bills-arrivals-header like appointments/add */
+.bills-page.referrals-page .referrals-share-card__body {
+  background: #fff;
 }
 
-.bills-page.referrals-page .ref-code-display {
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  color: var(--bills-accent-deep);
+.bills-page.referrals-page .referrals-share-code {
   font-family: ui-monospace, monospace;
-  background: #fff;
-  padding: 0.85rem 1rem;
-  border-radius: 10px;
-  margin-bottom: 1rem;
-  border: 1px solid var(--bills-cal-line);
+  font-size: clamp(1.5rem, 4.8vw, 2rem);
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: 0.1em;
+  line-height: 1.35;
   word-break: break-all;
+  margin-bottom: 0.5rem;
+}
+
+.bills-page.referrals-page .referrals-share-sub {
+  font-size: 0.9rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.bills-page.referrals-page .referrals-share-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.62rem 1.15rem;
+  border: none;
+  cursor: pointer;
+  transition:
+    opacity 0.15s ease,
+    filter 0.15s ease;
+}
+
+.bills-page.referrals-page .referrals-share-btn:focus {
+  outline: 2px solid rgba(108, 163, 245, 0.45);
+  outline-offset: 2px;
+}
+
+.bills-page.referrals-page .referrals-share-btn--wa {
+  background: #25d366 !important;
+  color: #fff !important;
+  box-shadow: 0 2px 12px rgba(37, 211, 102, 0.3);
+}
+
+.bills-page.referrals-page .referrals-share-btn--wa:hover {
+  color: #fff !important;
+  filter: brightness(0.96);
+}
+
+.bills-page.referrals-page .referrals-share-btn--copy {
+  background: linear-gradient(135deg, #9bd4fa 0%, #6cb5f9 52%, #5a9eeb 100%) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 10px rgba(90, 158, 235, 0.25);
+}
+
+.bills-page.referrals-page .referrals-share-btn--copy:hover {
+  color: #fff !important;
+  filter: brightness(0.98);
+}
+
+.bills-page.referrals-page .referrals-share-details {
+  border-top: 1px solid rgba(226, 232, 240, 0.9);
+  padding-top: 0.85rem;
+}
+
+.bills-page.referrals-page .referrals-share-details-sum {
+  list-style-position: outside;
 }
 
 .bills-page.referrals-page .ref-link-input-group {
   display: flex;
-  margin-top: 0.75rem;
+  align-items: stretch;
+  margin-top: 0.25rem;
 }
 
 .bills-page.referrals-page .ref-link-input-group input {
   flex: 1;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--bills-cal-line);
-  border-radius: 8px 0 0 8px;
-  font-family: ui-monospace, monospace;
-  font-size: 0.75rem;
   min-width: 0;
+  border: 1px solid var(--bills-cal-line);
+  border-right: none;
+  border-radius: 10px 0 0 10px;
+  font-family: ui-monospace, monospace;
+  font-size: 0.72rem;
+  padding: 0.42rem 0.55rem;
+  background: #f8fafc;
 }
 
-.bills-page.referrals-page .ref-link-input-group button {
-  padding: 0.5rem 0.85rem;
+.bills-page.referrals-page .referrals-share-btn-copyico {
+  flex-shrink: 0;
+  padding: 0 0.82rem;
+  border: none;
+  border-radius: 0 10px 10px 0;
   background: linear-gradient(
     135deg,
     var(--bills-accent) 0%,
     var(--bills-accent-deep) 100%
   );
   color: #fff !important;
-  border: none;
-  border-radius: 0 8px 8px 0;
   cursor: pointer;
+  transition: opacity 0.15s ease;
 }
 
-.bills-page.referrals-page .ref-link-input-group button:hover {
-  opacity: 0.94;
-}
-
-.bills-page.referrals-page .btn-whatsapp-ref {
-  background: #25d366;
-  border: none;
-  color: #fff !important;
-  font-weight: 600;
-  border-radius: 25px;
-  padding: 0.5rem 1.25rem;
-  transition:
-    opacity 0.2s ease,
-    transform 0.2s ease;
-}
-
-.bills-page.referrals-page .btn-whatsapp-ref:hover {
-  color: #fff !important;
-  opacity: 0.94;
+.bills-page.referrals-page .referrals-share-btn-copyico:hover {
+  opacity: 0.93;
 }
 
 .bills-page.referrals-page .ref-step-num {
@@ -9986,6 +10955,29 @@ select.form-control-modern option {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+@media (max-width: 576px) {
+  body.section-patient .bills-page.referrals-page .bills-dash-section-card .bills-dash-row {
+    grid-template-columns: minmax(3.5rem, 5.75rem) minmax(0, 1fr) auto;
+    gap: 0.4rem 0.65rem;
+    align-items: center;
+    text-align: start;
+    justify-items: stretch;
+    padding: 0.75rem 0.85rem;
+  }
+
+  body.section-patient .bills-page.referrals-page .bills-dash-section-card .bills-side-id,
+  body.section-patient .bills-page.referrals-page .bills-dash-section-card .bills-dash-col-main,
+  body.section-patient .bills-page.referrals-page .bills-dash-section-card .bills-dash-muted {
+    text-align: start;
+    width: auto;
+  }
+
+  body.section-patient .bills-page.referrals-page .bills-dash-section-card .bills-dash-actions {
+    align-items: flex-end;
+    width: auto;
+  }
 }
 
 .bills-page.referrals-page .ref-success-toast {
@@ -10039,6 +11031,18 @@ select.form-control-modern option {
 }
 
 /* Plan cards: black hero icons, green checklist, yellow select buttons */
+/* Summary card: active subscription validity dates */
+.bills-page.subscription-page .bills-balance-box small.subscription-hero-valid {
+  margin-top: 0.4rem !important;
+  margin-bottom: 0 !important;
+  font-weight: 600;
+  text-transform: none !important;
+  letter-spacing: 0.02em !important;
+  font-size: 0.62rem !important;
+  line-height: 1.35;
+  color: rgba(15, 23, 42, 0.9) !important;
+}
+
 .bills-page.subscription-page .payment-icon {
   font-size: 48px;
   margin-bottom: 15px;
@@ -10053,8 +11057,65 @@ select.form-control-modern option {
   color: var(--bills-accent-deep) !important;
 }
 
+.bills-page.subscription-page .plan-option-card-body {
+  min-height: 0;
+}
+
+.bills-page.subscription-page .plan-option-card-title {
+  color: #0f172a;
+  line-height: 1.3;
+  max-width: 16rem;
+}
+
+.bills-page.subscription-page .plan-feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  width: 100%;
+  max-width: 17.5rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 0;
+  text-align: center;
+}
+
+.bills-page.subscription-page .plan-feature-list-item {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.bills-page.subscription-page .plan-feature-list-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 14.5rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: #0f172a;
+  text-align: center;
+}
+
+.bills-page.subscription-page .plan-feature-list-check,
 .bills-page.subscription-page .plan-feature-list .fa-check {
   color: rgb(34, 197, 94) !important;
+  flex-shrink: 0;
+  margin-top: 0.2rem;
+  font-size: 0.85rem;
+}
+
+.bills-page.subscription-page .plan-option-card-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.bills-page.subscription-page .plan-option-card-action-btn {
+  width: 100%;
+  max-width: 100%;
 }
 
 .bills-page.subscription-page .btn-subscribe-plan {
@@ -10098,6 +11159,13 @@ select.form-control-modern option {
 
 .bills-page.subscription-page .payment-card.border-highlight-premium {
   border: 2px solid rgba(108, 163, 245, 0.45) !important;
+}
+
+/* Current subscription plan tile — green stroke (overrides premium highlight) */
+.bills-page.subscription-page .plan-option-card.plan-option-card--current {
+  border: 2px solid rgb(22, 163, 74) !important;
+  box-shadow: 0 12px 28px rgba(22, 163, 74, 0.14);
+  transform: translateY(-4px);
 }
 
 .bills-page.subscription-page .payment-card .premium-crown-icon {

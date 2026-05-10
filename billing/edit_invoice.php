@@ -3,8 +3,19 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
+if (!Auth::isAdmin() && !hasPermission((int) Auth::userId(), 'manage_billing')) {
+    http_response_code(403);
+    exit('Access denied.');
+}
 
 $db = Database::getInstance();
+$paymentMethodOptions = [
+    'cash' => 'Cash',
+    'card' => 'Card',
+    'insurance' => 'Insurance',
+    'online' => 'Online',
+    'check' => 'Check',
+];
 $invoiceId = (int) ($_GET['id'] ?? 0);
 
 $invoice = $db->fetchOne(
@@ -34,26 +45,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $discountType = $_POST['discount_type'] ?? 'fixed';
     $discountValue = floatval($_POST['discount_value'] ?? 0);
     $taxRate = floatval($_POST['tax_rate'] ?? 0);
+    $paymentMethod = trim((string) ($_POST['payment_method'] ?? ''));
 
-    $result = $db->execute(
-        "UPDATE invoices SET
-            patient_id = ?, invoice_date = ?, due_date = ?,
-            subtotal = ?, discount_type = ?, discount_value = ?, tax_rate = ?,
-            notes = ?
-         WHERE id = ?",
-        [
-            $_POST['patient_id'],
-            $_POST['invoice_date'],
-            $_POST['due_date'],
-            $subtotal,
-            $discountType,
-            $discountValue,
-            $taxRate,
-            $_POST['notes'] ?? null,
-            $invoiceId
-        ],
-        "issdssdsi"
-    );
+    if ($paymentMethod !== '' && !array_key_exists($paymentMethod, $paymentMethodOptions)) {
+        $error = 'Invalid payment method selected.';
+    }
+
+    $result = false;
+    if ($error === '') {
+        $result = $db->execute(
+            "UPDATE invoices SET
+                patient_id = ?, invoice_date = ?, due_date = ?,
+                subtotal = ?, discount_type = ?, discount_value = ?, tax_rate = ?,
+                payment_method = ?, notes = ?
+             WHERE id = ?",
+            [
+                $_POST['patient_id'],
+                $_POST['invoice_date'],
+                $_POST['due_date'],
+                $subtotal,
+                $discountType,
+                $discountValue,
+                $taxRate,
+                $paymentMethod !== '' ? $paymentMethod : null,
+                $_POST['notes'] ?? null,
+                $invoiceId
+            ],
+            "issdssdssi"
+        );
+    }
 
     if ($result !== false) {
         logAction('UPDATE', 'invoices', $invoiceId, $invoice, $_POST);
@@ -169,6 +189,18 @@ include '../layouts/header.php';
                                 <label class="form-label" for="tax_rate">Tax Rate (%)</label>
                                 <input type="number" step="0.01" class="form-control form-control-modern" name="tax_rate" id="tax_rate"
                                        value="<?php echo htmlspecialchars((string) ($invoice['tax_rate'] ?? '0')); ?>" onchange="calculateTotal()">
+                            </div>
+
+                            <div class="col-12 col-md-6 mb-3">
+                                <label class="form-label" for="invEditPaymentMethod">Payment Method</label>
+                                <select class="form-select form-control-modern" id="invEditPaymentMethod" name="payment_method">
+                                    <option value="">Select payment method</option>
+                                    <?php foreach ($paymentMethodOptions as $value => $label): ?>
+                                        <option value="<?php echo htmlspecialchars($value); ?>" <?php echo (($invoice['payment_method'] ?? '') === $value) ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($label); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
 
                             <div class="col-12 col-md-6 mb-3">

@@ -44,7 +44,7 @@ $existing = $db->fetchOne(
 if ($existing) {
     $setParts = ['status = ?', 'diagnosis = ?', 'treatment = ?', 'notes = ?', 'updated_by = ?'];
     $values = [$status, $diagnosis, $treatment, $notes, Auth::userId()];
-    $types = 'sssss';
+    $types = 'ssssi';
     if (dbColumnExists('tooth_chart', 'sync_status')) {
         $setParts[] = "sync_status = 'pending'";
     }
@@ -52,11 +52,15 @@ if ($existing) {
     $types .= 'i';
     $values[] = $toothNumber;
     $types .= 'i';
-    $db->execute(
+    $updated = $db->execute(
         'UPDATE tooth_chart SET ' . implode(', ', $setParts) . ' WHERE patient_id = ? AND tooth_number = ?',
         $values,
         $types
     );
+    if ($updated === false) {
+        echo json_encode(['success' => false, 'message' => 'Failed to update tooth']);
+        exit;
+    }
     logAction('UPDATE', 'tooth_chart', $existing['id'], null, $input);
     sync_push_row_now('tooth_chart', $existing['id']);
 } else {
@@ -73,6 +77,10 @@ if ($existing) {
         $values,
         $types
     );
+    if (!$id) {
+        echo json_encode(['success' => false, 'message' => 'Failed to create tooth record']);
+        exit;
+    }
     logAction('CREATE', 'tooth_chart', $id, null, $input);
     sync_push_row_now('tooth_chart', $id);
 }

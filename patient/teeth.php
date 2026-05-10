@@ -11,10 +11,16 @@ if ($_SESSION['role'] != 'patient') {
     exit;
 }
 
+
 $db = Database::getInstance();
 $userId = Auth::userId();
-$patientId = getPatientIdFromUserId($userId);
 
+// Allow patient_id to be passed via URL (for mobile app WebView)
+$patientId = isset($_GET['patient_id']) ? (int)$_GET['patient_id'] : 0;
+if (!$patientId) {
+    // fallback to session-based user lookup (web browser)
+    $patientId = getPatientIdFromUserId($userId);
+}
 if (!$patientId) {
     die("Patient record not found.");
 }
@@ -23,6 +29,21 @@ if (!$patientId) {
 $patient = patient_portal_fetch_patient_cloud_first((int) $patientId);
 if (!$patient) {
     die("Patient record not found.");
+}
+
+$chartType = 'adult';
+$chartLabel = 'Adult teeth chart';
+if (!empty($patient['date_of_birth'])) {
+    try {
+        $dob = new DateTime((string) $patient['date_of_birth']);
+        $age = $dob->diff(new DateTime())->y;
+        if ($age < 6) {
+            $chartType = 'primary';
+            $chartLabel = 'Baby teeth chart';
+        }
+    } catch (Exception $e) {
+        $chartType = 'adult';
+    }
 }
 
 $pageTitle = 'My Teeth';
@@ -65,7 +86,7 @@ include '../layouts/header.php';
                     </div>
                 </div>
                 <div class="card-body">
-                    <p class="small text-muted mb-3 teeth-chart-intro">Click on any tooth to view details</p>
+                    <p class="small text-muted mb-3 teeth-chart-intro">Click on any tooth to view details. Showing <?php echo htmlspecialchars(strtolower($chartLabel)); ?>.</p>
                     <div id="tooth-chart-container" class="tooth-chart-container text-center">
                         <div class="text-center py-5">
                             <div class="spinner-border text-primary" role="status">
@@ -231,12 +252,14 @@ include '../layouts/header.php';
     </div>
 </div>
 
-<script src="<?php echo url('assets/js/tooth-chart.js'); ?>"></script>
+<script src="<?php echo htmlspecialchars(asset_url('assets/js/tooth-chart.js')); ?>?v=<?php echo (int) @filemtime(__DIR__ . '/../assets/js/tooth-chart.js'); ?>"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Initialize tooth chart in read-only mode
         if (typeof toothChart !== 'undefined') {
-            toothChart.init(<?php echo $patientId; ?>, true);
+            toothChart.init(<?php echo $patientId; ?>, true, {
+                chartType: '<?php echo $chartType; ?>'
+            });
         } else {
             console.error('Tooth chart library not loaded');
             // Fallback message
@@ -251,4 +274,5 @@ include '../layouts/header.php';
     });
 </script>
 
+<?php $disableFooterToothChart = true; ?>
 <?php include '../layouts/footer.php'; ?>

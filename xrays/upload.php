@@ -6,6 +6,11 @@ require_once '../includes/functions.php';
 
 Auth::requireLogin();
 
+if (Auth::hasRole('patient')) {
+    header('Location: ../index.php');
+    exit;
+}
+
 $db = Database::getInstance();
 $patientId = $_GET['patient_id'] ?? 0;
 
@@ -32,9 +37,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['xray_file'])) {
     $result = uploadFile($file, $uploadDir, ['image/jpeg', 'image/png', 'image/gif', 'application/pdf']);
 
     if ($result['success']) {
-        $db->insert(
-            "INSERT INTO xrays (patient_id, file_name, file_path, file_size, mime_type, xray_type, findings, notes, uploaded_by) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        $newXrayId = (int) $db->insert(
+            "INSERT INTO xrays (patient_id, file_name, file_path, file_size, mime_type, xray_type, tooth_numbers, findings, notes, uploaded_by) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 $patientId,
                 $result['filename'],
@@ -42,12 +47,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['xray_file'])) {
                 $file['size'],
                 $file['type'],
                 $_POST['xray_type'],
+                $_POST['tooth_numbers'] ?? null,
                 $_POST['findings'] ?? null,
                 $_POST['notes'] ?? null,
                 Auth::userId()
             ],
-            "ississssi"
+            "ississsssi"
         );
+        if ($newXrayId > 0 && function_exists('dbColumnExists')) {
+            if (dbColumnExists('xrays', 'local_id')) {
+                $db->execute("UPDATE xrays SET local_id = ? WHERE id = ?", [$newXrayId, $newXrayId], 'ii');
+            }
+            if (dbColumnExists('xrays', 'sync_status')) {
+                $db->execute("UPDATE xrays SET sync_status = 'pending' WHERE id = ?", [$newXrayId], 'i');
+            }
+        }
+        if ($newXrayId > 0 && function_exists('sync_push_row_now')) {
+            try {
+                sync_push_row_now('xrays', $newXrayId);
+            } catch (Throwable $ignored) {
+            }
+        }
         $success = 'X-Ray uploaded successfully';
     } else {
         $error = $result['message'];
@@ -143,7 +163,10 @@ include '../layouts/header.php';
                             </div>
                             <div class="col-12 mb-3">
                                 <label class="form-label">Tooth Numbers (comma separated)</label>
-                                <input type="text" class="form-control" name="tooth_numbers" placeholder="e.g., 18,19,20">
+                                   <input type="text" class="form-control form-control-modern" id="tpAddTeeth" name="tooth_numbers"
+                                       inputmode="numeric" pattern="[0-9]+(?:,[0-9]+)*" title="Enter comma-separated tooth numbers from 0 to 32, e.g. 18,19,20"
+                                       oninput="this.value = this.value.replace(/[^0-9,]/g, '').replace(/,{2,}/g, ',').replace(/^,|,$/g, '').split(',').map(function(v){return v.trim();}).filter(function(v){return v !== '' && /^[0-9]+$/.test(v) && parseInt(v,10) >= 0 && parseInt(v,10) <= 32;}).map(function(v){return String(parseInt(v,10));}).join(',');"
+                                       placeholder="e.g., 18,19,20">
                             </div>
                         </div>
                     </div>

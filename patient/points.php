@@ -25,35 +25,14 @@ $points = (int) ($patient['points'] ?? 0);
 
 $referralCount = patient_portal_count_referred_patients_cloud_first((int) $patientId);
 
-$appointmentPoints = patient_portal_list_completed_appointments_cloud_first((int) $patientId, 10);
+$earningRules = $db->fetchAll("SELECT title, description, points FROM points_earning_rules WHERE is_active = 1 ORDER BY display_order ASC");
+if ($earningRules === false) {
+    $earningRules = [];
+}
 
-$historyItems = [];
-foreach ($appointmentPoints as $apt) {
-    $historyItems[] = [
-        'side' => formatDate($apt['appointment_date']),
-        'title' => 'Completed visit',
-        'muted' => (string) $apt['treatment_type'],
-        'badgeClass' => 'bills-badge bills-badge--green',
-        'pointsLabel' => '+50',
-    ];
-}
-if ($referralCount > 0) {
-    $historyItems[] = [
-        'side' => 'Referral',
-        'title' => $referralCount . ' friend' . ($referralCount > 1 ? 's' : '') . ' joined',
-        'muted' => 'Referral bonus',
-        'badgeClass' => 'bills-badge bills-badge--green',
-        'pointsLabel' => '+' . ($referralCount * 50),
-    ];
-}
-if (empty($historyItems) && $points > 0) {
-    $historyItems[] = [
-        'side' => '—',
-        'title' => 'Points balance',
-        'muted' => 'Your current total',
-        'badgeClass' => 'bills-badge bills-badge--blue',
-        'pointsLabel' => (string) $points,
-    ];
+$rewards = $db->fetchAll("SELECT name, description, points_required FROM points_rewards WHERE is_active = 1 ORDER BY display_order ASC");
+if ($rewards === false) {
+    $rewards = [];
 }
 
 $ptsMod = $points % 250;
@@ -109,40 +88,6 @@ include '../layouts/header.php';
     </div>
 
     <div class="points-cards-grid">
-        <div class="points-area-history">
-            <div class="card bills-dash-section-card">
-                <div class="card-header bills-arrivals-header bills-arrivals-header--invoices border-0">
-                    <div class="bills-arrivals-section-header__inner align-items-center">
-                        <div>
-                            <h5 class="card-title mb-0"><i class="fas fa-history me-2" aria-hidden="true"></i>Points History</h5>
-                        </div>
-                        <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    <?php if (empty($historyItems)): ?>
-                        <div class="bills-empty-state text-center py-4 px-3">
-                            <p class="text-muted small mb-3">No points yet.</p>
-                            <a href="queue.php" class="btn-green">Book an Appointment</a>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach ($historyItems as $row): ?>
-                            <div class="bills-dash-row">
-                                <span class="bills-side-id"><?php echo htmlspecialchars($row['side']); ?></span>
-                                <div class="bills-dash-col-main">
-                                    <span class="bills-dash-strong"><?php echo htmlspecialchars($row['title']); ?></span>
-                                    <span class="bills-dash-muted"><?php echo htmlspecialchars($row['muted']); ?></span>
-                                </div>
-                                <div class="bills-dash-actions">
-                                    <span class="<?php echo htmlspecialchars($row['badgeClass']); ?>"><?php echo htmlspecialchars($row['pointsLabel']); ?></span>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
-
         <div class="points-area-earn">
             <div class="card bills-dash-section-card">
                 <div class="card-header bills-arrivals-header bills-arrivals-header--subscriptions border-0">
@@ -154,42 +99,23 @@ include '../layouts/header.php';
                     </div>
                 </div>
                 <div class="card-body p-0">
-                    <div class="bills-dash-row points-earn-row">
-                        <div class="bills-dash-col-main">
-                            <span class="bills-dash-strong">Complete an appointment</span>
-                            <span class="bills-dash-muted">Earn points for every completed dental visit</span>
+                    <?php if (empty($earningRules)): ?>
+                        <div class="bills-empty-state text-center py-4 px-3">
+                            <p class="text-muted small mb-3">No earning guide configured yet.</p>
                         </div>
-                        <div class="bills-dash-actions">
-                            <span class="bills-badge bills-badge--green">+50 pts</span>
-                        </div>
-                    </div>
-                    <div class="bills-dash-row points-earn-row">
-                        <div class="bills-dash-col-main">
-                            <span class="bills-dash-strong">Refer a friend</span>
-                            <span class="bills-dash-muted">Share your referral code and earn points</span>
-                        </div>
-                        <div class="bills-dash-actions">
-                            <span class="bills-badge bills-badge--green">+50 pts</span>
-                        </div>
-                    </div>
-                    <div class="bills-dash-row points-earn-row">
-                        <div class="bills-dash-col-main">
-                            <span class="bills-dash-strong">Subscribe to Premium</span>
-                            <span class="bills-dash-muted">One-time bonus for upgrading</span>
-                        </div>
-                        <div class="bills-dash-actions">
-                            <span class="bills-badge bills-badge--yellow">+200 pts</span>
-                        </div>
-                    </div>
-                    <div class="bills-dash-row points-earn-row">
-                        <div class="bills-dash-col-main">
-                            <span class="bills-dash-strong">First appointment bonus</span>
-                            <span class="bills-dash-muted">Welcome bonus for new patients</span>
-                        </div>
-                        <div class="bills-dash-actions">
-                            <span class="bills-badge bills-badge--blue">+100 pts</span>
-                        </div>
-                    </div>
+                    <?php else: ?>
+                        <?php foreach ($earningRules as $rule): ?>
+                            <div class="bills-dash-row points-earn-row">
+                                <div class="bills-dash-col-main">
+                                    <span class="bills-dash-strong"><?php echo htmlspecialchars($rule['title']); ?></span>
+                                    <span class="bills-dash-muted"><?php echo htmlspecialchars($rule['description'] ?? ''); ?></span>
+                                </div>
+                                <div class="bills-dash-actions">
+                                    <span class="bills-badge bills-badge--green">+<?php echo (int) $rule['points']; ?> pts</span>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -205,26 +131,24 @@ include '../layouts/header.php';
                     </div>
                 </div>
                 <div class="card-body p-0">
-                    <?php
-                    $rewards = [
-                        ['title' => 'Free Teeth Whitening', 'muted' => 'Professional whitening session', 'cost' => '500'],
-                        ['title' => 'Free Dental Cleaning', 'muted' => 'One free cleaning session', 'cost' => '250'],
-                        ['title' => '$50 Treatment Discount', 'muted' => 'Off any dental treatment', 'cost' => '300'],
-                        ['title' => 'Dental Care Kit', 'muted' => 'Premium toothbrush, toothpaste, floss', 'cost' => '150'],
-                    ];
-                    foreach ($rewards as $rw):
-                    ?>
-                        <div class="bills-dash-row points-row-three-col-mobile">
-                            <span class="bills-side-id"><?php echo htmlspecialchars($rw['cost']); ?> pts</span>
-                            <div class="bills-dash-col-main">
-                                <span class="bills-dash-strong"><?php echo htmlspecialchars($rw['title']); ?></span>
-                                <span class="bills-dash-muted"><?php echo htmlspecialchars($rw['muted']); ?></span>
-                            </div>
-                            <div class="bills-dash-actions">
-                                <button type="button" class="btn btn-sm btn-primary" onclick="alert('Contact the clinic to redeem this reward.')">Redeem</button>
-                            </div>
+                    <?php if (empty($rewards)): ?>
+                        <div class="bills-empty-state text-center py-4 px-3">
+                            <p class="text-muted small mb-3">No rewards configured yet.</p>
                         </div>
-                    <?php endforeach; ?>
+                    <?php else: ?>
+                        <?php foreach ($rewards as $rw): ?>
+                            <div class="bills-dash-row points-row-three-col-mobile">
+                                <span class="bills-side-id"><?php echo (int) $rw['points_required']; ?> pts</span>
+                                <div class="bills-dash-col-main">
+                                    <span class="bills-dash-strong"><?php echo htmlspecialchars($rw['name']); ?></span>
+                                    <span class="bills-dash-muted"><?php echo htmlspecialchars($rw['description'] ?? ''); ?></span>
+                                </div>
+                                <div class="bills-dash-actions">
+                                    <button type="button" class="btn btn-sm btn-primary points-redeem-btn" onclick="alert('Contact the clinic to redeem this reward.')">Redeem</button>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

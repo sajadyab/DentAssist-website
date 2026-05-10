@@ -30,6 +30,11 @@ $appointmentsRedirect = static function (string $anchor = '') {
     exit;
 };
 
+$redirectToInvoiceAfterCompletion = static function (int $appointmentId) {
+    header('Location: ../billing/create_invoice.php?appointment_id=' . $appointmentId);
+    exit;
+};
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_in_appointment'])) {
     if (!dbTableExists('clinic_arrivals')) {
         $_SESSION['appointments_flash_error'] = 'Clinic arrivals are not set up. Add the clinic_arrivals table from database.sql.';
@@ -80,12 +85,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_in_appointment'
                 if ($newId <= 0) {
                     throw new RuntimeException('Could not add arrival.');
                 }
+                // Set local_id and sync_status if columns exist
+                if (function_exists('dbColumnExists')) {
+                    if (dbColumnExists('clinic_arrivals', 'local_id')) {
+                        $db->execute("UPDATE clinic_arrivals SET local_id = ? WHERE id = ?", [$newId, $newId], 'ii');
+                    }
+                    if (dbColumnExists('clinic_arrivals', 'sync_status')) {
+                        $db->execute("UPDATE clinic_arrivals SET sync_status = 'pending' WHERE id = ?", [$newId], 'i');
+                    }
+                }
                 $db->execute(
                     "UPDATE appointments SET status = 'checked-in', updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ? AND status = 'scheduled'",
                     [$apptId],
                     'i'
                 );
                 sync_push_row_now('appointments', $apptId);
+                if (function_exists('sync_push_row_now')) {
+                    sync_push_row_now('clinic_arrivals', $newId);
+                }
                 $stRow = $db->fetchOne("SELECT status FROM appointments WHERE id = ?", [$apptId], 'i');
                 if (!$stRow || ($stRow['status'] ?? '') !== 'checked-in') {
                     throw new RuntimeException('Checked in, but could not update appointment status.');
@@ -111,6 +128,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['dismiss_clinic_arriva
             if ($role === 'doctor' && (int) ($row['doctor_id'] ?? 0) !== $currentUserId) {
                 $_SESSION['appointments_flash_error'] = 'You can only remove your own arrivals list entries.';
             } else {
+                if (function_exists('queueCloudDeletion')) {
+                    queueCloudDeletion('clinic_arrivals', $aid, 'local_id');
+                }
                 $db->execute('DELETE FROM clinic_arrivals WHERE id = ?', [$aid], 'i');
                 logAction('DELETE', 'clinic_arrivals', $aid, $row, null);
                 $_SESSION['appointments_flash_ok'] = 'Arrival removed.';
@@ -188,6 +208,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_walkin_arriv
             throw new RuntimeException('Could not record completed visit.');
         }
         sync_push_row_now('appointments', $newApptId);
+        if (function_exists('queueCloudDeletion')) {
+            queueCloudDeletion('clinic_arrivals', $aid, 'local_id');
+        }
         $db->execute('DELETE FROM clinic_arrivals WHERE id = ?', [$aid], 'i');
         logAction('CREATE', 'appointments', $newApptId, null, ['via' => 'walk_in_completed', 'clinic_arrival_id' => $aid, 'status' => 'completed']);
         logAction('DELETE', 'clinic_arrivals', $aid, $row, null);
@@ -205,7 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_walkin_arriv
     } else {
         $_SESSION['appointments_flash_ok'] = 'Appointment marked completed. ' . ($wa['message'] ?? '') . ($wa['error'] ? ' ' . $wa['error'] : '');
     }
-    $appointmentsRedirect('#clinic-arrivals');
+    $redirectToInvoiceAfterCompletion($newApptId);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_scheduled_arrival'])) {
@@ -243,6 +266,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_scheduled_ar
             throw new RuntimeException('Could not mark that appointment completed (it may already be completed or cancelled).');
         }
         sync_push_row_now('appointments', $apptId);
+        if (function_exists('queueCloudDeletion')) {
+            queueCloudDeletion('clinic_arrivals', $aid, 'local_id');
+        }
         $db->execute('DELETE FROM clinic_arrivals WHERE id = ?', [$aid], 'i');
         logAction('UPDATE', 'appointments', $apptId, null, ['status' => 'completed', 'via' => 'clinic_arrivals']);
         logAction('DELETE', 'clinic_arrivals', $aid, $row, null);
@@ -260,7 +286,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_scheduled_ar
     } else {
         $_SESSION['appointments_flash_ok'] = 'Appointment marked completed. ' . ($wa['message'] ?? '') . ($wa['error'] ? ' ' . $wa['error'] : '');
     }
-    $appointmentsRedirect('#clinic-arrivals');
+    $redirectToInvoiceAfterCompletion($apptId);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_walkin_arrival']) && dbTableExists('clinic_arrivals')) {
@@ -293,6 +319,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_walkin_arrival'])
             'iissi'
         );
         if ($newId > 0) {
+            // Set local_id and sync_status if columns exist
+            if (function_exists('dbColumnExists')) {
+                if (dbColumnExists('clinic_arrivals', 'local_id')) {
+                    $db->execute("UPDATE clinic_arrivals SET local_id = ? WHERE id = ?", [$newId, $newId], 'ii');
+                }
+                if (dbColumnExists('clinic_arrivals', 'sync_status')) {
+                    $db->execute("UPDATE clinic_arrivals SET sync_status = 'pending' WHERE id = ?", [$newId], 'i');
+                }
+            }
+            if (function_exists('sync_push_row_now')) {
+                sync_push_row_now('clinic_arrivals', $newId);
+            }
             logAction('CREATE', 'clinic_arrivals', $newId, null, ['kind' => 'walk_in']);
             $_SESSION['appointments_flash_ok'] = 'Walk-in recorded.';
         }
@@ -307,6 +345,11 @@ $doctorId = $_GET['doctor_id'] ?? '';
 
 // Get doctors for filter
 $doctors = repo_user_list_doctors(false);
+
+$treatments = [];
+if (dbTableExists('treatments')) {
+    $treatments = $db->fetchAll('SELECT name FROM treatments ORDER BY name');
+}
 
 // Check if we have patients
 $patientCount = $db->fetchOne("SELECT COUNT(*) as count FROM patients")['count'];
@@ -850,32 +893,28 @@ include '../layouts/header.php';
                         </div>
                         
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Time *</label>
-                            <input type="time" class="form-control" id="appointmentTime" 
-                                   name="appointment_time" required>
-                        </div>
-                        
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Duration (minutes)</label>
-                            <select class="form-select" id="duration" name="duration">
-                                <option value="15">15 minutes</option>
-                                <option value="30" selected>30 minutes</option>
-                                <option value="45">45 minutes</option>
-                                <option value="60">60 minutes</option>
-                                <option value="90">90 minutes</option>
+                            <label class="form-label">Time * (select an available slot)</label>
+                            <select class="form-select" id="appointmentTime" name="appointment_time" required>
+                                <option value="">Select time</option>
                             </select>
                         </div>
                         
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Chair Number</label>
-                            <input type="number" class="form-control" id="chairNumber" 
-                                   name="chair_number" min="1" max="10">
-                        </div>
-                        
+                        <input type="hidden" id="duration" name="duration" value="45">
+
                         <div class="col-12 mb-3">
                             <label class="form-label">Treatment Type *</label>
-                            <input type="text" class="form-control" id="treatmentType" 
-                                   name="treatment_type" required>
+                            <select class="form-select" id="treatmentType" name="treatment_type" required>
+                                <option value="">Select Treatment</option>
+                                <?php if (empty($treatments)): ?>
+                                    <option value="General Treatment">General Treatment</option>
+                                <?php else: ?>
+                                    <?php foreach ($treatments as $treatment): ?>
+                                        <option value="<?php echo htmlspecialchars((string) $treatment['name']); ?>">
+                                            <?php echo htmlspecialchars((string) $treatment['name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </select>
                         </div>
                         
                         <div class="col-12 mb-3">
@@ -1072,8 +1111,62 @@ function showAddAppointmentModal() {
     document.getElementById('appointmentForm').reset();
     document.getElementById('appointmentId').value = '';
     document.getElementById('appointmentDate').value = '<?php echo $date; ?>';
+    loadAppointmentSlots('<?php echo $date; ?>');
     new bootstrap.Modal(document.getElementById('appointmentModal')).show();
 }
+
+function selectAppointmentTime(time) {
+    const timeInput = document.getElementById('appointmentTime');
+    if (timeInput) {
+        timeInput.value = time;
+    }
+}
+
+function formatAppointmentSlotLabelAvailable(hm24) {
+    const hm = String(hm24 || '').trim();
+    const m = /^(\d{1,2}):(\d{2})$/.exec(hm);
+    if (!m) return hm ? hm + ' - Available' : '';
+    let h = parseInt(m[1], 10);
+    const min = m[2];
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    return h + ':' + min + ' ' + ampm + ' - Available';
+}
+
+function loadAppointmentSlots(date) {
+    const select = document.getElementById('appointmentTime');
+    if (!select) {
+        return;
+    }
+    select.innerHTML = '<option value="">Select time</option>';
+    if (!date) {
+        return;
+    }
+
+    fetch(`../api/available_slots.php?date=${date}&duration=45`)
+        .then(response => response.json())
+        .then(data => {
+            (data.slots || []).forEach(slot => {
+                const t = slot && typeof slot.time === 'string' ? slot.time : '';
+                if (!t) return;
+                const option = document.createElement('option');
+                option.value = t;
+                option.textContent = formatAppointmentSlotLabelAvailable(t);
+                select.appendChild(option);
+            });
+        })
+        .catch(() => {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'Unable to load slots';
+            select.appendChild(option);
+        });
+}
+
+document.getElementById('appointmentDate')?.addEventListener('change', function() {
+    loadAppointmentSlots(this.value);
+});
 
 function viewAppointment(id) {
     window.location.href = 'view.php?id=' + id;

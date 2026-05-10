@@ -39,6 +39,15 @@ $steps = $db->fetchAll(
     'i'
 );
 
+$treatments = [];
+if (dbTableExists('treatments')) {
+    $treatments = $db->fetchAll(
+        'SELECT id, name, cost FROM treatments ORDER BY name',
+        [],
+        ''
+    );
+}
+
 $pageTitle = 'Treatment Plan: ' . $plan['plan_name'];
 
 include '../layouts/header.php';
@@ -59,16 +68,16 @@ include '../layouts/header.php';
             <div class="col-12 col-lg-4 mt-3 mt-lg-0 d-flex flex-column align-items-stretch align-items-lg-end justify-content-center treatment-plans-view-hero-actions-wrap">
                 <div class="treatment-plans-view-hero-actions">
                     <div class="treatment-plans-view-hero-row treatment-plans-view-hero-row--primary">
-                        <a href="index.php" class="btn treatment-plans-view-hero-btn">
+                        <a href="index.php" class="btn btn-secondary treatment-plans-view-hero-btn">
                             <i class="fas fa-arrow-left" aria-hidden="true"></i>
                             <span class="d-none d-sm-inline">Back to Plans</span><span class="d-sm-none">Back</span>
                         </a>
-                        <a href="edit.php?id=<?php echo (int) $planId; ?>" class="btn treatment-plans-view-hero-btn">
+                        <a href="edit.php?id=<?php echo (int) $planId; ?>" class="btn btn-secondary treatment-plans-view-hero-btn">
                             <i class="fas fa-edit" aria-hidden="true"></i> Edit
                         </a>
                     </div>
                     <div class="treatment-plans-view-hero-row treatment-plans-view-hero-row--delete">
-                        <a href="delete.php?id=<?php echo (int) $planId; ?>" class="btn treatment-plans-view-hero-btn"
+                        <a href="delete.php?id=<?php echo (int) $planId; ?>" class="btn btn-secondary treatment-plans-view-hero-btn"
                            onclick="return confirm('Are you sure you want to delete this treatment plan? This will also delete all associated steps.');">
                             <i class="fas fa-trash" aria-hidden="true"></i> Delete
                         </a>
@@ -202,7 +211,7 @@ include '../layouts/header.php';
                             <h5 class="card-title mb-0"><i class="fas fa-list-ol me-2" aria-hidden="true"></i>Treatment steps</h5>
                         </div>
                         <div class="flex-shrink-0">
-                            <button type="button" class="btn btn-sm treatment-plans-add-step-btn" onclick="openStepModal()">
+                            <button type="button" class="btn btn-sm btn-secondary treatment-plans-add-step-btn" onclick="openStepModal()">
                                 <i class="fas fa-plus" aria-hidden="true"></i> Add Step
                             </button>
                         </div>
@@ -246,15 +255,24 @@ include '../layouts/header.php';
                                                 <span class="badge bg-<?php echo $sColor; ?>"><?php echo ucfirst((string) $step['status']); ?></span>
                                             </td>
                                             <td>
-                                                <div class="d-flex flex-wrap gap-1">
-                                                    <button type="button" class="btn btn-sm btn-info" onclick="editStep(<?php echo (int) $step['id']; ?>)">
-                                                        <i class="fas fa-edit" aria-hidden="true"></i>
+                                                <div class="treatment-plans-view-steps-actions" role="group" aria-label="Step actions">
+                                                    <button type="button"
+                                                            class="treatment-plans-index-action treatment-plans-index-action--edit"
+                                                            aria-label="Edit step"
+                                                            onclick="editStep(<?php echo (int) $step['id']; ?>)">
+                                                        <i class="fas fa-edit" aria-hidden="true"></i><span class="d-none d-sm-inline">Edit</span>
                                                     </button>
-                                                    <button type="button" class="btn btn-sm btn-success" onclick="updateStepStatus(<?php echo (int) $step['id']; ?>, 'completed')">
-                                                        <i class="fas fa-check" aria-hidden="true"></i>
+                                                    <button type="button"
+                                                            class="treatment-plans-index-action treatment-plans-index-action--complete"
+                                                            aria-label="Mark step completed"
+                                                            onclick="updateStepStatus(<?php echo (int) $step['id']; ?>, 'completed')">
+                                                        <i class="fas fa-check" aria-hidden="true"></i><span class="d-none d-sm-inline">Complete</span>
                                                     </button>
-                                                    <button type="button" class="btn btn-sm btn-danger" onclick="deleteStep(<?php echo (int) $step['id']; ?>)">
-                                                        <i class="fas fa-trash" aria-hidden="true"></i>
+                                                    <button type="button"
+                                                            class="treatment-plans-index-action treatment-plans-index-action--delete"
+                                                            aria-label="Delete step"
+                                                            onclick="deleteStep(<?php echo (int) $step['id']; ?>)">
+                                                        <i class="fas fa-trash" aria-hidden="true"></i><span class="d-none d-sm-inline">Delete</span>
                                                     </button>
                                                 </div>
                                             </td>
@@ -357,7 +375,15 @@ include '../layouts/header.php';
 
                     <div class="mb-3">
                         <label class="form-label" for="stepProcedureInput">Procedure Name *</label>
-                        <input type="text" class="form-control form-control-modern" id="stepProcedureInput" name="procedure_name" required>
+                        <select class="form-select form-control-modern" id="stepProcedureInput" name="procedure_name" required>
+                            <option value="">Select treatment</option>
+                            <?php foreach ($treatments as $treatment): ?>
+                                <option value="<?php echo htmlspecialchars((string) $treatment['name']); ?>"
+                                        data-cost="<?php echo htmlspecialchars((string) $treatment['cost']); ?>">
+                                    <?php echo htmlspecialchars((string) $treatment['name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
 
                     <div class="mb-3">
@@ -367,7 +393,10 @@ include '../layouts/header.php';
 
                     <div class="mb-3">
                         <label class="form-label" for="stepToothInput">Tooth Numbers</label>
-                        <input type="text" class="form-control form-control-modern" id="stepToothInput" name="tooth_numbers" placeholder="e.g., 18,19,20">
+                           <input type="text" class="form-control form-control-modern" id="tpAddTeeth" name="teeth_affected"
+                                       inputmode="numeric" pattern="[0-9]+(?:,[0-9]+)*" title="Enter comma-separated tooth numbers from 0 to 32, e.g. 18,19,20"
+                                       oninput="this.value = this.value.replace(/[^0-9,]/g, '').replace(/,{2,}/g, ',').replace(/^,|,$/g, '').split(',').map(function(v){return v.trim();}).filter(function(v){return v !== '' && /^[0-9]+$/.test(v) && parseInt(v,10) >= 0 && parseInt(v,10) <= 32;}).map(function(v){return String(parseInt(v,10));}).join(',');"
+                                       placeholder="e.g., 18,19,20">
                     </div>
 
                     <div class="row">
@@ -406,10 +435,29 @@ include '../layouts/header.php';
 </div>
 
 <script>
+function syncStepCostFromTreatment() {
+    const procedureSelect = document.getElementById('stepProcedureInput');
+    const costInput = document.getElementById('stepCostInput');
+    if (!procedureSelect || !costInput) {
+        return;
+    }
+
+    const selectedOption = procedureSelect.options[procedureSelect.selectedIndex];
+    if (!selectedOption || selectedOption.value === '') {
+        return;
+    }
+
+    const cost = selectedOption.getAttribute('data-cost');
+    if (cost !== null && cost !== '') {
+        costInput.value = cost;
+    }
+}
+
 function openStepModal() {
     document.getElementById('stepModalTitle').innerText = 'Add Step';
     document.getElementById('stepForm').reset();
     document.getElementById('stepId').value = '';
+    document.getElementById('stepProcedureInput').value = '';
     new bootstrap.Modal(document.getElementById('stepModal')).show();
 }
 
@@ -536,6 +584,8 @@ function markApproved(planId) {
         });
     }
 }
+
+document.getElementById('stepProcedureInput')?.addEventListener('change', syncStepCostFromTreatment);
 </script>
 
 <?php include '../layouts/footer.php'; ?>

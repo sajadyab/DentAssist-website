@@ -3,6 +3,10 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../api/_helpers.php';
 
 Auth::requireLogin();
+if (!Auth::isAdmin() && !hasPermission((int) Auth::userId(), 'manage_billing') && !hasPermission((int) Auth::userId(), 'view_billing')) {
+    http_response_code(403);
+    exit('Access denied.');
+}
 $pageTitle = 'Invoices';
 
 $db = Database::getInstance();

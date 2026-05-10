@@ -3,6 +3,7 @@ require_once '../includes/config.php';
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
+require_once '../includes/patient_cloud_repository.php';
 
 header('Content-Type: application/json');
 
@@ -27,6 +28,19 @@ $plan = $data['plan'] ?? '';
 $amount = $data['amount'] ?? 0;
 $reference = $data['reference'] ?? '';
 $paymentMethod = $data['payment_method'] ?? 'owo';
+$pendingSubscription = $_SESSION['pending_subscription'] ?? null;
+
+if (!$pendingSubscription || (int) ($pendingSubscription['patient_id'] ?? 0) !== (int) $patientId) {
+    echo json_encode(['success' => false, 'error' => 'No pending subscription payment found']);
+    exit;
+}
+
+$plan = (string) ($pendingSubscription['plan'] ?? $plan);
+$amount = (float) ($pendingSubscription['amount'] ?? $amount);
+$billingCycle = (string) ($pendingSubscription['billing_cycle'] ?? 'monthly');
+if (!in_array($billingCycle, ['monthly', 'yearly'], true)) {
+    $billingCycle = 'monthly';
+}
 
 if (!$plan || !$amount) {
     echo json_encode(['success' => false, 'error' => 'Invalid data']);
@@ -34,7 +48,8 @@ if (!$plan || !$amount) {
 }
 
 $startDate = date('Y-m-d');
-$endDate = date('Y-m-d', strtotime('+1 year'));
+$endDate = date('Y-m-d', strtotime($billingCycle === 'yearly' ? '+1 year' : '+1 month'));
+$periodLabel = $billingCycle === 'yearly' ? 'Yearly' : 'Monthly';
 
 // Some installs may not have subscription_status yet (older schema).
 $hasSubscriptionStatus = (bool) $db->fetchOne(
@@ -61,7 +76,7 @@ try {
     if ($hasSubscriptionStatus) {
         $db->execute(
             "UPDATE patients
-             SET subscription_type = ?, subscription_start_date = ?, subscription_end_date = ?, subscription_status = 'active'
+             SET subscription_type = ?, subscription_start_date = ?, subscription_end_date = ?, subscription_status = 'active', sync_status = 'pending'
              WHERE id = ?",
             [$plan, $startDate, $endDate, $patientId],
             "sssi"
@@ -69,17 +84,32 @@ try {
     } else {
         $db->execute(
             "UPDATE patients
-             SET subscription_type = ?, subscription_start_date = ?, subscription_end_date = ?
+             SET subscription_type = ?, subscription_start_date = ?, subscription_end_date = ?, sync_status = 'pending'
              WHERE id = ?",
             [$plan, $startDate, $endDate, $patientId],
             "sssi"
         );
     }
+    try {
+        patient_portal_cloud_upsert_by_local_id_first('patients', (int) $patientId, [
+            'subscription_type' => $plan,
+            'subscription_start_date' => $startDate,
+            'subscription_end_date' => $endDate,
+            'subscription_status' => 'active',
+        ], []);
+    } catch (Throwable $e) {
+        error_log('OWO subscription cloud patient update failed: ' . $e->getMessage());
+    }
+    try {
+        sync_push_row_now('patients', (int) $patientId);
+    } catch (Throwable $e) {
+        error_log('OWO subscription sync push failed: ' . $e->getMessage());
+    }
     
     // Create invoice
     $invoiceNumber = generateInvoiceNumber();
     $invoiceColumns = ['patient_id', 'invoice_number', 'subtotal', 'payment_status', 'invoice_date', 'due_date', 'notes', 'created_by'];
-    $invoiceParams = [$patientId, $invoiceNumber, $amount, 'paid', $startDate, $startDate, "Subscription: {$plan} plan (Annual) - Paid via OWO", $userId];
+    $invoiceParams = [$patientId, $invoiceNumber, $amount, 'paid', $startDate, $startDate, "Subscription: {$plan} plan ({$periodLabel}) - Paid via OWO", $userId];
     $invoiceTypes = 'isdssssi';
     if (dbColumnExists('invoices', 'total_amount')) {
         array_splice($invoiceColumns, 3, 0, 'total_amount');
@@ -94,7 +124,11 @@ try {
         $invoiceTypes
     );
     
-    sync_push_row_now('invoices', $invoiceId);
+    try {
+        sync_push_row_now('invoices', $invoiceId);
+    } catch (Throwable $e) {
+        error_log('OWO subscription invoice sync push failed: ' . $e->getMessage());
+    }
     
     // Record payment
     if ($hasSubscriptionPaymentsTable) {

@@ -1684,6 +1684,8 @@ INSERT INTO `subscription_plans` (`plan_key`, `plan_name`, `monthly_price`, `ann
 ('premium', 'Premium Plan', 49.00, 588.00, '4 free cleanings/year\n20% off treatments\nPriority scheduling\nEmergency access', 1, 2),
 ('family', 'Family Plan', 79.00, 948.00, 'Covers up to 4 members\n3 cleanings each/year\n15% off treatments', 1, 3);
 
+-- Per-doctor weekly booking bands (JSON). Sync: users rows push to cloud when this column changes.
+ALTER TABLE users ADD COLUMN booking_hours_json TEXT NULL;
 
 
 

@@ -34,6 +34,8 @@ $patientNavActive = static function (string $leaf) use ($selfPath): bool {
 $showPointsMenu = getClinicSetting('allow_points_view', '1');
 $showReferralsMenu = getClinicSetting('allow_referrals_view', '1');
 $showSubscriptionMenu = getClinicSetting('allow_subscription_view', '1');
+$staffCanViewBilling = $role === 'patient' ? false : (Auth::isAdmin() || hasPermission((int) ($_SESSION['user_id'] ?? 0), 'view_billing') || hasPermission((int) ($_SESSION['user_id'] ?? 0), 'manage_billing'));
+$staffCanManageBilling = $role === 'patient' ? false : (Auth::isAdmin() || hasPermission((int) ($_SESSION['user_id'] ?? 0), 'manage_billing'));
 
 /** Brand logo: add assets/images/logo.jpeg (also used by mobile toolbar in header.php after this include). */
 $appBrandLogoPath = dirname(__DIR__) . '/assets/images/logo.jpeg';
@@ -85,6 +87,7 @@ $appBrandLogoVer = $appBrandLogoExists ? (string) @filemtime($appBrandLogoPath) 
     
     <ul class="nav-menu">
         <?php if ($role != 'patient'): ?>
+            <!-- Dashboard (for non-patients) -->
             <li class="<?php echo $currentPage == 'dashboard.php' ? 'active' : ''; ?>">
                 <a href="<?php echo url('dashboard.php'); ?>">
                     <i class="fas fa-tachometer-alt"></i>
@@ -116,27 +119,31 @@ $appBrandLogoVer = $appBrandLogoExists ? (string) @filemtime($appBrandLogoPath) 
                 </a>
             </li>
             
-            <li class="<?php echo strpos($currentPage, 'billing') !== false ? 'active' : ''; ?>">
-                <a href="<?php echo url('billing/invoices.php'); ?>">
-                    <i class="fas fa-file-invoice-dollar"></i>
-                    <span><?php echo __('billing', 'Billing'); ?></span>
-                </a>
-            </li>
-<?php if ($role != 'assistant'): ?>
-            <li class="<?php echo $currentPage == 'reports/financial.php' ? 'active' : ''; ?>">
-                <a href="<?php echo url('reports/financial.php'); ?>">
-                    <i class="fas fa-chart-line"></i>
-                    <span><?php echo __('financial_dashboard', 'Financial Dashboard'); ?></span>
-                </a>
-            </li>
+            <?php if ($staffCanViewBilling): ?>
+                <li class="<?php echo strpos($currentPage, 'billing') !== false ? 'active' : ''; ?>">
+                    <a href="<?php echo url('billing/invoices.php'); ?>">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                        <span><?php echo __('billing', 'Billing'); ?></span>
+                    </a>
+                </li>
+            <?php endif; ?>
 
-            <li class="<?php echo strpos($currentPage, 'report') !== false && $currentPage != 'reports/financial.php' && $currentPage != 'reports/messages.php' ? 'active' : ''; ?>">
-                <a href="<?php echo url('reports/index.php'); ?>">
-                    <i class="fas fa-chart-bar"></i>
-                    <span><?php echo __('reports', 'Reports'); ?></span>
-                </a>
-            </li>
-<?php endif; ?>
+            <?php if ($role != 'assistant'): ?>
+                <li class="<?php echo $currentPage == 'reports/financial.php' ? 'active' : ''; ?>">
+                    <a href="<?php echo url('reports/financial.php'); ?>">
+                        <i class="fas fa-chart-line"></i>
+                        <span><?php echo __('financial_dashboard', 'Financial Dashboard'); ?></span>
+                    </a>
+                </li>
+
+                <li class="<?php echo strpos($currentPage, 'report') !== false && $currentPage != 'reports/financial.php' && $currentPage != 'reports/messages.php' ? 'active' : ''; ?>">
+                    <a href="<?php echo url('reports/index.php'); ?>">
+                        <i class="fas fa-chart-bar"></i>
+                        <span><?php echo __('reports', 'Reports'); ?></span>
+                    </a>
+                </li>
+            <?php endif; ?>
+
             <li class="<?php echo $currentPage == 'queue/index.php' ? 'active' : ''; ?>">
                 <a href="<?php echo url('queue/index.php'); ?>">
                     <i class="fas fa-clock"></i>
@@ -150,20 +157,34 @@ $appBrandLogoVer = $appBrandLogoExists ? (string) @filemtime($appBrandLogoPath) 
                     <span><?php echo __('inventory', 'Inventory'); ?></span>
                 </a>
             </li>
+
             <?php if ($role != 'assistant'): ?>
-            <!-- Treatments Management for Doctors and Admins -->
-            <li class="<?php echo $currentPage == 'treatments.php' ? 'active' : ''; ?>">
-                <a href="<?php echo url('treatments.php'); ?>">
-                    <i class="fas fa-tooth"></i>
-                    <span><?php echo __('treatments', 'Treatments'); ?></span>
-                </a>
-            </li>
+                <!-- Treatments Management for Doctors and Admins -->
+                <li class="<?php echo $currentPage == 'treatments.php' ? 'active' : ''; ?>">
+                    <a href="<?php echo url('treatments.php'); ?>">
+                        <i class="fas fa-tooth"></i>
+                        <span><?php echo __('treatments', 'Treatments'); ?></span>
+                    </a>
+                </li>
             <?php endif; ?>
-            <li>
+
+            <?php if ($showPointsMenu == '1' ): ?>
+                <!-- Points & subscriptions (staff) -->
+                <li class="<?php echo $currentPage == 'manage_points.php' ? 'active' : ''; ?>">
+                    <a href="<?php echo url('patients/manage_points.php'); ?>">
+                        <i class="fas fa-coins"></i>
+                        <span><?php echo __('nav_points_subscriptions', 'Points & Subscriptions'); ?></span>
+                    </a>
+                </li>
+            <?php endif; ?>
+
+            <li class="<?php echo $currentPage == 'settings/index.php' ? 'active' : ''; ?>">
                 <a href="<?php echo url('settings/index.php'); ?>">
-                    <i class="fas fa-cog"></i> <span><?php echo __('settings', 'Settings'); ?></span>
+                    <i class="fas fa-cog"></i>
+                    <span><?php echo __('settings', 'Settings'); ?></span>
                 </a>
             </li>
+
         <?php else: ?>
             <!-- Patient Menu -->
             <li class="<?php echo $patientNavActive('patient/index.php') ? 'active' : ''; ?>">
@@ -204,7 +225,7 @@ $appBrandLogoVer = $appBrandLogoExists ? (string) @filemtime($appBrandLogoPath) 
                 </a>
             </li>
             <?php endif; ?>
-             <?php if ($showSubscriptionMenu== '1'): ?>
+            <?php if ($showSubscriptionMenu == '1'): ?>
             <li class="<?php echo $patientNavActive('patient/subscription.php') ? 'active' : ''; ?>">
                 <a href="<?php echo url('patient/subscription.php'); ?>">
                     <i class="fas fa-crown"></i>

@@ -19,6 +19,12 @@ $doctors = repo_user_list_doctors(false);
 // Get patients list
 $patients = $db->fetchAll('SELECT id, full_name, phone, email FROM patients ORDER BY full_name');
 
+// Get available treatments
+$treatments = [];
+if (dbTableExists('treatments')) {
+    $treatments = $db->fetchAll('SELECT name FROM treatments ORDER BY name');
+}
+
 $error = '';
 if (empty($patients)) {
     $error = 'No patients found. Please <a href="../patients/add.php">add a patient</a> first.';
@@ -106,50 +112,35 @@ include '../layouts/header.php';
                                         </select>
                                     </div>
 
-                                    <div class="col-md-4 mb-3">
+                                    <div class="col-md-6 mb-3">
                                         <label class="form-label" for="addAptDate">Date *</label>
                                         <input type="date" class="form-control form-control-modern" id="addAptDate" name="appointment_date"
                                                min="<?php echo date('Y-m-d'); ?>" required>
                                     </div>
 
-                                    <div class="col-md-4 mb-3">
-                                        <label class="form-label" for="addAptTime">Time *</label>
-                                        <input type="time" class="form-control form-control-modern" id="addAptTime" name="appointment_time" required>
-                                    </div>
-
-                                    <div class="col-md-4 mb-3">
-                                        <label class="form-label" for="addAptDuration">Duration</label>
-                                        <select class="form-select form-control-modern" id="addAptDuration" name="duration">
-                                            <option value="15">15 minutes</option>
-                                            <option value="30" selected>30 minutes</option>
-                                            <option value="45">45 minutes</option>
-                                            <option value="60">60 minutes</option>
-                                            <option value="90">90 minutes</option>
-                                            <option value="120">2 hours</option>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label" for="addAptTime">Time*</label>
+                                        <select class="form-select form-control-modern" id="addAptTime" name="appointment_time" required>
+                                            <option value="">Select time</option>
                                         </select>
                                     </div>
 
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label" for="addAptChair">Chair Number</label>
-                                        <input type="number" class="form-control form-control-modern" id="addAptChair" name="chair_number" min="1" max="10">
-                                        <small class="text-muted">Leave empty for automatic assignment</small>
-                                    </div>
+                                    <input type="hidden" name="duration" value="45">
 
                                     <div class="col-md-6 mb-3">
                                         <label class="form-label" for="addAptTreatment">Treatment Type *</label>
-                                        <input type="text" class="form-control form-control-modern" id="addAptTreatment" name="treatment_type" required list="treatmentTypes">
-                                        <datalist id="treatmentTypes">
-                                            <option value="Cleaning">
-                                            <option value="Filling">
-                                            <option value="Root Canal">
-                                            <option value="Extraction">
-                                            <option value="Crown">
-                                            <option value="Bridge">
-                                            <option value="Implant">
-                                            <option value="Whitening">
-                                            <option value="Orthodontics">
-                                            <option value="Consultation">
-                                        </datalist>
+                                        <select class="form-select form-control-modern" id="addAptTreatment" name="treatment_type" required>
+                                            <option value="">Select Treatment</option>
+                                            <?php if (empty($treatments)): ?>
+                                                <option value="General Treatment">General Treatment</option>
+                                            <?php else: ?>
+                                                <?php foreach ($treatments as $treatment): ?>
+                                                    <option value="<?php echo htmlspecialchars((string) $treatment['name']); ?>">
+                                                        <?php echo htmlspecialchars((string) $treatment['name']); ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            <?php endif; ?>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
@@ -196,6 +187,27 @@ include '../layouts/header.php';
                 </div>
             </div>
 
+            <style>
+                .patient-info-row {
+                    margin-bottom: 0.75rem;
+                }
+                .patient-info-row strong {
+                    display: block;
+                    margin-bottom: 0.25rem;
+                    font-weight: 600;
+                }
+                .medical-history-box {
+                    background-color: #f8f9fa;
+                    border: 1px solid #e9ecef;
+                    border-radius: 0.35rem;
+                    padding: 0.75rem 0.9rem;
+                    white-space: pre-wrap;
+                    word-break: break-word;
+                    font-size: 0.95rem;
+                    line-height: 1.5;
+                }
+            </style>
+
             <div class="card bills-dash-section-card appointment-side-card">
                 <div class="card-header bills-arrivals-header bills-arrivals-header--invoices border-0">
                     <div class="bills-arrivals-section-header__inner align-items-center">
@@ -233,6 +245,73 @@ include '../layouts/header.php';
 </div>
 
 <script>
+function escapeHtml(value) {
+    const str = value == null ? '' : String(value);
+    return str.replace(/[&<>"]+/g, (match) => {
+        switch (match) {
+            case '&': return '&amp;';
+            case '<': return '&lt;';
+            case '>': return '&gt;';
+            case '"': return '&quot;';
+            default: return match;
+        }
+    });
+}
+
+/** Display label: e.g. "9:30 AM - Available" (value stays 24h HH:MM for APIs). */
+function formatAppointmentSlotLabelAvailable(hm24) {
+    const hm = String(hm24 || '').trim();
+    const m = /^(\d{1,2}):(\d{2})$/.exec(hm);
+    if (!m) return hm ? hm + ' - Available' : '';
+    let h = parseInt(m[1], 10);
+    const min = m[2];
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    return h + ':' + min + ' ' + ampm + ' - Available';
+}
+
+function formatMedicalHistory(text) {
+    const raw = text == null ? '' : String(text).trim();
+    if (raw === '') {
+        return '<div class="text-muted">None</div>';
+    }
+
+    let parsed;
+    if (raw.startsWith('{') && raw.endsWith('}')) {
+        try {
+            parsed = JSON.parse(raw);
+        } catch (err) {
+            parsed = null;
+        }
+    }
+
+    if (parsed && typeof parsed === 'object') {
+        const conditions = Array.isArray(parsed.conditions)
+            ? parsed.conditions.filter(item => item != null && String(item).trim() !== '')
+            : [];
+        const notes = String(parsed.notes || '').trim();
+
+        let html = '';
+        if (conditions.length > 0) {
+            html += '<div><strong>Conditions:</strong><ul class="mb-2">';
+            conditions.forEach(condition => {
+                html += `<li>${escapeHtml(String(condition))}</li>`;
+            });
+            html += '</ul></div>';
+        }
+        if (notes) {
+            html += `<div><strong>Notes:</strong><div>${escapeHtml(notes).replace(/\r?\n/g, '<br>')}</div></div>`;
+        }
+        if (html === '') {
+            html = '<div class="text-muted">None</div>';
+        }
+        return html;
+    }
+
+    return `<div>${escapeHtml(raw).replace(/\r?\n/g, '<br>')}</div>`;
+}
+
 function updatePatientInfo() {
     const patientId = document.getElementById('patientSelect').value;
     const infoCard = document.getElementById('patientInfoCard');
@@ -244,14 +323,16 @@ function updatePatientInfo() {
                 if (data.success) {
                     const patient = data.patient;
                     document.getElementById('patientDetails').innerHTML = `
-                        <p><strong>Name:</strong> ${patient.full_name}</p>
-                        <p><strong>Phone:</strong> ${patient.phone}</p>
-                        <p><strong>Email:</strong> ${patient.email}</p>
-                        <p><strong>DOB:</strong> ${patient.date_of_birth}</p>
-                        <p><strong>Insurance:</strong> ${patient.insurance_provider || 'None'}</p>
+                        <div class="patient-info-row"><strong>Name:</strong> ${escapeHtml(patient.full_name || 'None')}</div>
+                        <div class="patient-info-row"><strong>Phone:</strong> ${escapeHtml(patient.phone || 'None')}</div>
+                        <div class="patient-info-row"><strong>Email:</strong> ${escapeHtml(patient.email || 'None')}</div>
+                        <div class="patient-info-row"><strong>DOB:</strong> ${escapeHtml(patient.date_of_birth || 'None')}</div>
+                        <div class="patient-info-row"><strong>Insurance:</strong> ${escapeHtml(patient.insurance_provider || 'None')}</div>
                         <hr>
-                        <p><strong>Allergies:</strong> ${patient.allergies || 'None'}</p>
-                        <p><strong>Medical History:</strong> ${patient.medical_history || 'None'}</p>
+                        <div class="patient-info-row"><strong>Allergies:</strong> ${escapeHtml(patient.allergies || 'None')}</div>
+                        <div class="patient-info-row"><strong>Medical History:</strong>
+                            <div class="medical-history-box">${formatMedicalHistory(patient.medical_history)}</div>
+                        </div>
                     `;
                     infoCard.classList.remove('d-none');
                 }
@@ -262,16 +343,15 @@ function updatePatientInfo() {
 }
 
 function checkAvailability() {
-    const date = document.querySelector('input[name="appointment_date"]').value;
-    const time = document.querySelector('input[name="appointment_time"]').value;
-    const chair = document.querySelector('input[name="chair_number"]').value;
+    const date = document.querySelector('[name="appointment_date"]').value;
+    const time = document.querySelector('[name="appointment_time"]').value;
     
     if (!date || !time) {
         alert('Please select date and time first');
         return;
     }
     
-    fetch(`../api/check_availability.php?date=${date}&time=${time}&chair=${chair}`)
+    fetch(`../api/check_availability.php?date=${date}&time=${time}`)
         .then(response => response.json())
         .then(data => {
             if (data.available) {
@@ -286,26 +366,28 @@ function checkAvailability() {
 document.querySelector('#addAptDate')?.addEventListener('change', function() {
     const date = this.value;
     if (date) {
-        fetch(`../api/available_slots.php?date=${date}`)
+        fetch(`../api/available_slots.php?date=${date}&duration=45`)
             .then(response => response.json())
             .then(data => {
-                let html = '<div class="list-group">';
-                data.slots.forEach(slot => {
-                    html += `<a href="#" class="list-group-item list-group-item-action" 
-                             onclick="selectTime('${slot.time}')">
-                             ${slot.time} - ${slot.available ? 'Available' : 'Booked'}
-                             ${slot.available ? '<span class="badge bg-success float-end">Free</span>' : 
-                                               '<span class="badge bg-danger float-end">Taken</span>'}
-                            </a>`;
+                const select = document.getElementById('addAptTime');
+                if (!select) {
+                    return;
+                }
+                select.innerHTML = '<option value="">Select time</option>';
+                (data.slots || []).forEach(slot => {
+                    const t = slot && typeof slot.time === 'string' ? slot.time : '';
+                    if (!t) return;
+                    const option = document.createElement('option');
+                    option.value = t;
+                    option.textContent = formatAppointmentSlotLabelAvailable(t);
+                    select.appendChild(option);
                 });
-                html += '</div>';
-                document.getElementById('availableSlots').innerHTML = html;
             });
     }
 });
 
 function selectTime(time) {
-    var t = document.querySelector('#addAptTime');
+    const t = document.querySelector('#addAptTime');
     if (t) {
         t.value = time;
     }

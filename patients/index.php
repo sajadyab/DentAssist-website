@@ -38,25 +38,25 @@ include '../layouts/header.php';
             <i class="fas fa-plus"></i> Add New Patient
         </a>
     </div>
-    
-    <!-- Search -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <form method="GET" class="row g-3">
-                <div class="col-md-10">
-                    <input type="text" 
-                           class="form-control" 
-                           name="search" 
-                           placeholder="Search by name, email, or phone..."
-                           value="<?php echo htmlspecialchars($search); ?>">
-                </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="fas fa-search"></i> Search
-                    </button>
-                </div>
-            </form>
-        </div>
+  <!-- Search -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-8">
+                <input type="text" 
+                       class="form-control" 
+                       name="search" 
+                       placeholder="Search by name, email, or phone..."
+                       value="<?php echo htmlspecialchars($search); ?>">
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-search"></i> Search
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
     </div>
     
     <!-- Patients Table -->
@@ -66,7 +66,6 @@ include '../layouts/header.php';
                 <table class="table table-hover table-sm patients-index-table">
                     <thead>
                         <tr>
-                            <th>ID</th>
                             <th>Name</th>
                             <th>Contact</th>
                             <th>Insurance</th>
@@ -77,12 +76,11 @@ include '../layouts/header.php';
                     <tbody>
                         <?php if (empty($patients)): ?>
                             <tr>
-                                <td colspan="6" class="text-center">No patients found</td>
+                                <td colspan="5" class="text-center">No patients found</td>
                             </tr>
                         <?php else: ?>
                             <?php foreach ($patients as $patient): ?>
                                 <tr>
-                                    <td>#<?php echo $patient['id']; ?></td>
                                     <td>
                                         <strong><?php echo htmlspecialchars($patient['full_name']); ?></strong><br>
                                         <small class="text-muted">

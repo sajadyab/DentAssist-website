@@ -63,7 +63,8 @@
     </div>
 </div>
 
-<script src="<?php echo url('assets/js/tooth-chart.js'); ?>"></script>
+<?php if (empty($disableFooterToothChart)): ?>
+<script src="<?php echo htmlspecialchars(asset_url('assets/js/tooth-chart.js')); ?>?v=<?php echo (int) @filemtime(__DIR__ . '/../assets/js/tooth-chart.js'); ?>"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
      <?php if (isset($patientId)): ?>
@@ -71,5 +72,6 @@
 <?php endif; ?>
     });
 </script>
+<?php endif; ?>
 </body>
 </html>

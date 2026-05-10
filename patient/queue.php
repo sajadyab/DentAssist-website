@@ -25,9 +25,6 @@ $patient = patient_portal_fetch_patient_cloud_first((int) $patientId);
 if (!$patient) {
     die('Patient record not found.');
 }
-$calendarConfig = getClinicBookingCalendarConfig($db);
-$slotMinutes = $calendarConfig['slot_minutes'];
-$hoursConfig = $calendarConfig['hours'];
 
 $doctors = repo_user_list_doctors(true);
 
@@ -89,6 +86,10 @@ if ($doctorId > 0) {
         }
     }
 }
+
+$calendarConfig = getClinicBookingCalendarConfig($db, $doctorId > 0 ? $doctorId : null);
+$slotMinutes = $calendarConfig['slot_minutes'];
+$hoursConfig = $calendarConfig['hours'];
 
 $today = new DateTimeImmutable('today');
 $monday = $today->modify('monday this week')->modify(($weekOffset * 7) . ' days');
@@ -168,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['book_appointment'])) 
         $dayN = (int) (new DateTimeImmutable($postDate))->format('N');
         $band = clinicHoursBandForWeekdayN($dayN, $hoursConfig);
         if ($band === null) {
-            $error = 'The clinic is closed on that day.';
+            $error = 'This dentist is not available on that day.';
         } else {
             $openT = DateTimeImmutable::createFromFormat('Y-m-d H:i', $postDate . ' ' . $band['open']);
             $closeT = DateTimeImmutable::createFromFormat('Y-m-d H:i', $postDate . ' ' . $band['close']);
@@ -177,8 +178,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['book_appointment'])) 
                 $error = 'Could not read date or time.';
             } else {
                 $slotEnd = $slotStart->modify('+' . $slotMinutes . ' minutes');
-                if ($slotStart < $openT || $slotEnd > $closeT) {
-                    $error = 'That time is outside clinic hours.';
+                if ($slotStart < $openT || $slotStart > $closeT) {
+                    $error = "That time is outside this dentist's available hours.";
                 } else {
                     $now = new DateTimeImmutable('now');
                     if ($slotStart < $now) {
@@ -225,25 +226,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['book_appointment'])) 
                                 $cloudRequestId = (int) $cloudInsert[0]['id'];
                             }
 
+                            $requestColumns = [
+                                'patient_id',
+                                'doctor_id',
+                                'requested_date',
+                                'requested_time',
+                                'duration_minutes',
+                                'treatment_type',
+                                'description',
+                            ];
+                            $requestValues = [
+                                $patientId,
+                                $postDoctor,
+                                $postDate,
+                                $postTime,
+                                $slotMinutes,
+                                $treatmentType,
+                                $description !== '' ? $description : null,
+                            ];
+                            $requestTypes = 'iississ';
+
+                            if (dbColumnExists('appointment_requests', 'cloud_id')) {
+                                $requestColumns[] = 'cloud_id';
+                                $requestValues[] = $cloudRequestId;
+                                $requestTypes .= 'i';
+                            }
+                            if (dbColumnExists('appointment_requests', 'sync_status')) {
+                                $requestColumns[] = 'sync_status';
+                                $requestValues[] = 'synced';
+                                $requestTypes .= 's';
+                            }
+
                             $requestId = (int) $db->insert(
-                                "INSERT INTO appointment_requests (
-                                    patient_id, doctor_id, requested_date, requested_time, duration_minutes,
-                                    treatment_type, description
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                                [
-                                    $patientId,
-                                    $postDoctor,
-                                    $postDate,
-                                    $postTime,
-                                    $slotMinutes,
-                                    $treatmentType,
-                                    $description !== '' ? $description : null,
-                                ],
-                                'iississ'
+                                'INSERT INTO appointment_requests (' . implode(', ', $requestColumns) . ')
+                                 VALUES (' . implode(', ', array_fill(0, count($requestColumns), '?')) . ')',
+                                $requestValues,
+                                $requestTypes
                             );
 
                             if ($requestId <= 0) {
                                 throw new RuntimeException('Could not submit your request. Please try again.');
+                            }
+                            if ($cloudRequestId !== null) {
+                                try {
+                                    $supabase->update('appointment_requests', ['local_id' => $requestId], ['id' => $cloudRequestId]);
+                                } catch (Throwable $ignored) {
+                                }
                             }
                             $db->commit();
                         } catch (RuntimeException $e) {
@@ -465,7 +493,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_appointment_re
             $error = 'That request was not found or may have already been processed.';
         } else {
             try {
-                patient_portal_delete_appointment_request_cloud_first($cancelRow, $cancelId);
+                syncAppointmentRequestCloudDeletion($cancelRow, $cancelId);
             } catch (Throwable $e) {
                 $error = 'Cloud cancel failed. Please retry in a moment.';
                 $cancelRow = null;
@@ -572,11 +600,8 @@ for ($i = 0; $i < 7; $i++) {
     $closeDt = DateTimeImmutable::createFromFormat('Y-m-d H:i', $ymd . ' ' . $band['close']);
     if ($openDt && $closeDt) {
         $cursor = $openDt;
-        while ($cursor < $closeDt) {
+        while ($cursor <= $closeDt) {
             $next = $cursor->modify('+' . $slotMinutes . ' minutes');
-            if ($next > $closeDt) {
-                break;
-            }
             $his = $cursor->format('H:i:s');
             $dayBusy = $busyByDate[$ymd] ?? [];
             $state = $selectedDoctor

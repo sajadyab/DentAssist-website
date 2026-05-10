@@ -16,8 +16,8 @@ $pdo = new PDO(
     ]
 );
 
-// Read-only pull key
-$supabase = new SupabaseAPI((string) SUPABASE_URL, (string) SUPABASE_KEY);
+// Prefer the server key when available so scheduled sync can read/write consistently.
+$supabase = new SupabaseAPI((string) SUPABASE_URL, function_exists('supabase_server_key') ? supabase_server_key() : (string) SUPABASE_KEY);
 
 echo "Starting cloud -> local sync...\n";
 
@@ -55,6 +55,8 @@ function getSyncableTables(PDO $pdo): array
         'inventory',       // No dependencies
         'inventory_transactions', // Depends on inventory
         'clinic_settings', // No dependencies
+        'points_earning_rules', // No dependencies
+        'points_rewards', // No dependencies
         'clinic_arrivals', // Depends on patients
         'monthly_expenses', // No dependencies
         'audit_log',       // May depend on users

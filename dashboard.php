@@ -72,6 +72,11 @@ $defaultCalDoctorId = $dashboardRole === 'doctor'
 
 $calendarPatientsForJs = repo_patient_list_for_select(800);
 
+$treatments = [];
+if (dbTableExists('treatments')) {
+    $treatments = $db->fetchAll('SELECT name FROM treatments ORDER BY name', [], '');
+}
+
 require_once __DIR__ . '/includes/dashboard_staff_calendar.php';
 
 $dashWaitingQueue = repo_dashboard_list_weekly_waiting_queue($staffCalDoctorId);
@@ -176,16 +181,16 @@ include 'layouts/header.php';
         <div class="col-12">
             <div class="card quick-actions-card">
                 <div class="card-body">
-                    <h6 class="mb-3 fw-semibold">Quick Actions</h6>
+                    <h6 class="mb-3 fw-semibold"><?php echo __('quick_actions', 'Quick Actions'); ?></h6>
                     <div class="dash-quick-actions-grid">
                         <a href="patients/add.php" class="btn btn-primary quick-action-btn dash-qa-cell">
-                            <i class="fas fa-user-plus me-2"></i> Add Patient
+                            <i class="fas fa-user-plus me-2"></i> <?php echo __('add_patient', 'Add Patient'); ?>
                         </a>
                         <a href="appointments/add.php" class="btn btn-warning quick-action-btn text-dark dash-qa-cell dash-qa-book">
-                            <i class="fas fa-calendar-plus me-2"></i> Book Appointment
+                            <i class="fas fa-calendar-plus me-2"></i> <?php echo __('book_appointment', 'Book Appointment'); ?>
                         </a>
                         <a href="billing/invoices.php" class="btn btn-info quick-action-btn text-white dash-qa-cell">
-                            <i class="fas fa-file-invoice-dollar me-2"></i> View Invoices
+                            <i class="fas fa-file-invoice-dollar me-2"></i> <?php echo __('view_invoices', 'View Invoices'); ?>
                         </a>
                         <button type="button"
                             class="btn btn-secondary quick-action-btn text-white quick-action-btn--online-requests dash-qa-cell"
@@ -193,12 +198,12 @@ include 'layouts/header.php';
                             data-bs-target="#dashboardOnlineRequests"
                             aria-expanded="false"
                             aria-controls="dashboardOnlineRequests">
-                            <i class="fas fa-globe me-2"></i> Online requests
+                            <i class="fas fa-globe me-2"></i> <?php echo __('online_requests', 'Online requests'); ?>
                         </button>
                         <?php if ($dashShowSubscription): ?>
                             <a href="assistant_subscriptions.php" class="btn btn-success quick-action-btn text-white dash-qa-cell dash-qa-subscriptions">
                                 <i class="fas fa-crown me-2" aria-hidden="true"></i>
-                                Pending Subscriptions
+                                <?php echo __('pending_subscriptions', 'Pending Subscriptions'); ?>
                                 <?php if ($pendingSubscriptions > 0): ?>
                                     <span class="badge bg-danger ms-1"><?php echo $pendingSubscriptions; ?></span>
                                 <?php endif; ?>
@@ -208,26 +213,26 @@ include 'layouts/header.php';
                     <div class="collapse mt-3" id="dashboardOnlineRequests">
                         <div class="dashboard-online-requests-panel">
                             <div class="panel-inner-head d-flex align-items-center justify-content-between flex-wrap gap-2">
-                                <span><i class="fas fa-calendar-plus me-2 text-primary"></i>Patient portal — requested slots</span>
-                                <a href="queue/index.php" class="btn btn-sm btn-outline-primary">Open full queue</a>
+                                <span><i class="fas fa-calendar-plus me-2 text-primary"></i><?php echo __('patient_portal_requested_slots', 'Patient portal — requested slots'); ?></span>
+                                <a href="queue/index.php" class="btn btn-sm btn-outline-primary"><?php echo __('open_full_queue', 'Open full queue'); ?></a>
                             </div>
                             <div class="p-2 p-md-3">
                                 <?php if (empty($dashOnlineRequests)): ?>
-                                    <p class="text-muted small mb-0">No pending online booking requests.</p>
+                                    <p class="text-muted small mb-0"><?php echo __('no_pending_online_requests', 'No pending online booking requests.'); ?></p>
                                 <?php else: ?>
                                     <div class="table-responsive">
                                         <table class="table table-hover table-sm align-middle dashboard-online-requests-table">
                                             <thead>
                                                 <tr>
-                                                    <th>Patient</th>
+                                                    <th><?php echo __('patient', 'Patient'); ?></th>
                                                     <?php if ($dashboardRole !== 'doctor'): ?>
-                                                        <th>Dentist</th>
+                                                        <th><?php echo __('doctor', 'Dentist'); ?></th>
                                                     <?php endif; ?>
-                                                    <th>Date</th>
-                                                    <th>Time</th>
-                                                    <th>Visit type</th>
-                                                    <th>Notes</th>
-                                                    <th class="text-end">Actions</th>
+                                                    <th><?php echo __('date', 'Date'); ?></th>
+                                                    <th><?php echo __('time', 'Time'); ?></th>
+                                                    <th><?php echo __('visit_type', 'Visit type'); ?></th>
+                                                    <th><?php echo __('notes', 'Notes'); ?></th>
+                                                    <th class="text-end"><?php echo __('actions', 'Actions'); ?></th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -248,16 +253,16 @@ include 'layouts/header.php';
                                                         <td class="text-muted small dor-notes"><?php echo htmlspecialchars((string) ($ar['description'] ?? '')); ?></td>
                                                         <td class="text-end">
                                                             <div class="d-inline-flex flex-wrap gap-1 justify-content-end">
-                                                                <form method="post" action="queue/index.php" class="d-inline" onsubmit="return confirm('Confirm this appointment and notify the patient?');">
+                                                                <form method="post" action="queue/index.php" class="d-inline" onsubmit="return confirm('<?php echo addslashes(__('confirm_appointment_notify', 'Confirm this appointment and notify the patient?')); ?>');">
                                                                     <input type="hidden" name="request_id" value="<?php echo (int) $ar['id']; ?>">
                                                                     <button type="submit" name="approve_appointment_request" class="btn btn-sm btn-success">
-                                                                        <i class="fas fa-check"></i> Accept
+                                                                        <i class="fas fa-check"></i> <?php echo __('accept', 'Accept'); ?>
                                                                     </button>
                                                                 </form>
-                                                                <form method="post" action="queue/index.php" class="d-inline" onsubmit="return confirm('Decline this request and notify the patient?');">
+                                                                <form method="post" action="queue/index.php" class="d-inline" onsubmit="return confirm('<?php echo addslashes(__('decline_request_notify', 'Decline this request and notify the patient?')); ?>');">
                                                                     <input type="hidden" name="request_id" value="<?php echo (int) $ar['id']; ?>">
                                                                     <button type="submit" name="deny_appointment_request" class="btn btn-sm btn-outline-danger">
-                                                                        <i class="fas fa-times"></i> Decline
+                                                                        <i class="fas fa-times"></i> <?php echo __('decline', 'Decline'); ?>
                                                                     </button>
                                                                 </form>
                                                             </div>
@@ -280,7 +285,7 @@ include 'layouts/header.php';
     <div class="dashboard-summary-row dashboard-summary-row--grid mb-4" role="presentation">
         <div class="dashboard-summary-item dashboard-summary-tile-today text-white">
             <div class="inner">
-                <h6 class="text-white">Today's Appointments</h6>
+                <h6 class="text-white"><?php echo __('dashboard_today_appointments', 'Today\'s Appointments'); ?></h6>
                 <div class="summary-value-row">
                     <i class="fas fa-calendar-day summary-icon text-white" aria-hidden="true"></i>
                     <p class="stat-value text-white mb-0"><?php echo (int) $stats['today_appointments']; ?></p>
@@ -289,7 +294,7 @@ include 'layouts/header.php';
         </div>
         <div class="dashboard-summary-item dashboard-summary-tile-upcoming text-white">
             <div class="inner">
-                <h6 class="text-white">Upcoming Appointments</h6>
+                <h6 class="text-white"><?php echo __('dashboard_upcoming_appointments', 'Upcoming Appointments'); ?></h6>
                 <div class="summary-value-row">
                     <i class="fas fa-calendar-alt summary-icon text-white" aria-hidden="true"></i>
                     <p class="stat-value text-white mb-0"><?php echo (int) $stats['upcoming_appointments']; ?></p>
@@ -298,7 +303,7 @@ include 'layouts/header.php';
         </div>
         <div class="dashboard-summary-item dashboard-summary-tile-completed text-white">
             <div class="inner">
-                <h6 class="text-white">Completed Today</h6>
+                <h6 class="text-white"><?php echo __('dashboard_completed_today', 'Completed Today'); ?></h6>
                 <div class="summary-value-row">
                     <i class="fas fa-check-circle summary-icon text-white" aria-hidden="true"></i>
                     <p class="stat-value text-white mb-0"><?php echo (int) $stats['completed_today']; ?></p>
@@ -308,7 +313,7 @@ include 'layouts/header.php';
         <?php if ($dashShowSubscription): ?>
             <div class="dashboard-summary-item dashboard-summary-tile-subs text-white">
                 <div class="inner">
-                    <h6 class="text-white">Active Subscriptions</h6>
+                    <h6 class="text-white"><?php echo __('dashboard_active_subscriptions', 'Active Subscriptions'); ?></h6>
                     <div class="summary-value-row">
                         <i class="fas fa-crown summary-icon text-white" aria-hidden="true"></i>
                         <p class="stat-value text-white mb-0"><?php echo (int) $stats['active_subscriptions']; ?></p>
@@ -325,12 +330,12 @@ include 'layouts/header.php';
             <div class="card border-0 shadow-sm mb-0 queue-calendar-card h-100">
                 <div class="card-header queue-panel-card-header">
                     <h5 class="card-title mb-0">
-                        <i class="fas fa-calendar-alt me-2" aria-hidden="true"></i>Appointment calendar
+                        <i class="fas fa-calendar-alt me-2" aria-hidden="true"></i><?php echo __('appointment_calendar', 'Appointment calendar'); ?>
                     </h5>
                   </div>
                 <div class="card-body p-3 pt-2 queue-main-calendar">
                     <?php if ($staffCalDoctorId <= 0): ?>
-                        <p class="text-muted small mb-0">Add an active dentist user to use the calendar.</p>
+                        <p class="text-muted small mb-0"><?php echo __('add_dentist_calendar_hint', 'Add an active dentist user to use the calendar.'); ?></p>
                     <?php else: ?>
                         <form method="get" action="dashboard.php" class="staff-cal-top-form mb-2">
                             <input type="hidden" name="cal_view" value="<?php echo htmlspecialchars($staffCalView); ?>">
@@ -340,7 +345,7 @@ include 'layouts/header.php';
                             <?php endif; ?>
                             <?php if ($dashboardRole !== 'doctor'): ?>
                                 <div class="mb-2">
-                                    <label class="form-label small text-muted mb-1" for="dashCalDoctorSelect">Dentist</label>
+                                    <label class="form-label small text-muted mb-1" for="dashCalDoctorSelect"><?php echo __('doctor', 'Dentist'); ?></label>
                                     <select name="cal_doctor_id" id="dashCalDoctorSelect" class="form-select form-select-sm dash-cal-doctor-select" onchange="this.form.submit()">
                                         <?php foreach ($calendarDoctorOptions as $doc): ?>
                                             <option value="<?php echo (int) $doc['id']; ?>" <?php echo (int) $doc['id'] === $staffCalDoctorId ? 'selected' : ''; ?>>
@@ -363,12 +368,12 @@ include 'layouts/header.php';
                                     <?php endif; ?>
                                 </div>
                                 <div class="d-flex align-items-center flex-wrap gap-1 cal-nav staff-cal-view-toggle">
-                                    <a class="btn btn-cal <?php echo $staffCalView === 'week' ? 'active' : ''; ?>" href="dashboard.php?<?php echo dash_cal_query(['cal_view' => 'week', 'cal_week' => $staffCalWeekOffset], $dashboardRole, $staffCalDoctorId); ?>">Week</a>
-                                    <a class="btn btn-cal <?php echo $staffCalView === 'day' ? 'active' : ''; ?>" href="dashboard.php?<?php echo dash_cal_query(['cal_view' => 'day', 'cal_day' => $staffCalView === 'day' ? $staffCalDayYmd : $today, 'cal_week' => $staffCalWeekOffset], $dashboardRole, $staffCalDoctorId); ?>">Day</a>
+                                    <a class="btn btn-cal <?php echo $staffCalView === 'week' ? 'active' : ''; ?>" href="dashboard.php?<?php echo dash_cal_query(['cal_view' => 'week', 'cal_week' => $staffCalWeekOffset], $dashboardRole, $staffCalDoctorId); ?>"><?php echo __('week', 'Week'); ?></a>
+                                    <a class="btn btn-cal <?php echo $staffCalView === 'day' ? 'active' : ''; ?>" href="dashboard.php?<?php echo dash_cal_query(['cal_view' => 'day', 'cal_day' => $staffCalView === 'day' ? $staffCalDayYmd : $today, 'cal_week' => $staffCalWeekOffset], $dashboardRole, $staffCalDoctorId); ?>"><?php echo __('day', 'Day'); ?></a>
                                     <?php if ($staffCalView === 'week' && $staffCalWeekOffset !== 0): ?>
-                                        <a class="btn btn-cal text-nowrap" href="dashboard.php?<?php echo dash_cal_query(['cal_view' => 'week', 'cal_week' => 0], $dashboardRole, $staffCalDoctorId); ?>">This week</a>
+                                        <a class="btn btn-cal text-nowrap" href="dashboard.php?<?php echo dash_cal_query(['cal_view' => 'week', 'cal_week' => 0], $dashboardRole, $staffCalDoctorId); ?>"><?php echo __('this_week', 'This week'); ?></a>
                                     <?php elseif ($staffCalView === 'day' && $staffCalDayYmd !== $today): ?>
-                                        <a class="btn btn-cal text-nowrap" href="dashboard.php?<?php echo dash_cal_query(['cal_view' => 'day', 'cal_day' => $today, 'cal_week' => $staffCalWeekOffset], $dashboardRole, $staffCalDoctorId); ?>">Today</a>
+                                        <a class="btn btn-cal text-nowrap" href="dashboard.php?<?php echo dash_cal_query(['cal_view' => 'day', 'cal_day' => $today, 'cal_week' => $staffCalWeekOffset], $dashboardRole, $staffCalDoctorId); ?>"><?php echo __('today', 'Today'); ?></a>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -376,15 +381,15 @@ include 'layouts/header.php';
 
                         <div class="calendar-container">
                             <div class="cal-legend">
-                                <span><span class="cal-dot cal-dot-free" aria-hidden="true"></span> Available</span>
-                                <span><span class="cal-dot cal-dot-busy" aria-hidden="true"></span> Scheduled</span>
-                                <span><span class="cal-dot cal-dot-request" aria-hidden="true"></span> Requested</span>
+                                <span><span class="cal-dot cal-dot-free" aria-hidden="true"></span> <?php echo __('available', 'Available'); ?></span>
+                                <span><span class="cal-dot cal-dot-busy" aria-hidden="true"></span> <?php echo __('scheduled', 'Scheduled'); ?></span>
+                                <span><span class="cal-dot cal-dot-request" aria-hidden="true"></span> <?php echo __('requested', 'Requested'); ?></span>
                             </div>
                             <div class="booking-calendar-wrap">
                                 <?php if (empty($staffCalColumns)): ?>
-                                    <div class="cal-slot-hint p-3">No open days in this range for the clinic schedule.</div>
+                                    <div class="cal-slot-hint p-3"><?php echo __('no_open_days_in_range', 'No open days in this range for the clinic schedule.'); ?></div>
                                 <?php elseif (empty($staffCalTimeRows)): ?>
-                                    <div class="cal-slot-hint p-3"><?php echo $staffCalView === 'day' ? 'Clinic is closed on this day.' : 'No times match clinic hours this week.'; ?></div>
+                                    <div class="cal-slot-hint p-3"><?php echo $staffCalView === 'day' ? __('clinic_closed_on_day', 'Clinic is closed on this day.') : __('no_times_match_hours', 'No times match clinic hours this week.'); ?></div>
                                 <?php else: ?>
                                     <table class="booking-cal-table">
                                         <thead>
@@ -433,7 +438,7 @@ include 'layouts/header.php';
                                                                         data-duration="<?php echo (int) $staffCalSlotMinutes; ?>"
                                                                         data-when-label="<?php echo htmlspecialchars($col['date']->format('l, M j, Y') . ' · ' . $sl['label']); ?>"
                                                                         onclick="dashStaffOpenBook(this)"
-                                                                        aria-label="Book this slot"><span class="visually-hidden">Available slot</span></button>
+                                                                        aria-label="<?php echo htmlspecialchars(__('book_this_slot', 'Book this slot')); ?>"><span class="visually-hidden"><?php echo htmlspecialchars(__('available_slot', 'Available slot')); ?></span></button>
                                                                 <?php elseif ($st === 'past'): ?>
                                                                     <button type="button" class="cal-slot-btn cal-slot-btn-table cal-slot-btn-past" disabled><?php echo htmlspecialchars($sl['label']); ?></button>
                                                                 <?php elseif ($st === 'scheduled' && is_array($sl['payload'])): ?>
@@ -510,7 +515,7 @@ include 'layouts/header.php';
                     <div class="card-header dash-arrivals-card-header arrivals-hdr-blue arrivals-section-header border-0">
                         <div class="arrivals-section-header__inner align-items-center">
                             <div>
-                                <h5 class="card-title mb-0 text-white"><i class="fas fa-hourglass-half me-2" aria-hidden="true"></i>Waiting Queue</h5>
+                                    <h5 class="card-title mb-0 text-white"><i class="fas fa-hourglass-half me-2" aria-hidden="true"></i><?php echo __('waiting_queue', 'Waiting Queue'); ?></h5>
                             </div>
                             <div class="flex-shrink-0 flex-shrink-min" aria-hidden="true"></div>
                         </div>
@@ -518,27 +523,20 @@ include 'layouts/header.php';
                     <div class="card-body p-0">
                         <?php foreach ($dashWaitingQueue as $wq): ?>
                             <?php
-                            $flexDays = dbColumnExists('waiting_queue', 'date_flexibility_days')
-                                ? (int) ($wq['date_flexibility_days'] ?? 0)
-                                : 0;
-                            $prefDate = $wq['preferred_date'] ?? null;
-                            $dateLine = $prefDate ? formatDate((string) $prefDate) : '—';
+                            $dateLine = formatWeeklyPreferredRange($wq);
                             $treat = (string) ($wq['preferred_treatment'] ?? $wq['reason'] ?? '—');
                             ?>
                             <div class="dash-waiting-row">
                                 <div class="dw-date-stack">
                                     <div class="dw-pref-date"><?php echo htmlspecialchars($dateLine); ?></div>
-                                    <?php if ($flexDays > 0): ?>
-                                        <div class="dw-flex-line">± <?php echo (int) $flexDays; ?> day<?php echo $flexDays === 1 ? '' : 's'; ?> flexibility</div>
-                                    <?php endif; ?>
                                 </div>
                                 <div class="dw-patient"><?php echo htmlspecialchars((string) ($wq['patient_name'] ?? '')); ?></div>
                                 <div class="dw-treat"><?php echo htmlspecialchars($treat); ?></div>
                                 <div class="dw-resolve">
-                                    <form method="post" action="queue/index.php" class="d-inline" onsubmit="return confirm('Resolve and remove this weekly request?');">
+                                    <form method="post" action="queue/index.php" class="d-inline" onsubmit="return confirm('<?php echo addslashes(__('resolve_weekly_request_confirm', 'Resolve and remove this weekly request?')); ?>');">
                                         <input type="hidden" name="weekly_queue_id" value="<?php echo (int) $wq['id']; ?>">
                                         <input type="hidden" name="return_url" value="<?php echo htmlspecialchars($dashCalReturnUrl); ?>">
-                                        <button type="submit" name="resolve_weekly_queue" value="1" class="btn btn-success dash-wq-resolve-btn d-inline-flex align-items-center justify-content-center" title="Resolve" aria-label="Resolve request"><i class="fas fa-check" aria-hidden="true"></i></button>
+                                        <button type="submit" name="resolve_weekly_queue" value="1" class="btn btn-success dash-wq-resolve-btn d-inline-flex align-items-center justify-content-center" title="<?php echo __('resolve', 'Resolve'); ?>" aria-label="<?php echo __('resolve_request', 'Resolve request'); ?>"><i class="fas fa-check" aria-hidden="true"></i></button>
                                     </form>
                                 </div>
                             </div>
@@ -551,7 +549,7 @@ include 'layouts/header.php';
                 <div class="card-header dash-arrivals-card-header arrivals-hdr-blue arrivals-section-header border-0">
                     <div class="arrivals-section-header__inner align-items-center">
                         <div>
-                            <h5 class="card-title mb-0 text-white"><i class="fas fa-calendar-day me-2" aria-hidden="true"></i>Today's Appointments</h5>
+                            <h5 class="card-title mb-0 text-white"><i class="fas fa-calendar-day me-2" aria-hidden="true"></i><?php echo __('todays_appointments_header', 'Today\'s Appointments'); ?></h5>
                         </div>
                         <div class="flex-shrink-0 flex-shrink-min" aria-hidden="true"></div>
                     </div>
@@ -560,8 +558,8 @@ include 'layouts/header.php';
                     <?php if (empty($todayAppointmentsSidebar)): ?>
                         <div class="text-center py-4 px-3">
                             <i class="fas fa-calendar-check fa-2x text-muted mb-2"></i>
-                            <p class="text-muted small mb-2">None scheduled for today<?php echo $dashboardRole === 'doctor' ? ' for you' : ' for this dentist'; ?>.</p>
-                            <a href="appointments/add.php" class="btn btn-sm btn-primary">Book</a>
+                            <p class="text-muted small mb-2"><?php echo __('none_scheduled_today', 'None scheduled for today'); ?><?php echo $dashboardRole === 'doctor' ? ' ' . __('for_you', 'for you') : ' ' . __('for_this_dentist', 'for this dentist'); ?>.</p>
+                            <a href="appointments/add.php" class="btn btn-sm btn-primary"><?php echo __('book', 'Book'); ?></a>
                         </div>
                     <?php else: ?>
                         <?php foreach ($todayAppointmentsSidebar as $apt): ?>
@@ -606,7 +604,7 @@ include 'layouts/header.php';
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title dash-cal-modal-heading-lg"><i class="fas fa-plus-circle me-2 dash-cal-modal-title-icon--success" aria-hidden="true"></i>Book this slot</h5>
+                <h5 class="modal-title dash-cal-modal-heading-lg"><i class="fas fa-plus-circle me-2 dash-cal-modal-title-icon--success" aria-hidden="true"></i><?php echo __('book_this_slot', 'Book this slot'); ?></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="dashCalBookForm">
@@ -616,29 +614,35 @@ include 'layouts/header.php';
                     <input type="hidden" name="appointment_time" id="dashCalBookTime">
                     <input type="hidden" name="duration" id="dashCalBookDuration">
                     <div class="dash-cal-detail-card mb-3">
-                        <div class="dash-cal-label">When</div>
+                        <div class="dash-cal-label"><?php echo __('when_label', 'When'); ?></div>
                         <div class="dash-cal-value" id="dashCalBookWhenLabel"></div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="dashCalBookPatient">Patient <span class="text-danger">*</span></label>
+                        <label class="form-label" for="dashCalBookPatient"><?php echo __('patient', 'Patient'); ?> <span class="text-danger">*</span></label>
                         <select class="form-select" id="dashCalBookPatient" required>
-                            <option value="">Select patient…</option>
+                            <option value=""><?php echo __('select_patient', 'Select patient…'); ?></option>
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="dashCalBookTreatment">Visit type <span class="text-danger">*</span></label>
+                        <label class="form-label" for="dashCalBookTreatment"><?php echo __('visit_type', 'Visit type'); ?> <span class="text-danger">*</span></label>
                         <select class="form-select" id="dashCalBookTreatment" required>
-                            <option value="">Select visit type…</option>
-                            <option value="Cleaning">Cleaning</option>
-                            <option value="Filling">Filling</option>
-                            <option value="Root Canal">Root Canal</option>
-                            <option value="Extraction">Extraction</option>
-                            <option value="Crown">Crown</option>
-                            <option value="Bridge">Bridge</option>
-                            <option value="Implant">Implant</option>
-                            <option value="Whitening">Whitening</option>
-                            <option value="Orthodontics">Orthodontics</option>
-                            <option value="Consultation">Consultation</option>
+                            <option value=""><?php echo __('select_visit_type', 'Select visit type…'); ?></option>
+                            <?php if (!empty($treatments)): ?>
+                                <?php foreach ($treatments as $treatment): ?>
+                                    <option value="<?php echo htmlspecialchars((string) ($treatment['name'] ?? '')); ?>"><?php echo htmlspecialchars((string) ($treatment['name'] ?? '')); ?></option>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <option value="Cleaning">Cleaning</option>
+                                <option value="Filling">Filling</option>
+                                <option value="Root Canal">Root Canal</option>
+                                <option value="Extraction">Extraction</option>
+                                <option value="Crown">Crown</option>
+                                <option value="Bridge">Bridge</option>
+                                <option value="Implant">Implant</option>
+                                <option value="Whitening">Whitening</option>
+                                <option value="Orthodontics">Orthodontics</option>
+                                <option value="Consultation">Consultation</option>
+                            <?php endif; ?>
                         </select>
                     </div>
                     <div class="mb-0">
@@ -648,9 +652,9 @@ include 'layouts/header.php';
                     <div class="alert alert-danger d-none mt-3 mb-0 small" id="dashCalBookError" role="alert"></div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><?php echo __('cancel', 'Cancel'); ?></button>
                     <button type="submit" class="btn btn-success" id="dashCalBookSubmit">
-                        <i class="fas fa-check me-1"></i> Save appointment
+                        <i class="fas fa-check me-1"></i> <?php echo __('save_appointment', 'Save appointment'); ?>
                     </button>
                 </div>
             </form>
@@ -662,13 +666,13 @@ include 'layouts/header.php';
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title dash-cal-modal-heading-lg"><i class="fas fa-calendar-check me-2 dash-cal-modal-title-icon--calendar" aria-hidden="true"></i>Appointment details</h5>
+                <h5 class="modal-title dash-cal-modal-heading-lg"><i class="fas fa-calendar-check me-2 dash-cal-modal-title-icon--calendar" aria-hidden="true"></i><?php echo __('appointment_details', 'Appointment details'); ?></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body" id="dashCalScheduledBody"></div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-                <a class="btn btn-primary" id="dashCalScheduledViewLink" href="#">Open record</a>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><?php echo __('close', 'Close'); ?></button>
+                <a class="btn btn-primary" id="dashCalScheduledViewLink" href="#"><?php echo __('open_record', 'Open record'); ?></a>
             </div>
         </div>
     </div>
@@ -678,25 +682,26 @@ include 'layouts/header.php';
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title dash-cal-modal-heading-lg"><i class="fas fa-inbox me-2 dash-cal-modal-title-icon--inbox" aria-hidden="true"></i>Booking request</h5>
+                <h5 class="modal-title dash-cal-modal-heading-lg"><i class="fas fa-inbox me-2 dash-cal-modal-title-icon--inbox" aria-hidden="true"></i><?php echo __('booking_request', 'Booking request'); ?></h5>
                 <button type="button" class="dash-cal-modal-x ms-auto" data-bs-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
             </div>
             <div class="modal-body" id="dashCalRequestBody"></div>
             <div class="modal-footer flex-wrap gap-2">
                 <button type="button" class="btn btn-danger ms-auto" id="dashCalRequestDecline">
-                    <i class="fas fa-times me-1"></i> Deny
+                    <i class="fas fa-times me-1"></i> <?php echo __('deny', 'Deny'); ?>
                 </button>
                 <button type="button" class="btn btn-success" id="dashCalRequestAccept">
-                    <i class="fas fa-check me-1"></i> Accept
+                    <i class="fas fa-check me-1"></i> <?php echo __('accept', 'Accept'); ?>
                 </button>
             </div>
         </div>
     </div>
 </div>
-
+ <?php if ($role == 'doctor'): ?>
 <script>
 (function(){if(!window.chatbase||window.chatbase("getState")!=="initialized"){window.chatbase=(...arguments)=>{if(!window.chatbase.q){window.chatbase.q=[]}window.chatbase.q.push(arguments)};window.chatbase=new Proxy(window.chatbase,{get(target,prop){if(prop==="q"){return target.q}return(...args)=>target(prop,...args)}})}const onLoad=function(){const script=document.createElement("script");script.src="https://www.chatbase.co/embed.min.js";script.id="J9p5V3puetElIpM5CL1jK";script.domain="www.chatbase.co";document.body.appendChild(script)};if(document.readyState==="complete"){onLoad()}else{window.addEventListener("load",onLoad)}})();
 </script>
+    <?php endif; ?>
 
 <script>
 var DASH_STAFF_REQ_ACTION = <?php echo json_encode(url('api/appointment_request_action.php')); ?>;
@@ -743,7 +748,7 @@ function dashStaffOpenScheduled(btn) {
     try {
         p = JSON.parse(raw);
     } catch (e) {
-        alert('Could not read appointment data.');
+        alert('<?php echo addslashes(__('could_not_read_appointment_data', 'Could not read appointment data.')); ?>');
         return;
     }
     var html = '<dl class="slot-modal-summary mb-0">';
@@ -776,7 +781,7 @@ function dashStaffOpenRequest(btn) {
     try {
         p = JSON.parse(raw);
     } catch (e) {
-        alert('Could not read request data.');
+        alert('<?php echo addslashes(__('could_not_read_request_data', 'Could not read request data.')); ?>');
         return;
     }
     dashStaffPendingRequestId = p.request_id;
@@ -836,7 +841,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
 
         if (!payload.patient_id || !payload.treatment_type) {
-            errEl.textContent = 'Choose a patient and a visit type.';
+            errEl.textContent = '<?php echo addslashes(__('choose_patient_visit_type', 'Choose a patient and a visit type.')); ?>';
             errEl.classList.remove('d-none');
             return;
         }
@@ -854,13 +859,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 bsAvail.hide();
                 window.location.reload();
             } else {
-                errEl.textContent = data.message || 'Could not save.';
+                errEl.textContent = data.message || '<?php echo addslashes(__('could_not_save', 'Could not save.')); ?>';
                 errEl.classList.remove('d-none');
             }
         })
         .catch(function() {
             btn.disabled = false;
-            errEl.textContent = 'Network error.';
+            errEl.textContent = '<?php echo addslashes(__('network_error', 'Network error.')); ?>';
             errEl.classList.remove('d-none');
         });
     });
@@ -871,7 +876,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     document.getElementById('dashCalRequestAccept').addEventListener('click', function() {
-        if (!dashStaffPendingRequestId || !confirm('Confirm this appointment and notify the patient?')) {
+        if (!dashStaffPendingRequestId || !confirm('<?php echo addslashes(__('confirm_appointment_notify', 'Confirm this appointment and notify the patient?')); ?>')) {
             return;
         }
         setReqLoading(true);
@@ -891,17 +896,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 window.location.reload();
             } else {
-                alert(data.message || 'Action failed.');
+                alert(data.message || '<?php echo addslashes(__('action_failed', 'Action failed.')); ?>');
             }
         })
         .catch(function() {
             setReqLoading(false);
-            alert('Network error.');
+            alert('<?php echo addslashes(__('network_error', 'Network error.')); ?>');
         });
     });
 
     document.getElementById('dashCalRequestDecline').addEventListener('click', function() {
-        if (!dashStaffPendingRequestId || !confirm('Deny this request and notify the patient?')) {
+        if (!dashStaffPendingRequestId || !confirm('<?php echo addslashes(__('deny_request_notify', 'Deny this request and notify the patient?')); ?>')) {
             return;
         }
         setReqLoading(true);
@@ -921,12 +926,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 window.location.reload();
             } else {
-                alert(data.message || 'Action failed.');
+                alert(data.message || '<?php echo addslashes(__('action_failed', 'Action failed.')); ?>');
             }
         })
         .catch(function() {
             setReqLoading(false);
-            alert('Network error.');
+            alert('<?php echo addslashes(__('network_error', 'Network error.')); ?>');
         });
     });
 });

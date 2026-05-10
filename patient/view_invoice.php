@@ -44,6 +44,15 @@ $invoice['balance_due'] = isset($invoice['balance_due'])
     : max(0.0, $invoice['total_amount'] - $invoice['paid_amount']);
 $invoice['appointment_id'] = isset($invoice['appointment_id']) ? (int) $invoice['appointment_id'] : 0;
 
+$statusColors = [
+    'paid' => 'success',
+    'partial' => 'warning',
+    'pending' => 'secondary',
+    'overdue' => 'danger',
+    'cancelled' => 'dark',
+];
+$statusColor = $statusColors[$invoice['payment_status']] ?? 'secondary';
+
 // Get payments for this invoice - cloud-first, local fallback
 $payments = patient_portal_list_invoice_payments_cloud_first((int) $invoiceId);
 
@@ -53,31 +62,43 @@ include '../layouts/header.php';
 ?>
 
 
-<div class="container-fluid patient-invoice-print-root">
-    <!-- Back Button -->
-    <div class="mb-3">
-        <a href="bills.php" class="btn btn-secondary">
-            <i class="fas fa-arrow-left"></i> Back to Bills
-        </a>
-    </div>
-
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3">
-            <i class="fas fa-file-invoice"></i> Invoice #<?php echo htmlspecialchars($invoice['invoice_number']); ?>
-        </h1>
-        <div>
-            <button class="btn btn-info" onclick="window.print()">
-                <i class="fas fa-print"></i> Print
-            </button>
+<div class="container-fluid bills-page patient-portal patient-invoice-print-root appointments-add-page patient-view-invoice-page">
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
+            <div class="col-12 col-lg-8">
+                <h2 class="mb-2 fw-bold">
+                    <i class="fas fa-file-invoice-dollar me-2 opacity-90" aria-hidden="true"></i>Invoice
+                    #<?php echo htmlspecialchars($invoice['invoice_number']); ?>
+                </h2>
+                <p class="mb-0 opacity-90 patient-invoice-hero-meta">
+                    <span class="patient-invoice-hero-status"><?php echo ucfirst($invoice['payment_status']); ?></span>
+                    · <?php echo htmlspecialchars(formatCurrency($invoice['balance_due'])); ?> balance
+                    · Due <?php echo htmlspecialchars(formatDate($invoice['due_date'])); ?>
+                </p>
+            </div>
+            <div class="col-12 col-lg-4 mt-3 mt-lg-0 d-flex justify-content-center justify-content-lg-end gap-2 appointments-add-top-actions">
+                <a href="bills.php" class="btn btn-secondary appointments-add-top-btn">
+                    <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                    <span class="d-none d-sm-inline">Back to Bills</span><span class="d-sm-none">Back</span>
+                </a>
+                <button type="button" class="btn btn-light text-dark appointments-add-top-btn patient-invoice-print-btn d-none d-md-inline-flex align-items-center justify-content-center" onclick="window.print()">
+                    <i class="fas fa-print" aria-hidden="true"></i>
+                    <span class="d-none d-sm-inline">Print</span>
+                </button>
+            </div>
         </div>
     </div>
 
-    <div class="row">
+    <div class="row g-4 align-items-start">
         <div class="col-md-8">
             <!-- Invoice Details -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Invoice Details</h5>
+            <div class="card bills-dash-section-card mb-4">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--invoices border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-file-invoice me-2" aria-hidden="true"></i>Invoice details</h5>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="row">
@@ -88,17 +109,7 @@ include '../layouts/header.php';
                         <div class="col-md-6 mb-3">
                             <label class="fw-bold">Status:</label>
                             <p class="mb-0">
-                                <?php
-                                $statusColors = [
-                                    'paid' => 'success',
-                                    'partial' => 'warning',
-                                    'pending' => 'secondary',
-                                    'overdue' => 'danger',
-                                    'cancelled' => 'dark'
-                                ];
-                                $color = $statusColors[$invoice['payment_status']] ?? 'secondary';
-                                ?>
-                                <span class="badge bg-<?php echo $color; ?>"><?php echo ucfirst($invoice['payment_status']); ?></span>
+                                <span class="badge bg-<?php echo $statusColor; ?>"><?php echo ucfirst($invoice['payment_status']); ?></span>
                             </p>
                         </div>
                         <div class="col-md-6 mb-3">
@@ -128,59 +139,65 @@ include '../layouts/header.php';
                     <hr>
 
                     <!-- Financial Summary -->
-                    <h6>Financial Summary</h6>
+                    <h6 class="mb-3">Financial summary</h6>
                     <div class="table-responsive">
-                        <table class="table table-bordered">
+                        <table class="table table-sm mb-0">
+                            <tbody>
                             <tr>
-                                <th style="width: 70%">Subtotal:</th>
+                                <td>Subtotal</td>
                                 <td class="text-end"><?php echo formatCurrency($invoice['subtotal']); ?></td>
                             </tr>
                             <?php if ($invoice['discount_amount'] > 0): ?>
                             <tr>
-                                <th>Discount:</th>
+                                <td>Discount</td>
                                 <td class="text-end text-danger">-<?php echo formatCurrency($invoice['discount_amount']); ?></td>
                             </tr>
                             <?php endif; ?>
                             <?php if ($invoice['tax_amount'] > 0): ?>
                             <tr>
-                                <th>Tax (<?php echo $invoice['tax_rate']; ?>%):</th>
+                                <td>Tax (<?php echo $invoice['tax_rate']; ?>%)</td>
                                 <td class="text-end">+<?php echo formatCurrency($invoice['tax_amount']); ?></td>
                             </tr>
                             <?php endif; ?>
                             <tr class="fw-bold">
-                                <th>Total:</th>
+                                <td>Total</td>
                                 <td class="text-end"><?php echo formatCurrency($invoice['total_amount']); ?></td>
                             </tr>
                             <tr>
-                                <th>Paid Amount:</th>
+                                <td>Paid amount</td>
                                 <td class="text-end"><?php echo formatCurrency($invoice['paid_amount']); ?></td>
                             </tr>
                             <tr class="fw-bold <?php echo $invoice['balance_due'] > 0 ? 'text-danger' : 'text-success'; ?>">
-                                <th>Balance Due:</th>
+                                <td>Balance due</td>
                                 <td class="text-end"><?php echo formatCurrency($invoice['balance_due']); ?></td>
                             </tr>
+                            </tbody>
                         </table>
                     </div>
 
                     <?php if ($invoice['notes']): ?>
                     <hr>
                     <h6>Notes</h6>
-                    <p><?php echo nl2br(htmlspecialchars($invoice['notes'])); ?></p>
+                    <p class="mb-0"><?php echo nl2br(htmlspecialchars($invoice['notes'])); ?></p>
                     <?php endif; ?>
                 </div>
             </div>
 
             <!-- Payment History -->
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Payment History</h5>
+            <div class="card bills-dash-section-card">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--invoices border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-receipt me-2" aria-hidden="true"></i>Payment history</h5>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
                     <?php if (empty($payments)): ?>
-                        <p class="text-muted">No payments recorded yet.</p>
+                        <p class="text-muted mb-0">No payments recorded yet.</p>
                     <?php else: ?>
                         <div class="table-responsive">
-                            <table class="table table-sm">
+                            <table class="table table-hover table-sm mb-0">
                                 <thead>
                                     <tr>
                                         <th>Date</th>
@@ -210,9 +227,13 @@ include '../layouts/header.php';
 
         <div class="col-md-4">
             <!-- Billing Address -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Billing Information</h5>
+            <div class="card bills-dash-section-card mb-4">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--subscriptions border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-user me-2" aria-hidden="true"></i>Billing information</h5>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
                     <p><strong><?php echo htmlspecialchars($invoice['patient_name']); ?></strong></p>
@@ -233,9 +254,13 @@ include '../layouts/header.php';
 
             <!-- Payment Instructions -->
             <?php if ($invoice['payment_status'] != 'paid' && $invoice['balance_due'] > 0): ?>
-            <div class="card mb-4 border-warning">
-                <div class="card-header bg-warning text-dark">
-                    <h5 class="card-title mb-0">Payment Instructions</h5>
+            <div class="card bills-dash-section-card mb-4">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--help border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-wallet me-2" aria-hidden="true"></i>Payment instructions</h5>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
                     <p><strong>Amount Due:</strong> <?php echo formatCurrency($invoice['balance_due']); ?></p>

@@ -4,11 +4,36 @@
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
 define('DB_PASS', '');
-define('DB_NAME', 'dental_clinic_local');
+define('DB_NAME', 'dental_clinic');
 
 define('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpmenJ2aW9qd2lucmFzY3Bkb3ljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxNDU0MzQsImV4cCI6MjA5MDcyMTQzNH0.bivyEAYdzrNP8DE5G5NfyKK31fM2KiO9Dpw5AQBUg6cy');      
 define('SUPABASE_URL', 'https://zfzrviojwinrascpdoyc.supabase.co');   // Replace with your actual Supabase URL
 define('SUPABASE_KEY', 'sb_publishable_a0kU3h5n4ytw5N8hTY1PQg_1Cz7ZKoD'); // Replace with your key
+define('SUPABASE_SERVICE_ROLE_KEY', 'sb_secret_f5AaYge4Z7p9VQWXg-XX4g_YEa-9lQS'); // Preferred for server-side sync writes
+
+if (!function_exists('supabase_server_key')) {
+    function supabase_server_key(): string
+    {
+        $serviceRole = defined('SUPABASE_SERVICE_ROLE_KEY') ? trim((string) SUPABASE_SERVICE_ROLE_KEY) : '';
+        if ($serviceRole !== '') {
+            return $serviceRole;
+        }
+
+        return defined('SUPABASE_KEY') ? trim((string) SUPABASE_KEY) : '';
+    }
+}
+
+if (!function_exists('supabase_is_public_key')) {
+    function supabase_is_public_key(?string $key = null): bool
+    {
+        $candidate = $key !== null ? trim($key) : supabase_server_key();
+        if ($candidate === '') {
+            return false;
+        }
+
+        return str_starts_with($candidate, 'sb_publishable_') || str_contains($candidate, '"role":"anon"');
+    }
+}
 
 
 // Application configuration
@@ -89,7 +114,7 @@ define('UPLOAD_URL', rtrim(SITE_URL, '/') . '/assets/uploads/');
 date_default_timezone_set('America/New_York');
 
 // Start session if not already started
-if (session_status() == PHP_SESSION_NONE) {
+if (PHP_SAPI !== 'cli' && session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 

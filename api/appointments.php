@@ -166,6 +166,13 @@ switch ($method) {
                 if ($postTreatmentWhatsapp !== null) {
                     $payload['post_treatment_whatsapp'] = $postTreatmentWhatsapp;
                 }
+                if (
+                    $result !== false
+                    && $data['status'] === 'completed'
+                    && (Auth::hasRole('doctor') || Auth::hasRole('assistant'))
+                ) {
+                    $payload['redirect_url'] = '../billing/create_invoice.php?appointment_id=' . (int) $data['id'];
+                }
                 echo json_encode($payload);
             } else {
                 // Full update
@@ -220,6 +227,13 @@ switch ($method) {
                 $payload = ['success' => true, 'message' => 'Appointment updated'];
                 if ($postTreatmentWhatsapp !== null) {
                     $payload['post_treatment_whatsapp'] = $postTreatmentWhatsapp;
+                }
+                if (
+                    $result !== false
+                    && $newStatus === 'completed'
+                    && (Auth::hasRole('doctor') || Auth::hasRole('assistant'))
+                ) {
+                    $payload['redirect_url'] = '../billing/create_invoice.php?appointment_id=' . (int) $data['id'];
                 }
                 echo json_encode($payload);
             }

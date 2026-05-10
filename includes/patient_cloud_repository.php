@@ -619,6 +619,42 @@ function patient_portal_set_referral_code_cloud_first(int $patientId, string $co
     return patient_portal_cloud_upsert_by_local_id_first('patients', $patientId, ['referral_code' => $code], []);
 }
 
+/**
+ * Ensures an 8-character referral_code exists for the patient (cloud upsert + local DB + sync).
+ *
+ * @return string|null Generated or existing uppercase code; null if patient missing / persist fails
+ */
+function patient_portal_ensure_referral_code(int $patientId): ?string
+{
+    $patient = patient_portal_fetch_patient_cloud_first($patientId);
+    if (!$patient) {
+        return null;
+    }
+    $code = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', trim((string) ($patient['referral_code'] ?? ''))));
+    if ($code !== '') {
+        return $code;
+    }
+    $newCode = strtoupper(substr(md5((string) $patientId . uniqid('', true)), 0, 8));
+    try {
+        patient_portal_set_referral_code_cloud_first($patientId, $newCode);
+        $db = Database::getInstance();
+        $db->execute(
+            "UPDATE patients SET referral_code = ?, sync_status = 'pending' WHERE id = ?",
+            [$newCode, $patientId],
+            'si'
+        );
+        if (function_exists('sync_push_row_now')) {
+            sync_push_row_now('patients', $patientId);
+        }
+
+        return $newCode;
+    } catch (Throwable $e) {
+        error_log('patient_portal_ensure_referral_code: ' . $e->getMessage());
+
+        return null;
+    }
+}
+
 function patient_portal_list_tooth_chart_cloud_first(int $patientId): array
 {
     $db = Database::getInstance();

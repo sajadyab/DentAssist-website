@@ -8,7 +8,7 @@ Auth::requireLogin();
 $pageTitle = 'Stock Transaction';
 
 $db = Database::getInstance();
-$itemId = $_GET['id'] ?? 0;
+$itemId = (int) ($_GET['id'] ?? 0);
 $item = $db->fetchOne("SELECT * FROM inventory WHERE id = ?", [$itemId], "i");
 
 if (!$item) {
@@ -79,43 +79,70 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 include '../layouts/header.php';
 ?>
 
-
-<div class="container-fluid transaction-mobile-wrap">
-    <div class="transaction-page-inner">
-    <h1 class="h3 mb-4 transaction-page-title">Stock Transaction: <?php echo htmlspecialchars($item['item_name']); ?></h1>
-
-    <?php if ($error): ?>
-        <div class="alert alert-danger"><?php echo $error; ?></div>
-    <?php endif; ?>
-
-    <div class="card transaction-card">
-        <div class="card-body">
-            <p class="mb-3">Current Quantity: <strong><?php echo $item['quantity']; ?> <?php echo htmlspecialchars($item['unit'] ?? ''); ?></strong></p>
-
-            <form method="POST" id="transaction-form">
-                <div class="mb-3">
-                    <label class="form-label">Transaction Type</label>
-                    <select class="form-select" name="type" id="transaction-type" required>
-                        <option value="purchase">Purchase (add stock)</option>
-                        <option value="use">Use (remove stock)</option>
-                        <option value="adjustment">Adjustment (set exact quantity)</option>
-                        <option value="return">Return (add stock)</option>
-                    </select>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label" id="qty-label">Quantity</label>
-                    <input type="number" class="form-control" name="quantity" id="transaction-qty" min="1" value="1" required>
-                    <small class="text-muted d-block mt-1" id="qty-hint"></small>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Reason / Notes</label>
-                    <textarea class="form-control" name="reason" rows="2"></textarea>
-                </div>
-                <button type="submit" class="btn btn-primary">Record Transaction</button>
-                <a href="view.php?id=<?php echo $itemId; ?>" class="btn btn-secondary ms-1 ms-md-2 mt-2 mt-md-0">Cancel</a>
-            </form>
+<div class="container-fluid bills-page inventory-transaction-page">
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
+            <div class="col-12 col-lg-8">
+                <h2 class="mb-2 fw-bold">
+                    <i class="fas fa-exchange-alt me-2 opacity-90" aria-hidden="true"></i>Stock transaction
+                </h2>
+                <p class="mb-0 opacity-90">
+                    <?php echo htmlspecialchars((string) $item['item_name']); ?>
+                    · Current: <?php echo (int) $item['quantity']; ?> <?php echo htmlspecialchars((string) ($item['unit'] ?? '')); ?>
+                </p>
+            </div>
+            <div class="col-12 col-lg-4 mt-3 mt-lg-0 d-flex justify-content-center justify-content-lg-end patient-add-back-wrap">
+                <a href="view.php?id=<?php echo $itemId; ?>" class="btn btn-secondary patient-add-back-btn">
+                    <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                    <span class="d-none d-sm-inline">Back to item</span><span class="d-sm-none">Back</span>
+                </a>
+            </div>
         </div>
     </div>
+
+    <?php if ($error): ?>
+        <div class="alert alert-danger"><?php echo htmlspecialchars((string) $error); ?></div>
+    <?php endif; ?>
+
+    <div class="row g-3">
+        <div class="col-12 col-xl-9 col-lg-10">
+            <div class="card bills-dash-section-card transaction-card">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--payment border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-clipboard-check me-2" aria-hidden="true"></i>Record transaction</h5>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+
+                    <form method="POST" id="transaction-form">
+                        <div class="mb-3">
+                            <label class="form-label">Transaction Type</label>
+                            <select class="form-select" name="type" id="transaction-type" required>
+                                <option value="purchase">Purchase (add stock)</option>
+                                <option value="use">Use (remove stock)</option>
+                                <option value="adjustment">Adjustment (set exact quantity)</option>
+                                <option value="return">Return (add stock)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" id="qty-label">Quantity</label>
+                            <input type="number" class="form-control" name="quantity" id="transaction-qty" min="1" value="1" required>
+                            <small class="text-muted d-block mt-1" id="qty-hint"></small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Reason / Notes</label>
+                            <textarea class="form-control" name="reason" rows="2"></textarea>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="submit" class="btn-green">Record Transaction</button>
+                            <a href="view.php?id=<?php echo $itemId; ?>" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 

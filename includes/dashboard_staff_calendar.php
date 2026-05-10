@@ -11,12 +11,6 @@ if (!isset($db) || !$db instanceof Database) {
     return;
 }
 
-$staffCalSlotMinutes = (int) (getClinicBookingCalendarConfig($db)['slot_minutes'] ?? 30);
-if ($staffCalSlotMinutes < 10 || $staffCalSlotMinutes > 120) {
-    $staffCalSlotMinutes = 30;
-}
-$hoursConfig = getClinicBookingCalendarConfig($db)['hours'];
-
 if ($dashboardRole === 'doctor') {
     $staffCalDoctorId = $dashboardUserId;
 } else {
@@ -28,6 +22,13 @@ if ($dashboardRole === 'doctor') {
         $staffCalDoctorId = $defaultCalDoctorId;
     }
 }
+
+$staffCalBookingCal = getClinicBookingCalendarConfig($db, $staffCalDoctorId > 0 ? $staffCalDoctorId : null);
+$staffCalSlotMinutes = (int) ($staffCalBookingCal['slot_minutes'] ?? 30);
+if ($staffCalSlotMinutes < 10 || $staffCalSlotMinutes > 120) {
+    $staffCalSlotMinutes = 30;
+}
+$hoursConfig = $staffCalBookingCal['hours'];
 $staffCalDoctorName = repo_dashboard_find_user_full_name($staffCalDoctorId);
 
 $staffCalView = isset($_GET['cal_view']) && $_GET['cal_view'] === 'day' ? 'day' : 'week';
@@ -145,7 +146,8 @@ $staffCalCellState = static function (
     if (!$openT || !$closeT) {
         return ['empty', null];
     }
-    if ($slotStart < $openT || $slotEnd > $closeT) {
+    // Close time is the latest allowed slot start; appointments may extend after that minute.
+    if ($slotStart < $openT || $slotStart > $closeT) {
         return ['empty', null];
     }
 
@@ -165,11 +167,8 @@ foreach ($dayCols as $col) {
         $closeDt = DateTimeImmutable::createFromFormat('Y-m-d H:i', $ymd . ' ' . $band['close']);
         if ($openDt && $closeDt) {
             $cursor = $openDt;
-            while ($cursor < $closeDt) {
+            while ($cursor <= $closeDt) {
                 $next = $cursor->modify('+' . $staffCalSlotMinutes . ' minutes');
-                if ($next > $closeDt) {
-                    break;
-                }
                 $his = $cursor->format('H:i:s');
                 [$st, $payload] = $staffCalCellState(
                     $ymd,

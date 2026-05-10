@@ -119,7 +119,7 @@ include '../layouts/header.php';
     <div class="row g-4 align-items-start">
         <div class="col-lg-8">
             <!-- Treatment Invoices -->
-            <div class="card bills-dash-section-card">
+            <div class="card bills-dash-section-card patient-bills-treatment-invoices">
                 <div class="card-header bills-arrivals-header bills-arrivals-header--invoices border-0">
                     <div class="bills-arrivals-section-header__inner align-items-center">
                         <div>
@@ -171,7 +171,7 @@ include '../layouts/header.php';
             </div>
 
             <!-- Subscription Payments -->
-            <div class="card bills-dash-section-card mb-0">
+            <div class="card bills-dash-section-card patient-bills-subscription-payments mb-0">
                 <div class="card-header bills-arrivals-header bills-arrivals-header--subscriptions border-0">
                     <div class="bills-arrivals-section-header__inner align-items-center">
                         <div>
@@ -222,7 +222,7 @@ include '../layouts/header.php';
                                 </div>
                                 <div class="bills-dash-actions">
                                     <span class="<?php echo $subBadge; ?>"><?php echo htmlspecialchars(ucfirst($sub['status'])); ?></span>
-                                    <span class="bills-dash-muted text-end" style="max-width:10rem;">Ref: <?php echo htmlspecialchars($subRefDisp); ?></span>
+                                    <span class="bills-dash-muted patient-bills-sub-ref">Ref: <?php echo htmlspecialchars($subRefDisp); ?></span>
                                 </div>
                             </div>
                         <?php endforeach; ?>

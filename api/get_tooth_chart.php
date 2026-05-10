@@ -23,7 +23,16 @@ if (Auth::hasRole('patient')) {
     }
 }
 
-$teeth = patient_portal_list_tooth_chart_cloud_first($patientId);
+if (Auth::hasRole('patient')) {
+    $teeth = patient_portal_list_tooth_chart_cloud_first($patientId);
+} else {
+    $db = Database::getInstance();
+    $teeth = $db->fetchAll(
+        'SELECT * FROM tooth_chart WHERE patient_id = ?',
+        [$patientId],
+        'i'
+    );
+}
 
 $result = [];
 foreach ($teeth as $t) {

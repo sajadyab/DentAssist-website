@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 500" width="100%" height="100%">
+  <defs>
+    <style>
+      .tooth {
+        fill: #28a745;
+        stroke: #000;
+        stroke-width: 1.4;
+        stroke-linejoin: round;
+        transition: fill 0.2s, stroke-width 0.2s;
+        cursor: pointer;
+      }
+      .tooth-number {
+        font-family: Arial, sans-serif;
+        font-size: 44px;
+        font-weight: bold;
+        fill: #6f6f6f;
+        text-anchor: middle;
+        dominant-baseline: central;
+        pointer-events: none;
+      }
+      .healthy { fill: #28a745; }
+      .cavity { fill: #fd7e14; }
+      .filled { fill: #007bff; }
+      .crown { fill: #6f42c1; }
+      .root-canal { fill: #ffc107; }
+      .missing { fill: #6c757d; }
+      .implant { fill: #20c997; }
+      .bridge { fill: #795548; }
+      .has-notes { stroke: #ff0000; stroke-width: 3; }
+    </style>
+    <path id="primary-tooth-shape" d="M50 5 C25 5 10 24 10 52 C10 68 17 82 22 96 C27 112 28 132 34 152 C38 166 46 176 55 176 C66 176 67 149 74 128 C78 116 84 112 90 128 C97 149 98 176 109 176 C118 176 126 166 130 152 C136 132 137 112 142 96 C147 82 154 68 154 52 C154 24 139 5 114 5 C102 5 95 10 82 10 C69 10 62 5 50 5 Z"/>
+  </defs>
+
+  <text x="640" y="35" class="tooth-number" style="font-size:28px;">Upper primary teeth</text>
+  <g id="tooth-1" transform="translate(55, 70) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">1</text>
+  </g>
+  <g id="tooth-2" transform="translate(175, 70) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">2</text>
+  </g>
+  <g id="tooth-3" transform="translate(295, 70) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">3</text>
+  </g>
+  <g id="tooth-4" transform="translate(415, 70) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">4</text>
+  </g>
+  <g id="tooth-5" transform="translate(535, 70) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">5</text>
+  </g>
+  <g id="tooth-6" transform="translate(675, 70) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">6</text>
+  </g>
+  <g id="tooth-7" transform="translate(795, 70) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">7</text>
+  </g>
+  <g id="tooth-8" transform="translate(915, 70) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">8</text>
+  </g>
+  <g id="tooth-9" transform="translate(1035, 70) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">9</text>
+  </g>
+  <g id="tooth-10" transform="translate(1155, 70) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">10</text>
+  </g>
+
+  <text x="640" y="275" class="tooth-number" style="font-size:28px;">Lower primary teeth</text>
+  <g id="tooth-11" transform="translate(55, 310) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">11</text>
+  </g>
+  <g id="tooth-12" transform="translate(175, 310) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">12</text>
+  </g>
+  <g id="tooth-13" transform="translate(295, 310) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">13</text>
+  </g>
+  <g id="tooth-14" transform="translate(415, 310) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">14</text>
+  </g>
+  <g id="tooth-15" transform="translate(535, 310) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">15</text>
+  </g>
+  <g id="tooth-16" transform="translate(675, 310) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">16</text>
+  </g>
+  <g id="tooth-17" transform="translate(795, 310) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">17</text>
+  </g>
+  <g id="tooth-18" transform="translate(915, 310) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">18</text>
+  </g>
+  <g id="tooth-19" transform="translate(1035, 310) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">19</text>
+  </g>
+  <g id="tooth-20" transform="translate(1155, 310) scale(0.72)">
+    <use href="#primary-tooth-shape" class="tooth"/>
+    <text x="82" y="74" class="tooth-number">20</text>
+  </g>
+</svg>

@@ -10,12 +10,29 @@ Auth::requireRole('doctor'); // Only doctors and admins can view reports
 $pageTitle = 'Reports & Analytics';
 
 $db = Database::getInstance();
+$hasInvoiceTotalAmount = dbColumnExists('invoices', 'total_amount');
+$hasInvoiceSubtotal = dbColumnExists('invoices', 'subtotal');
+$hasInvoiceDiscountAmount = dbColumnExists('invoices', 'discount_amount');
+$hasInvoiceTaxAmount = dbColumnExists('invoices', 'tax_amount');
 
 $reportType = $_GET['type'] ?? 'appointments';
 $startDate = $_GET['start_date'] ?? date('Y-m-d', strtotime('-30 days'));
 $endDate = $_GET['end_date'] ?? date('Y-m-d');
 
 $data = [];
+
+$invoiceTotalExpression = '0';
+if ($hasInvoiceTotalAmount) {
+    $invoiceTotalExpression = 'total_amount';
+} elseif ($hasInvoiceSubtotal) {
+    $invoiceTotalExpression = 'subtotal';
+    if ($hasInvoiceDiscountAmount) {
+        $invoiceTotalExpression .= ' - discount_amount';
+    }
+    if ($hasInvoiceTaxAmount) {
+        $invoiceTotalExpression .= ' + tax_amount';
+    }
+}
 
 switch ($reportType) {
     case 'appointments':
@@ -72,7 +89,7 @@ switch ($reportType) {
         // Revenue by month
         $data['revenue'] = $db->fetchAll(
             "SELECT DATE_FORMAT(invoice_date, '%Y-%m') as month, 
-                    SUM(total_amount) as total,
+                    SUM($invoiceTotalExpression) as total,
                     SUM(paid_amount) as paid
              FROM invoices 
              WHERE invoice_date BETWEEN ? AND ? AND payment_status != 'cancelled'
@@ -83,13 +100,34 @@ switch ($reportType) {
         );
         // Revenue by payment method
         $data['byMethod'] = $db->fetchAll(
-            "SELECT p.payment_method, SUM(p.amount) as total
-             FROM payments p
-             JOIN invoices i ON p.invoice_id = i.id
-             WHERE p.payment_date BETWEEN ? AND ?
-             GROUP BY p.payment_method",
-            [$startDate . ' 00:00:00', $endDate . ' 23:59:59'],
-            "ss"
+            "SELECT payment_method, SUM(total) AS total
+             FROM (
+                 SELECT COALESCE(NULLIF(TRIM(i.payment_method), ''), 'Unknown') AS payment_method,
+                        $invoiceTotalExpression AS total
+                 FROM invoices i
+                 WHERE i.invoice_date BETWEEN ? AND ?
+                   AND i.payment_status != 'cancelled'
+                   AND $invoiceTotalExpression > 0
+
+                 UNION ALL
+
+                 SELECT COALESCE(NULLIF(TRIM(p.payment_method), ''), 'Unknown') AS payment_method,
+                        p.amount AS total
+                 FROM payments p
+                 JOIN invoices i ON p.invoice_id = i.id
+                 WHERE p.payment_date BETWEEN ? AND ?
+                   AND (i.payment_method IS NULL OR TRIM(i.payment_method) = '')
+             ) AS payment_summary
+             GROUP BY payment_method
+             HAVING SUM(total) > 0
+             ORDER BY total DESC",
+            [
+                $startDate,
+                $endDate,
+                $startDate . ' 00:00:00',
+                $endDate . ' 23:59:59'
+            ],
+            "ssss"
         );
         break;
 }

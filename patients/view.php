@@ -17,7 +17,23 @@ if (!$patient) {
 $whatsappNotice = $_SESSION['patient_add_whatsapp_notice'] ?? null;
 unset($_SESSION['patient_add_whatsapp_notice']);
 
+$chartType = 'adult';
+$chartLabel = 'Adult teeth chart';
+if (!empty($patient['date_of_birth'])) {
+    try {
+        $dob = new DateTime((string) $patient['date_of_birth']);
+        $age = $dob->diff(new DateTime())->y;
+        if ($age < 6) {
+            $chartType = 'primary';
+            $chartLabel = 'Baby teeth chart';
+        }
+    } catch (Exception $e) {
+        $chartType = 'adult';
+    }
+}
+
 $pageTitle = 'Patient: ' . $patient['full_name'];
+$canViewBilling = Auth::isAdmin() || hasPermission((int) Auth::userId(), 'view_billing') || hasPermission((int) Auth::userId(), 'manage_billing');
 
 // Remove dental history image (handwritten) from xrays + disk
 $removeMessage = '';
@@ -37,6 +53,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_dental_history
             $removeMessage = 'Image removed successfully.';
         } else {
             $removeMessage = 'Image not found or not removable.';
+        }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_xray_id'])) {
+    $deleteXrayId = (int) ($_POST['delete_xray_id'] ?? 0);
+    if ($deleteXrayId > 0) {
+        $rowToDelete = repo_xray_find_by_id_for_patient($deleteXrayId, $patientId);
+        if ($rowToDelete) {
+            $path = (string) ($rowToDelete['file_path'] ?? '');
+            repo_xray_delete_by_id_for_patient($deleteXrayId, $patientId);
+
+            if ($path !== '' && is_file($path)) {
+                @unlink($path);
+            }
+
+            $removeMessage = 'X-Ray deleted successfully.';
+        } else {
+            $removeMessage = 'X-Ray not found or not removable.';
         }
     }
 }
@@ -243,12 +278,14 @@ include '../layouts/header.php';
                                 X-Rays
                             </button>
                         </li>
+                        <?php if ($canViewBilling): ?>
                         <li class="nav-item">
                             <button class="nav-link" id="billing-tab" data-bs-toggle="tab" 
                                     data-bs-target="#billing" type="button" role="tab">
-                                Billing
+                                <?php echo __('billing', 'Billing'); ?>
                             </button>
                         </li>
+                        <?php endif; ?>
                     </ul>
 
                     <div class="tab-content">
@@ -446,11 +483,10 @@ include '../layouts/header.php';
                       <!-- Dental Chart Tab -->
 <div class="tab-pane" id="dental" role="tabpanel">
     <div class="mb-3 p-3 bg-light rounded">
-        <h6 class="mb-1"><i class="fas fa-mouse"></i> How to Use 3D Tooth Chart:</h6>
+        <h6 class="mb-1"><i class="fas fa-mouse"></i> How to Use Dental Chart:</h6>
         <small class="text-muted">
             <ul class="mb-0">
-                <li>Click and drag to rotate the teeth</li>
-                <li>Scroll to zoom in/out</li>
+                <li>Showing <?php echo htmlspecialchars(strtolower($chartLabel)); ?></li>
                 <li>Click on any tooth to view/edit details</li>
             </ul>
         </small>
@@ -490,6 +526,19 @@ include '../layouts/header.php';
                                                 <div class="card-body">
                                                     <h6><?php echo $xray['xray_type']; ?></h6>
                                                     <p class="small"><?php echo $xray['findings']; ?></p>
+                                                    <p class="small text-muted mb-3"><?php echo !empty($xray['tooth_numbers']) ? 'Teeth: ' . htmlspecialchars((string) $xray['tooth_numbers']) : ''; ?></p>
+                                                    <div class="d-flex gap-2">
+                                                        <a href="../xrays/edit.php?id=<?php echo (int) $xray['id']; ?>&patient_id=<?php echo $patientId; ?>"
+                                                           class="btn btn-sm btn-outline-primary">
+                                                            <i class="fas fa-edit"></i> Edit
+                                                        </a>
+                                                        <form method="post" onsubmit="return confirm('Delete this X-Ray?');">
+                                                            <input type="hidden" name="delete_xray_id" value="<?php echo (int) $xray['id']; ?>">
+                                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                                <i class="fas fa-trash"></i> Delete
+                                                            </button>
+                                                        </form>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -497,15 +546,17 @@ include '../layouts/header.php';
                                 </div>
                             <?php endif; ?>
                         </div>
-                        
+                        <?php if ($canViewBilling): ?>
                         <!-- Billing Tab -->
                         <div class="tab-pane" id="billing" role="tabpanel">
                             <div class="d-flex justify-content-between mb-3">
-                                <h5>Invoices</h5>
+                                <h5><?php echo __('invoices', 'Invoices'); ?></h5>
+                                <?php if (Auth::isAdmin() || hasPermission((int) Auth::userId(), 'manage_billing')): ?>
                                 <a href="../billing/create_invoice.php?patient_id=<?php echo $patientId; ?>" 
                                    class="btn btn-sm btn-primary">
-                                    <i class="fas fa-file-invoice"></i> Create Invoice
+                                    <i class="fas fa-file-invoice"></i> <?php echo __('create_invoice', 'Create Invoice'); ?>
                                 </a>
+                                <?php endif; ?>
                             </div>
                             
                             <?php if (empty($invoices)): ?>
@@ -557,6 +608,7 @@ include '../layouts/header.php';
                                 </div>
                             <?php endif; ?>
                         </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -602,21 +654,19 @@ include '../layouts/header.php';
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" id="delete-tooth-btn" class="btn btn-danger" onclick="toothChart.deleteTooth()">Mark as Missing</button>
                 <button type="button" class="btn btn-primary" onclick="toothChart.saveTooth()">Save</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Include Three.js library for 3D tooth chart -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
 <!-- Include tooth chart JavaScript -->
-<script src="<?php echo url('assets/js/tooth-chart-3d.js'); ?>"></script>
+<script src="<?php echo htmlspecialchars(asset_url('assets/js/tooth-chart.js')); ?>?v=<?php echo (int) @filemtime(__DIR__ . '/../assets/js/tooth-chart.js'); ?>"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        toothChart.init(<?php echo $patientId; ?>);
+        toothChart.init(<?php echo $patientId; ?>, false, {
+            chartType: '<?php echo $chartType; ?>'
+        });
     });
 </script>
 
@@ -670,4 +720,5 @@ function scheduleAppointment() {
     })();
 </script>
 
+<?php $disableFooterToothChart = true; ?>
 <?php include '../layouts/footer.php'; ?>

@@ -6,8 +6,64 @@ require_once __DIR__ . '/sync_runtime.php';
 // Global helper functions
 
 
+function hasPermission($userId, $permissionKey) {
+    global $db;
+    static $cache = [];
 
+    if (!is_object($db) && class_exists('Database')) {
+        $db = Database::getInstance();
+    }
+    
+    // Super admin bypass (users with is_admin = 1 have all permissions)
+    if (class_exists('Auth') && Auth::isLoggedIn() && (int) $userId === (int) Auth::userId() && Auth::isAdmin()) {
+        return true;
+    }
+    if (is_object($db)) {
+        $user = $db->fetchOne("SELECT is_admin FROM users WHERE id = ?", [$userId], "i");
+        if ($user && (int) ($user['is_admin'] ?? 0) === 1) {
+            return true;
+        }
+    }
 
+    if (!is_object($db)) {
+        return false;
+    }
+    
+    if (!isset($cache[$userId])) {
+        $rows = $db->fetchAll("SELECT permission_key, value FROM user_permissions WHERE user_id = ?", [$userId], "i");
+        $cache[$userId] = [];
+        foreach ($rows as $row) {
+            $cache[$userId][$row['permission_key']] = (int) ($row['value'] ?? 0) === 1;
+        }
+    }
+    return isset($cache[$userId][$permissionKey]) && $cache[$userId][$permissionKey] === true;
+}
+function getAllPermissions() {
+    return [
+        // Settings tabs
+        'access_settings_profile' => 'View/Edit Own Profile',
+        'access_settings_users' => 'Manage Users (Add/Edit/Delete)',
+        'access_settings_clinic' => 'Manage Clinic Information',
+        'access_settings_points_management' => 'Manage Points Rules & Rewards',
+        'access_settings_subscription_plans' => 'Manage Subscription Plans',
+        
+        // Main features
+        'view_patients' => 'View Patients List',
+        'edit_patients' => 'Add/Edit Patients',
+        'view_appointments' => 'View Appointments',
+        'manage_appointments' => 'Create/Edit/Cancel Appointments',
+        'view_treatment_plans' => 'View Treatment Plans',
+        'manage_treatment_plans' => 'Create/Edit Treatment Plans',
+        'view_billing' => 'View Invoices/Billing',
+        'manage_billing' => 'Create/Edit Invoices, Record Payments',
+        'view_inventory' => 'View Inventory',
+        'manage_inventory' => 'Add/Edit Inventory Items',
+        'view_reports' => 'View Reports',
+        'manage_queue' => 'Manage Waiting Queue',
+        'manage_points' => 'Adjust Patient Points',
+        'view_financial_dashboard' => 'View Financial Dashboard',
+    ];
+}
 
 
 // Helper: call Supabase API
@@ -170,24 +226,25 @@ function formatTime($time, $format = 'g:i A')
 }
 
 /**
- * Preferred date range label for weekly queue (patient portal flexibility ±days).
+ * Preferred date range label for weekly queue (patient portal flexibility days).
  */
 function formatWeeklyPreferredRange(array $row): string
 {
     $pref = $row['preferred_date'] ?? null;
-    $flex = (int) ($row['date_flexibility_days'] ?? 0);
-    if (!empty($pref) && $flex > 0) {
-        try {
-            $c = new DateTimeImmutable($pref);
-            $from = $c->modify('-' . $flex . ' days');
-            $to = $c->modify('+' . $flex . ' days');
-
-            return formatDate($from->format('Y-m-d')) . '–' . formatDate($to->format('Y-m-d'));
-        } catch (Exception $e) {
-            return formatDate($pref);
-        }
-    }
+    $flex = max(0, (int) ($row['date_flexibility_days'] ?? 0));
     if (!empty($pref)) {
+        if ($flex > 0) {
+            try {
+                $c = new DateTimeImmutable($pref);
+                $from = $c->modify('-' . $flex . ' days');
+                $to = $c->modify('+' . $flex . ' days');
+
+                return sprintf('from %s to %s', formatDate($from->format('Y-m-d')), formatDate($to->format('Y-m-d')));
+            } catch (Exception $e) {
+                // Fall back to single preferred date if range formatting fails.
+            }
+        }
+
         return formatDate($pref);
     }
 
@@ -329,6 +386,54 @@ function queueCloudDeletion(string $tableName, int $localId, string $matchColumn
     }
 }
 
+function syncAppointmentRequestCloudDeletion(array $requestRow, int $localId): void
+{
+    $cloudId = (int) ($requestRow['cloud_id'] ?? 0);
+    if ($cloudId > 0) {
+        queueCloudDeletion('appointment_requests', $cloudId, 'id');
+        return;
+    }
+
+    queueCloudDeletion('appointment_requests', $localId, 'local_id');
+
+    $supabase = function_exists('sync_supabase_client') ? sync_supabase_client() : null;
+    if ($supabase === null) {
+        return;
+    }
+
+    $patientId = (int) ($requestRow['patient_id'] ?? 0);
+    $doctorId = (int) ($requestRow['doctor_id'] ?? 0);
+    $date = (string) ($requestRow['requested_date'] ?? '');
+    $time = (string) ($requestRow['requested_time'] ?? '');
+    if ($patientId <= 0 || $doctorId <= 0 || $date === '' || $time === '') {
+        return;
+    }
+
+    if (strlen($time) === 5) {
+        $time .= ':00';
+    }
+
+    try {
+        $rows = $supabase->select('appointment_requests', [
+            'select' => 'id',
+            'patient_id' => 'eq.' . $patientId,
+            'doctor_id' => 'eq.' . $doctorId,
+            'requested_date' => 'eq.' . $date,
+            'requested_time' => 'eq.' . $time,
+            'limit' => 10,
+        ]);
+
+        foreach ($rows as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            if ($id > 0) {
+                $supabase->delete('appointment_requests', ['id' => $id]);
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('syncAppointmentRequestCloudDeletion fallback failed: ' . $e->getMessage());
+    }
+}
+
 // Upload file
 function uploadFile($file, $targetDir, $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'])
 {
@@ -355,13 +460,23 @@ function uploadFile($file, $targetDir, $allowedTypes = ['image/jpeg', 'image/png
 function sendNotification($userId, $type, $title, $message, $via = 'in-app', $relatedAppointmentId = null, $relatedInvoiceId = null)
 {
     $db = Database::getInstance();
-
-    return $db->insert(
-        "INSERT INTO notifications (user_id, type, title, message, sent_via, related_appointment_id, related_invoice_id) 
-         VALUES (?, ?, ?, ?, ?, ?, ?)",
+    $hasSyncStatus = function_exists('dbColumnExists') && dbColumnExists('notifications', 'sync_status');
+    $sql = "INSERT INTO notifications (user_id, type, title, message, sent_via, related_appointment_id, related_invoice_id"
+        . ($hasSyncStatus ? ", sync_status" : "")
+        . ") VALUES (?, ?, ?, ?, ?, ?, ?"
+        . ($hasSyncStatus ? ", 'pending'" : "")
+        . ")";
+    $notificationId = (int) $db->insert(
+        $sql,
         [$userId, $type, $title, $message, $via, $relatedAppointmentId, $relatedInvoiceId],
         "issssii"
     );
+
+    if ($notificationId > 0 && function_exists('sync_push_row_now')) {
+        sync_push_row_now('notifications', $notificationId);
+    }
+
+    return $notificationId;
 }
 
 // Generate invoice number
@@ -448,6 +563,24 @@ function parsePatientMedicalHistoryStructured($medicalHistory): array
     $notes = trim((string) ($decoded['notes'] ?? ''));
 
     return ['conditions' => $conds, 'notes' => $notes];
+}
+
+/**
+ * Plain-text medical_history for staff views: conditions joined with ", "; notes on a following block if present.
+ */
+function formatPatientMedicalHistoryDisplay($medicalHistory): string
+{
+    $mh = parsePatientMedicalHistoryStructured($medicalHistory);
+    $lines = [];
+
+    if ($mh['conditions'] !== []) {
+        $lines[] = implode(', ', $mh['conditions']);
+    }
+    if ($mh['notes'] !== '') {
+        $lines[] = $mh['notes'];
+    }
+
+    return implode("\n\n", $lines);
 }
 
 /**
@@ -643,65 +776,297 @@ function getClinicSettingValue(Database $db, string $key, string $default = ''):
 }
 
 /**
- * Config for patient weekly booking: slot length + hours per day group.
- * Setting clinic_hours_json (text/JSON), e.g.
- * {"weekday":{"open":"09:00","close":"17:00"},"saturday":{"open":"09:00","close":"13:00"},"sunday":null}
- * Sunday null (or omit open) = closed. Times are H:i 24h.
+ * Default per-day booking config: Mon–Fri 09:00–17:00, Sat 09:00–13:00, Sun closed.
+ *
+ * @return array{by_dow: array<int, array{open: string, close: string}|null>}
  */
-function getClinicBookingCalendarConfig(Database $db): array
+function defaultBookingCalendarHours(): array
+{
+    $by = [];
+    for ($i = 1; $i <= 7; $i++) {
+        $by[$i] = null;
+    }
+    for ($i = 1; $i <= 5; $i++) {
+        $by[$i] = ['open' => '09:00', 'close' => '17:00'];
+    }
+    $by[6] = ['open' => '09:00', 'close' => '13:00'];
+
+    return ['by_dow' => $by];
+}
+
+/**
+ * @param array<string, mixed> $legacy weekday / saturday / sunday shape
+ * @return array{by_dow: array<int, array{open: string, close: string}|null>}
+ */
+function bookingHoursLegacyShapeToByDow(array $legacy): array
+{
+    $by = [];
+    for ($i = 1; $i <= 7; $i++) {
+        $by[$i] = null;
+    }
+    $wk = $legacy['weekday'] ?? null;
+    if (is_array($wk) && isset($wk['open'], $wk['close'])) {
+        $o = normalizeBookingTimeInput((string) $wk['open']);
+        $c = normalizeBookingTimeInput((string) $wk['close']);
+        if ($o !== '' && $c !== '' && bookingOpenCloseValid($o, $c)) {
+            for ($i = 1; $i <= 5; $i++) {
+                $by[$i] = ['open' => $o, 'close' => $c];
+            }
+        }
+    }
+    $sat = $legacy['saturday'] ?? null;
+    if (is_array($sat) && isset($sat['open'], $sat['close'])) {
+        $o = normalizeBookingTimeInput((string) $sat['open']);
+        $c = normalizeBookingTimeInput((string) $sat['close']);
+        if ($o !== '' && $c !== '' && bookingOpenCloseValid($o, $c)) {
+            $by[6] = ['open' => $o, 'close' => $c];
+        }
+    }
+    $sun = $legacy['sunday'] ?? null;
+    if (is_array($sun) && isset($sun['open'], $sun['close'])) {
+        $o = normalizeBookingTimeInput((string) $sun['open']);
+        $c = normalizeBookingTimeInput((string) $sun['close']);
+        if ($o !== '' && $c !== '' && bookingOpenCloseValid($o, $c)) {
+            $by[7] = ['open' => $o, 'close' => $c];
+        }
+    }
+
+    return ['by_dow' => $by];
+}
+
+/**
+ * Normalize one day's band or null.
+ *
+ * @param mixed $cell
+ * @return array{open: string, close: string}|null
+ */
+function bookingHoursNormalizeDayCell($cell): ?array
+{
+    if ($cell === null || $cell === false) {
+        return null;
+    }
+    if (!is_array($cell) || !isset($cell['open'], $cell['close'])) {
+        return null;
+    }
+    $o = normalizeBookingTimeInput((string) $cell['open']);
+    $c = normalizeBookingTimeInput((string) $cell['close']);
+    if ($o === '' || $c === '' || !bookingOpenCloseValid($o, $c)) {
+        return null;
+    }
+
+    return ['open' => $o, 'close' => $c];
+}
+
+/**
+ * Merge decoded JSON into per-day config (supports by_dow + legacy weekday/sat/sun).
+ *
+ * @param array<string,mixed>|null $decoded
+ * @return array{by_dow: array<int, array{open: string, close: string}|null>}
+ */
+function mergeBookingHoursFromDecoded(?array $decoded): array
+{
+    $defaults = defaultBookingCalendarHours();
+    $by = $defaults['by_dow'];
+    if (!is_array($decoded)) {
+        return ['by_dow' => $by];
+    }
+
+    if (isset($decoded['by_dow']) && is_array($decoded['by_dow'])) {
+        foreach ([1, 2, 3, 4, 5, 6, 7] as $d) {
+            $raw = $decoded['by_dow'][$d] ?? $decoded['by_dow'][(string) $d] ?? null;
+            $norm = bookingHoursNormalizeDayCell($raw);
+            $by[$d] = $norm;
+        }
+
+        return ['by_dow' => $by];
+    }
+
+    $legacy = [
+        'weekday' => ['open' => '09:00', 'close' => '17:00'],
+        'saturday' => ['open' => '09:00', 'close' => '13:00'],
+        'sunday' => null,
+    ];
+    foreach (['weekday', 'saturday', 'sunday'] as $k) {
+        if (!array_key_exists($k, $decoded)) {
+            continue;
+        }
+        if ($decoded[$k] === null || $decoded[$k] === false) {
+            $legacy[$k] = null;
+            continue;
+        }
+        if (is_array($decoded[$k]) && isset($decoded[$k]['open'], $decoded[$k]['close'])) {
+            $legacy[$k] = [
+                'open' => (string) $decoded[$k]['open'],
+                'close' => (string) $decoded[$k]['close'],
+            ];
+        }
+    }
+
+    return bookingHoursLegacyShapeToByDow($legacy);
+}
+
+function decodeBookingHoursJsonString(string $json): array
+{
+    if ($json === '') {
+        return defaultBookingCalendarHours();
+    }
+    $decoded = json_decode($json, true);
+
+    return mergeBookingHoursFromDecoded(is_array($decoded) ? $decoded : null);
+}
+
+/**
+ * Global slot length for all booking grids (clinic setting patient_slot_minutes).
+ */
+function getClinicSlotMinutes(Database $db): int
 {
     $slot = (int) getClinicSettingValue($db, 'patient_slot_minutes', '45');
     if ($slot < 10 || $slot > 120) {
         $slot = 30;
     }
 
-    $defaults = [
-        'weekday' => ['open' => '09:00', 'close' => '17:00'],
-        'saturday' => ['open' => '09:00', 'close' => '13:00'],
-        'sunday' => null,
-    ];
+    return $slot;
+}
 
-    $json = getClinicSettingValue($db, 'clinic_hours_json', '');
-    if ($json !== '') {
-        $decoded = json_decode($json, true);
-        if (is_array($decoded)) {
-            foreach (['weekday', 'saturday', 'sunday'] as $k) {
-                if (!array_key_exists($k, $decoded)) {
-                    continue;
-                }
-                if ($decoded[$k] === null || $decoded[$k] === false) {
-                    $defaults[$k] = null;
-                    continue;
-                }
-                if (is_array($decoded[$k]) && isset($decoded[$k]['open'], $decoded[$k]['close'])) {
-                    $defaults[$k] = [
-                        'open' => (string) $decoded[$k]['open'],
-                        'close' => (string) $decoded[$k]['close'],
-                    ];
-                }
-            }
+/**
+ * Weekly open/close bands for a doctor. Falls back to legacy clinic_hours_json when the doctor
+ * has no booking_hours_json yet (or column missing). Used by dashboard, patient queue, and APIs.
+ */
+function getDoctorBookingHours(Database $db, int $doctorId): array
+{
+    if ($doctorId <= 0) {
+        return decodeBookingHoursJsonString(getClinicSettingValue($db, 'clinic_hours_json', ''));
+    }
+    if (dbColumnExists('users', 'booking_hours_json')) {
+        $row = $db->fetchOne(
+            "SELECT booking_hours_json FROM users WHERE id = ? AND role = 'doctor' LIMIT 1",
+            [$doctorId],
+            'i'
+        );
+        $jh = trim((string) ($row['booking_hours_json'] ?? ''));
+        if ($jh !== '') {
+            return decodeBookingHoursJsonString($jh);
         }
     }
 
+    return decodeBookingHoursJsonString(getClinicSettingValue($db, 'clinic_hours_json', ''));
+}
+
+/**
+ * Normalize H:i or H:i:s to H:i for comparison.
+ */
+function normalizeBookingTimeInput(string $t): string
+{
+    $t = trim($t);
+    if (preg_match('/^(\d{1,2}):(\d{2})(?::\d{2})?$/', $t, $m)) {
+        return sprintf('%02d:%02d', (int) $m[1], (int) $m[2]);
+    }
+
+    return '';
+}
+
+/**
+ * @return array{0: int, 1: int}|null minutes from midnight
+ */
+function bookingTimeToMinutesPair(string $t): ?array
+{
+    $norm = normalizeBookingTimeInput($t);
+    if ($norm === '' || !preg_match('/^(\d{2}):(\d{2})$/', $norm, $m)) {
+        return null;
+    }
+
+    return [(int) $m[1], (int) $m[2]];
+}
+
+function bookingOpenCloseValid(string $open, string $close): bool
+{
+    $o = bookingTimeToMinutesPair($open);
+    $c = bookingTimeToMinutesPair($close);
+    if ($o === null || $c === null) {
+        return false;
+    }
+    $oMin = $o[0] * 60 + $o[1];
+    $cMin = $c[0] * 60 + $c[1];
+
+    return $cMin > $oMin;
+}
+
+/**
+ * Build JSON for users.booking_hours_json from POST (per-day: {$prefix}day_{1..7}_closed/open/close).
+ *
+ * @throws InvalidArgumentException
+ */
+function buildBookingHoursJsonFromPost(array $post, string $prefix = 'wh_'): string
+{
+    $by = [];
+    $anyOpen = false;
+    for ($d = 1; $d <= 7; $d++) {
+        $closedKey = $prefix . 'day_' . $d . '_closed';
+        if (!empty($post[$closedKey])) {
+            $by[$d] = null;
+            continue;
+        }
+        $o = normalizeBookingTimeInput((string) ($post[$prefix . 'day_' . $d . '_open'] ?? ''));
+        $c = normalizeBookingTimeInput((string) ($post[$prefix . 'day_' . $d . '_close'] ?? ''));
+        if ($o === '' || $c === '') {
+            throw new InvalidArgumentException('Open and close are required for each day that is not marked closed.');
+        }
+        if (!bookingOpenCloseValid($o, $c)) {
+            throw new InvalidArgumentException('Invalid hours for day ' . $d . ' (open must be before close).');
+        }
+        $by[$d] = ['open' => $o, 'close' => $c];
+        $anyOpen = true;
+    }
+    if (!$anyOpen) {
+        throw new InvalidArgumentException('Select at least one working day with open hours.');
+    }
+
+    $out = ['by_dow' => $by];
+    $enc = json_encode($out, JSON_UNESCAPED_UNICODE);
+    if ($enc === false) {
+        throw new InvalidArgumentException('Could not save working hours.');
+    }
+
+    return $enc;
+}
+
+/**
+ * Config for patient weekly booking: global slot length + hour bands (per doctor when doctorId set).
+ * Legacy clinic_hours_json is used only as fallback when a doctor has no booking_hours_json.
+ *
+ * @param int|null $doctorId When set (>0), hours come from that doctor; otherwise legacy clinic JSON only.
+ */
+function getClinicBookingCalendarConfig(Database $db, ?int $doctorId = null): array
+{
+    $slot = getClinicSlotMinutes($db);
+    $hours = ($doctorId !== null && $doctorId > 0)
+        ? getDoctorBookingHours($db, $doctorId)
+        : decodeBookingHoursJsonString(getClinicSettingValue($db, 'clinic_hours_json', ''));
+
     return [
         'slot_minutes' => $slot,
-        'hours' => $defaults,
+        'hours' => $hours,
     ];
 }
 
 /**
- * Map PHP date('N') 1=Mon..7=Sun to hours band from clinic config.
+ * Map PHP date('N') 1=Mon..7=Sun to hours band from clinic config (by_dow) or legacy weekday/sat/sun.
  */
 function clinicHoursBandForWeekdayN(int $n, array $hours): ?array
 {
+    if (isset($hours['by_dow']) && is_array($hours['by_dow'])) {
+        $raw = $hours['by_dow'][$n] ?? $hours['by_dow'][(string) $n] ?? null;
+
+        return bookingHoursNormalizeDayCell($raw);
+    }
     if ($n >= 1 && $n <= 5) {
-        return $hours['weekday'];
+        return bookingHoursNormalizeDayCell($hours['weekday'] ?? null);
     }
     if ($n === 6) {
-        return $hours['saturday'];
+        return bookingHoursNormalizeDayCell($hours['saturday'] ?? null);
     }
 
-    return $hours['sunday'];
+    return bookingHoursNormalizeDayCell($hours['sunday'] ?? null);
 }
 /**
  * Create password_resets if missing (common when DB was created before this table was added).

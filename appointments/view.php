@@ -133,12 +133,8 @@ include '../layouts/header.php';
                             <small><?php echo $appointment['doctor_email']; ?></small>
                         </div>
                         
-                        <div class="col-md-6 mb-3">
-                            <label class="fw-bold">Chair Number:</label>
-                            <p class="mb-0"><?php echo $appointment['chair_number'] ?? 'Not assigned'; ?></p>
-                        </div>
                         
-                        <div class="col-12 mb-3">
+                        <div class="col-6 mb-3">
                             <label class="fw-bold">Treatment Type:</label>
                             <p class="mb-0"><?php echo $appointment['treatment_type']; ?></p>
                         </div>
@@ -217,10 +213,12 @@ include '../layouts/header.php';
                         </div>
                         <?php endif; ?>
                         
-                        <?php if ($appointment['medical_history']): ?>
+                        <?php
+                        $medicalHistoryDisplay = formatPatientMedicalHistoryDisplay($appointment['medical_history'] ?? null);
+                        if (trim($medicalHistoryDisplay) !== ''): ?>
                         <div class="col-12 mb-3">
                             <label class="fw-bold">Medical History:</label>
-                            <p class="mb-0"><?php echo nl2br(htmlspecialchars($appointment['medical_history'])); ?></p>
+                            <p class="mb-0"><?php echo nl2br(htmlspecialchars($medicalHistoryDisplay)); ?></p>
                         </div>
                         <?php endif; ?>
                     </div>
@@ -316,49 +314,56 @@ include '../layouts/header.php';
 function editAppointment() {
     window.location.href = 'edit.php?id=<?php echo $appointmentId; ?>';
 }
-
 function updateStatus(status) {
+    const appointmentId = <?php echo json_encode($appointmentId); ?>;
+
     fetch('../api/appointments.php', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            id: <?php echo $appointmentId; ?>,
+            id: appointmentId,
             status: status
         })
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            if (status === 'completed' && data.post_treatment_whatsapp) {
-                const w = data.post_treatment_whatsapp;
-                if (w.skipped_whatsapp) {
-                    alert(w.message || 'Appointment marked complete. No matching treatment instructions — WhatsApp not sent.');
-                } else if (w.ok) {
-                    let msg = w.message || 'Post-treatment instructions sent via WhatsApp.';
-                    if (w.sid) {
-                        msg += '\n\nMessage ID: ' + w.sid;
-                    }
-                    alert(msg);
-                } else {
-                    alert(
-                        'Appointment marked as completed.\n\nWhatsApp (post-treatment instructions):\n' +
-                        (w.message || 'Not sent.') +
-                        (w.error ? '\n\n' + w.error : '')
-                    );
-                }
-            }
-            location.reload();
-        } else {
+        if (!data.success) {
             alert(data.message || 'Could not update status.');
+            return;
+        }
+
+        // Handle WhatsApp post-treatment notification (only for 'completed' status)
+        if (status === 'completed' && data.post_treatment_whatsapp) {
+            const w = data.post_treatment_whatsapp;
+
+            if (w.skipped_whatsapp) {
+                alert(w.message || 'Appointment marked complete. No matching treatment instructions — WhatsApp not sent.');
+            } else if (w.ok) {
+                let msg = w.message || 'Post-treatment instructions sent via WhatsApp.';
+                if (w.sid) msg += '\n\nMessage ID: ' + w.sid;
+                alert(msg);
+            } else {
+                alert('Appointment marked as completed.\n\nWhatsApp (post-treatment instructions):\n' +
+                      (w.message || 'Not sent.') + (w.error ? '\n\n' + w.error : ''));
+            }
+        }
+
+        // Redirect based on status
+        if (status === 'completed') {
+            // For completed appointments, go to create invoice page
+            window.location.href = '<?php echo url("billing/create_invoice.php"); ?>?appointment_id=' + appointmentId;
+        } else {
+            // For all other status changes, go back to appointments list
+            window.location.href = '<?php echo url("appointments/index.php"); ?>';
         }
     })
-    .catch(function () {
+    .catch(error => {
+        console.error('Error updating status:', error);
         alert('Network error while updating status.');
     });
 }
-
 function sendReminder() {
     if (confirm('Send appointment reminder to patient?')) {
         fetch('../api/send_reminder.php', {

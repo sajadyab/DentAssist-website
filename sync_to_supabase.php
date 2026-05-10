@@ -16,7 +16,7 @@ $pdo = new PDO(
     ]
 );
 
-$supabase = new SupabaseAPI((string) SUPABASE_URL, (string) SUPABASE_KEY);
+$supabase = new SupabaseAPI((string) SUPABASE_URL, function_exists('supabase_server_key') ? supabase_server_key() : (string) SUPABASE_KEY);
 
 echo "Starting local -> cloud sync...\n";
 
@@ -276,6 +276,13 @@ function isDuplicatePrimaryKeyConflict(Throwable $e): bool
         && str_contains($msg, '_pkey');
 }
 
+function isMissingRequiredCloudId(Throwable $e): bool
+{
+    $msg = strtolower($e->getMessage());
+    return str_contains($msg, 'null value in column "id"')
+        && str_contains($msg, 'violates not-null constraint');
+}
+
 function extractMissingColumnFromSupabaseError(Throwable $e): ?string
 {
     $msg = $e->getMessage();
@@ -323,6 +330,8 @@ function getConflictFallbackColumns(string $table): array
         'clinic_settings' => ['setting_key', 'id', 'local_id'],
         'monthly_expenses' => ['month_year', 'id', 'local_id'],
         'invoices' => ['invoice_number', 'id', 'local_id'],
+        'points_earning_rules' => ['rule_key', 'id', 'local_id'],
+        'points_rewards' => ['name', 'id', 'local_id'],
         'subscription_plans' => ['plan_key', 'id', 'local_id'],
         'users' => ['email', 'username', 'id', 'local_id'],
     ];
@@ -330,15 +339,50 @@ function getConflictFallbackColumns(string $table): array
     return $map[strtolower($table)] ?? ['id', 'local_id'];
 }
 
-function safeInsertWithColumnStripping(SupabaseAPI $supabase, string $table, array $payload, int $maxRetries = 6): array
+function pickMatchFilter(string $table, array $payload, ?array $cloudColumns, int $localId): array
+{
+    $candidates = getConflictFallbackColumns($table);
+
+    if (is_array($cloudColumns) && in_array('local_id', $cloudColumns, true)) {
+        return ['local_id' => $localId];
+    }
+
+    foreach ($candidates as $candidate) {
+        if ($candidate === 'id' || $candidate === 'local_id') {
+            continue;
+        }
+        if (!array_key_exists($candidate, $payload)) {
+            continue;
+        }
+        $value = $payload[$candidate];
+        if ($value === null || $value === '') {
+            continue;
+        }
+        if (is_array($cloudColumns) && !in_array($candidate, $cloudColumns, true)) {
+            continue;
+        }
+
+        return [$candidate => $value];
+    }
+
+    if (is_array($cloudColumns) && in_array('id', $cloudColumns, true)) {
+        return ['id' => $localId];
+    }
+
+    return ['local_id' => $localId];
+}
+
+function safeInsertWithColumnStripping(SupabaseAPI $supabase, string $table, array $payload, int $maxRetries = 20): array
 {
     $current = $payload;
+    $lastError = null;
     for ($i = 0; $i < $maxRetries; $i++) {
         try {
             $supabase->insert($table, $current);
 
             return $current;
         } catch (Throwable $e) {
+            $lastError = $e;
             $missing = extractMissingColumnFromSupabaseError($e);
             if ($missing === null || !array_key_exists($missing, $current)) {
                 throw $e;
@@ -347,18 +391,23 @@ function safeInsertWithColumnStripping(SupabaseAPI $supabase, string $table, arr
         }
     }
 
-    return $current;
+    if ($lastError !== null) {
+        throw $lastError;
+    }
+    throw new RuntimeException("Supabase {$table} insert did not complete after {$maxRetries} attempts.");
 }
 
-function safeUpdateWithColumnStripping(SupabaseAPI $supabase, string $table, array $payload, array $filter, int $maxRetries = 6): array
+function safeUpdateWithColumnStripping(SupabaseAPI $supabase, string $table, array $payload, array $filter, int $maxRetries = 20): array
 {
     $current = $payload;
+    $lastError = null;
     for ($i = 0; $i < $maxRetries; $i++) {
         try {
             $supabase->update($table, $current, $filter);
 
             return $current;
         } catch (Throwable $e) {
+            $lastError = $e;
             $missing = extractMissingColumnFromSupabaseError($e);
             if ($missing === null || !array_key_exists($missing, $current)) {
                 throw $e;
@@ -367,18 +416,23 @@ function safeUpdateWithColumnStripping(SupabaseAPI $supabase, string $table, arr
         }
     }
 
-    return $current;
+    if ($lastError !== null) {
+        throw $lastError;
+    }
+    throw new RuntimeException("Supabase {$table} update did not complete after {$maxRetries} attempts.");
 }
 
-function safeUpsertWithColumnStripping(SupabaseAPI $supabase, string $table, array $payload, string $onConflict, int $maxRetries = 6): array
+function safeUpsertWithColumnStripping(SupabaseAPI $supabase, string $table, array $payload, string $onConflict, int $maxRetries = 20): array
 {
     $current = $payload;
+    $lastError = null;
     for ($i = 0; $i < $maxRetries; $i++) {
         try {
             $supabase->upsert($table, $current, $onConflict);
 
             return $current;
         } catch (Throwable $e) {
+            $lastError = $e;
             $missing = extractMissingColumnFromSupabaseError($e);
             if ($missing === null || !array_key_exists($missing, $current)) {
                 throw $e;
@@ -387,7 +441,10 @@ function safeUpsertWithColumnStripping(SupabaseAPI $supabase, string $table, arr
         }
     }
 
-    return $current;
+    if ($lastError !== null) {
+        throw $lastError;
+    }
+    throw new RuntimeException("Supabase {$table} upsert did not complete after {$maxRetries} attempts.");
 }
 
 function syncTablePendingRows(PDO $pdo, SupabaseAPI $supabase, string $tableName, int $limit = SYNC_BATCH_LIMIT, array &$cloudSchemaCache = []): void
@@ -423,10 +480,7 @@ function syncTablePendingRows(PDO $pdo, SupabaseAPI $supabase, string $tableName
         $payload = filterPayloadByCloudColumns($payload, $cloudColumns);
         recordSyncRuntimeStatus($pdo, $table, $localId, 'local_to_cloud', 'upsert', 'in_progress', 'Batch sync started', $payload);
 
-        $existsFilter = ['local_id' => $localId];
-        if (is_array($cloudColumns) && !in_array('local_id', $cloudColumns, true) && in_array('id', $cloudColumns, true)) {
-            $existsFilter = ['id' => $localId];
-        }
+        $existsFilter = pickMatchFilter($table, $payload, $cloudColumns, $localId);
 
         try {
             // Manual existence check (select -> update/insert).
@@ -438,12 +492,12 @@ function syncTablePendingRows(PDO $pdo, SupabaseAPI $supabase, string $tableName
                 ]);
             } catch (Throwable $existsErr) {
                 // Fallback for cloud tables without local_id mapping.
+                $existsFilter = pickMatchFilter($table, $payload, null, $localId);
                 $existing = $supabase->select($table, [
                     'select' => 'id',
-                    'id' => 'eq.' . $localId,
+                    array_key_first($existsFilter) => 'eq.' . array_values($existsFilter)[0],
                     'limit' => 1,
                 ]);
-                $existsFilter = ['id' => $localId];
             }
 
             if (!empty($existing)) {
@@ -453,12 +507,15 @@ function syncTablePendingRows(PDO $pdo, SupabaseAPI $supabase, string $tableName
                     $payload = safeInsertWithColumnStripping($supabase, $table, $payload);
                 } catch (Throwable $insertErr) {
                     // Recovery for cloud tables where numeric PK sequence drift causes duplicate *_pkey on insert.
-                    if (isDuplicatePrimaryKeyConflict($insertErr)) {
+                    if (isDuplicatePrimaryKeyConflict($insertErr) || isMissingRequiredCloudId($insertErr)) {
                         $payloadWithId = $payload;
                         $payloadWithId['id'] = $localId;
                         $payload = safeUpsertWithColumnStripping($supabase, $table, $payloadWithId, 'id');
                     } else {
                         $uniqueCol = extractUniqueConstraintColumn($insertErr, $payload);
+                        if ($uniqueCol === null && !str_contains(strtolower($insertErr->getMessage()), 'duplicate key value violates unique constraint')) {
+                            throw $insertErr;
+                        }
                         $conflictCandidates = [];
                         if ($uniqueCol !== null) {
                             $conflictCandidates[] = $uniqueCol;
@@ -535,7 +592,7 @@ function processDeleteQueue(PDO $pdo, SupabaseAPI $supabase, int $limit = SYNC_B
          FROM sync_delete_queue
          WHERE status = 'pending'
             OR (status = 'failed' AND (last_attempt IS NULL OR last_attempt <= DATE_SUB(NOW(), INTERVAL 1 MINUTE)))
-         ORDER BY id ASC
+         ORDER BY CASE WHEN status = 'pending' THEN 0 ELSE 1 END, id ASC
          LIMIT " . (int) $limit
     );
     $stmt->execute();

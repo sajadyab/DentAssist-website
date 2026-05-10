@@ -16,112 +16,133 @@ include 'layouts/header.php';
 ?>
 
 
-<div class="container-fluid">
-    <!-- Back Button -->
-    <div class="mb-3">
-        <a href="dashboard.php" class="btn btn-secondary">
-            <i class="fas fa-arrow-left"></i> Back to Dashboard
-        </a>
-    </div>
-
-    <?php if (isset($_GET['success'])): ?>
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="fas fa-check-circle"></i> Subscription activated successfully!
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    <?php endif; ?>
-
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <div class="subscription-stats">
-                <div class="row">
-                    <div class="col-md-4 text-center">
-                        <div class="stats-number"><?php echo count($pendingSubscriptions); ?></div>
-                        <div class="text-muted">Pending Subscriptions</div>
-                    </div>
-                    <div class="col-md-4 text-center">
-                        <div class="stats-number"><?php 
-                            echo repo_subscription_count_active();
-                        ?></div>
-                        <div class="text-muted">Active Subscriptions</div>
-                    </div>
-                    <div class="col-md-4 text-center">
-                        <div class="stats-number"><?php 
-                            echo repo_subscription_count_expiring_soon_30_days();
-                        ?></div>
-                        <div class="text-muted">Expiring Soon (30 days)</div>
+<div class="container-fluid bills-page staff-portal">
+    <!-- Header with summary box -->
+    <div class="bills-queue-header">
+        <div class="row align-items-center bills-queue-header-inner">
+            <div class="col-md-8">
+                <h2 class="mb-2 fw-bold">
+                    <i class="fas fa-crown me-2 opacity-90" aria-hidden="true"></i>Manage Subscriptions
+                </h2>
+                <p class="mb-0 opacity-90">Review and activate pending subscription requests</p>
+            </div>
+            <div class="col-md-4 mt-3 mt-md-0">
+                <div class="bills-balance-wrap">
+                    <div class="bills-balance-box">
+                        <small>Pending requests</small>
+                        <p class="bills-balance-amount"><?php echo count($pendingSubscriptions); ?></p>
+                        <small class="d-block mt-1" style="font-size:0.6rem;text-transform:none;letter-spacing:0;">
+                            <?php echo repo_subscription_count_active(); ?> active subscriptions
+                        </small>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="card">
-        <div class="card-header bg-white">
-            <h5 class="card-title mb-0">
-                <i class="fas fa-clock text-warning"></i> Pending Subscriptions
-            </h5>
+    <?php if (isset($_GET['success'])): ?>
+        <div class="alert alert-success alert-dismissible fade show my-3" role="alert">
+            <i class="fas fa-check-circle me-2"></i> Subscription activated successfully!
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
-        <div class="card-body">
+    <?php endif; ?>
+
+    <!-- Summary Stats Cards -->
+    <div class="row patient-stats-row mb-4 g-3">
+        <div class="col-6 col-md-4 mb-3">
+            <div class="bills-stats-card bills-stats-card--subs">
+                <div class="bills-stats-number"><?php echo count($pendingSubscriptions); ?></div>
+                <div class="bills-stats-label">Pending Subscriptions</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 mb-3">
+            <div class="bills-stats-card bills-stats-card--paid">
+                <div class="bills-stats-number"><?php echo repo_subscription_count_active(); ?></div>
+                <div class="bills-stats-label">Active Subscriptions</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 mb-3">
+            <div class="bills-stats-card bills-stats-card--invoices">
+                <div class="bills-stats-number"><?php echo repo_subscription_count_expiring_soon_30_days(); ?></div>
+                <div class="bills-stats-label">Expiring Soon (30 days)</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pending Subscriptions Card -->
+    <div class="card bills-dash-section-card">
+        <div class="card-header bills-arrivals-header bills-arrivals-header--subscriptions border-0">
+            <div class="bills-arrivals-section-header__inner align-items-center">
+                <div>
+                    <h5 class="card-title mb-0"><i class="fas fa-clock me-2" aria-hidden="true"></i>Pending Subscriptions</h5>
+                </div>
+                <div class="flex-shrink-0" style="min-width:1px" aria-hidden="true"></div>
+            </div>
+        </div>
+        <div class="card-body p-0">
             <?php if (isset($success)): ?>
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <i class="fas fa-check-circle"></i> <?php echo $success; ?>
+                <div class="alert alert-success alert-dismissible fade show m-3" role="alert">
+                    <i class="fas fa-check-circle me-2"></i> <?php echo $success; ?>
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             <?php endif; ?>
             
             <?php if (isset($error)): ?>
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <i class="fas fa-exclamation-circle"></i> <?php echo $error; ?>
+                <div class="alert alert-danger alert-dismissible fade show m-3" role="alert">
+                    <i class="fas fa-exclamation-circle me-2"></i> <?php echo $error; ?>
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             <?php endif; ?>
             
             <?php if (empty($pendingSubscriptions)): ?>
-                <div class="text-center py-5">
-                    <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
-                    <p class="text-muted">No pending subscriptions.</p>
-                    <p>All subscriptions are up to date!</p>
+                <div class="bills-empty-state text-center py-4 px-3">
+                    <i class="fas fa-check-circle fa-3x text-success mb-3" style="opacity: 0.8;"></i>
+                    <p class="text-muted mb-0">No pending subscriptions. All subscriptions are up to date!</p>
                 </div>
             <?php else: ?>
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table table-hover table-sm mb-0 align-middle">
                         <thead class="table-light">
-                            32
+                            <tr>
                                 <th>Patient</th>
                                 <th>Contact</th>
-                                <th>Plan</th>
+                                <th class="text-center">Plan</th>
                                 <th>Amount</th>
                                 <th>Request Date</th>
-                                <th>Actions</th>
-                            </thead>
+                                <th class="text-center">Actions</th>
+                            </tr>
+                        </thead>
                         <tbody>
                             <?php foreach ($pendingSubscriptions as $sub): ?>
-                            <tr>
-                                <td>
-                                    <strong><?php echo htmlspecialchars($sub['full_name']); ?></strong>
-                                 </td>
-                                 <td>
-                                    <i class="fas fa-phone"></i> <?php echo htmlspecialchars($sub['phone']); ?><br>
-                                    <i class="fas fa-envelope"></i> <small><?php echo htmlspecialchars($sub['email']); ?></small>
-                                 </td>
-                                 <td>
-                                    <span class="badge bg-primary"><?php echo ucfirst($sub['subscription_type']); ?></span>
-                                 </td>
-                                 <td><?php echo formatCurrency($sub['amount']); ?></td>
-                                 <td>
-                                    <i class="fas fa-calendar"></i> <?php echo formatDate($sub['created_at']); ?><br>
-                                    <small class="text-muted"><?php echo timeAgo($sub['created_at']); ?></small>
-                                 </td>
-                                 <td class="action-buttons">
-                                    <button class="btn-confirm" onclick="confirmPayment(<?php echo $sub['id']; ?>, '<?php echo htmlspecialchars($sub['full_name']); ?>', <?php echo $sub['amount']; ?>)">
-                                        <i class="fas fa-check"></i> Accept & Activate
-                                    </button>
-                                    <button class="btn-reject" onclick="rejectPayment(<?php echo $sub['id']; ?>, '<?php echo htmlspecialchars($sub['full_name']); ?>')">
-                                        <i class="fas fa-times"></i> Reject
-                                    </button>
-                                 </td>
-                             </tr>
+                                <tr>
+                                    <td class="fw-semibold"><?php echo htmlspecialchars($sub['full_name']); ?></td>
+                                    <td class="small text-muted">
+                                        <?php if ($sub['phone']): ?>
+                                            <div><i class="fas fa-phone-alt me-1 opacity-75" aria-hidden="true"></i><?php echo htmlspecialchars($sub['phone']); ?></div>
+                                        <?php endif; ?>
+                                        <?php if ($sub['email']): ?>
+                                            <div><i class="fas fa-envelope me-1 opacity-75" aria-hidden="true"></i><?php echo htmlspecialchars($sub['email']); ?></div>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-primary"><?php echo ucfirst(htmlspecialchars($sub['subscription_type'])); ?></span>
+                                    </td>
+                                    <td class="fw-semibold"><?php echo formatCurrency($sub['amount']); ?></td>
+                                    <td>
+                                        <div><?php echo htmlspecialchars(formatDate($sub['created_at'])); ?></div>
+                                        <small class="text-muted"><?php echo htmlspecialchars(timeAgo($sub['created_at'])); ?></small>
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="d-flex gap-2 justify-content-center flex-wrap">
+                                            <button class="btn btn-sm btn-success" onclick="confirmPayment(<?php echo $sub['id']; ?>, '<?php echo htmlspecialchars($sub['full_name']); ?>', <?php echo $sub['amount']; ?>)">
+                                                <i class="fas fa-check me-1"></i> Accept
+                                            </button>
+                                            <button class="btn btn-sm btn-danger" onclick="rejectPayment(<?php echo $sub['id']; ?>, '<?php echo htmlspecialchars($sub['full_name']); ?>')">
+                                                <i class="fas fa-times me-1"></i> Reject
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
                             <?php endforeach; ?>
                         </tbody>
                     </table>

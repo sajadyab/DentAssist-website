@@ -7,7 +7,7 @@ if (!function_exists('sync_cloud_enabled')) {
     function sync_cloud_enabled(): bool
     {
         $url = defined('SUPABASE_URL') ? trim((string) SUPABASE_URL) : '';
-        $key = defined('SUPABASE_KEY') ? trim((string) SUPABASE_KEY) : '';
+        $key = function_exists('supabase_server_key') ? supabase_server_key() : (defined('SUPABASE_KEY') ? trim((string) SUPABASE_KEY) : '');
 
         return $url !== '' && $key !== '';
     }
@@ -182,7 +182,8 @@ if (!function_exists('sync_supabase_client')) {
         }
 
         try {
-            $client = new SupabaseAPI((string) SUPABASE_URL, (string) SUPABASE_KEY);
+            $syncKey = function_exists('supabase_server_key') ? supabase_server_key() : (string) SUPABASE_KEY;
+            $client = new SupabaseAPI((string) SUPABASE_URL, $syncKey);
         } catch (Throwable $e) {
             error_log('sync_supabase_client init failed: ' . $e->getMessage());
             $client = null;
@@ -349,6 +350,15 @@ if (!function_exists('sync_is_duplicate_primary_key_conflict')) {
     }
 }
 
+if (!function_exists('sync_is_missing_required_cloud_id')) {
+    function sync_is_missing_required_cloud_id(Throwable $e): bool
+    {
+        $msg = strtolower($e->getMessage());
+        return str_contains($msg, 'null value in column "id"')
+            && str_contains($msg, 'violates not-null constraint');
+    }
+}
+
 if (!function_exists('sync_extract_missing_column_from_error')) {
     function sync_extract_missing_column_from_error(Throwable $e): ?string
     {
@@ -371,8 +381,10 @@ if (!function_exists('sync_extract_unique_constraint_column')) {
 
         if (preg_match('/"([^"]+)"/', $msg, $m)) {
             $constraint = strtolower((string) $m[1]);
-            if (str_ends_with($constraint, '_key')) {
-                $core = substr($constraint, 0, -4);
+            if (str_ends_with($constraint, '_key') || str_ends_with($constraint, '_unique')) {
+                $core = str_ends_with($constraint, '_unique')
+                    ? substr($constraint, 0, -7)
+                    : substr($constraint, 0, -4);
                 if (!empty($payload)) {
                     $best = null;
                     foreach (array_keys($payload) as $col) {
@@ -401,6 +413,8 @@ if (!function_exists('sync_conflict_fallback_columns')) {
             'clinic_settings' => ['setting_key', 'id', 'local_id'],
             'monthly_expenses' => ['month_year', 'id', 'local_id'],
             'invoices' => ['invoice_number', 'id', 'local_id'],
+            'points_earning_rules' => ['rule_key', 'id', 'local_id'],
+            'points_rewards' => ['name', 'id', 'local_id'],
             'subscription_plans' => ['plan_key', 'id', 'local_id'],
             'tooth_chart' => ['patient_id', 'tooth_number', 'id', 'local_id'],
             'users' => ['email', 'username', 'id', 'local_id'],
@@ -410,16 +424,53 @@ if (!function_exists('sync_conflict_fallback_columns')) {
     }
 }
 
+if (!function_exists('sync_pick_match_filter')) {
+    function sync_pick_match_filter(string $table, array $payload, ?array $cloudCols, int $localId): array
+    {
+        $candidates = sync_conflict_fallback_columns($table);
+
+        if (is_array($cloudCols) && in_array('local_id', $cloudCols, true)) {
+            return ['local_id' => $localId];
+        }
+
+        foreach ($candidates as $candidate) {
+            if ($candidate === 'id' || $candidate === 'local_id') {
+                continue;
+            }
+            if (!array_key_exists($candidate, $payload)) {
+                continue;
+            }
+            $value = $payload[$candidate];
+            if ($value === null || $value === '') {
+                continue;
+            }
+            if (is_array($cloudCols) && !in_array($candidate, $cloudCols, true)) {
+                continue;
+            }
+
+            return [$candidate => $value];
+        }
+
+        if (is_array($cloudCols) && in_array('id', $cloudCols, true)) {
+            return ['id' => $localId];
+        }
+
+        return ['local_id' => $localId];
+    }
+}
+
 if (!function_exists('sync_safe_insert_with_column_stripping')) {
-    function sync_safe_insert_with_column_stripping(SupabaseAPI $supabase, string $table, array $payload, int $maxRetries = 6): array
+    function sync_safe_insert_with_column_stripping(SupabaseAPI $supabase, string $table, array $payload, int $maxRetries = 20): array
     {
         $current = $payload;
+        $lastError = null;
         for ($i = 0; $i < $maxRetries; $i++) {
             try {
                 $supabase->insert($table, $current);
 
                 return $current;
             } catch (Throwable $e) {
+                $lastError = $e;
                 $missing = sync_extract_missing_column_from_error($e);
                 if ($missing === null || !array_key_exists($missing, $current)) {
                     throw $e;
@@ -428,20 +479,25 @@ if (!function_exists('sync_safe_insert_with_column_stripping')) {
             }
         }
 
+        if ($lastError !== null) {
+            throw $lastError;
+        }
         return $current;
     }
 }
 
 if (!function_exists('sync_safe_update_with_column_stripping')) {
-    function sync_safe_update_with_column_stripping(SupabaseAPI $supabase, string $table, array $payload, array $filter, int $maxRetries = 6): array
+    function sync_safe_update_with_column_stripping(SupabaseAPI $supabase, string $table, array $payload, array $filter, int $maxRetries = 20): array
     {
         $current = $payload;
+        $lastError = null;
         for ($i = 0; $i < $maxRetries; $i++) {
             try {
                 $supabase->update($table, $current, $filter);
 
                 return $current;
             } catch (Throwable $e) {
+                $lastError = $e;
                 $missing = sync_extract_missing_column_from_error($e);
                 if ($missing === null || !array_key_exists($missing, $current)) {
                     throw $e;
@@ -450,20 +506,25 @@ if (!function_exists('sync_safe_update_with_column_stripping')) {
             }
         }
 
+        if ($lastError !== null) {
+            throw $lastError;
+        }
         return $current;
     }
 }
 
 if (!function_exists('sync_safe_upsert_with_column_stripping')) {
-    function sync_safe_upsert_with_column_stripping(SupabaseAPI $supabase, string $table, array $payload, string $onConflict, int $maxRetries = 6): array
+    function sync_safe_upsert_with_column_stripping(SupabaseAPI $supabase, string $table, array $payload, string $onConflict, int $maxRetries = 20): array
     {
         $current = $payload;
+        $lastError = null;
         for ($i = 0; $i < $maxRetries; $i++) {
             try {
                 $supabase->upsert($table, $current, $onConflict);
 
                 return $current;
             } catch (Throwable $e) {
+                $lastError = $e;
                 $missing = sync_extract_missing_column_from_error($e);
                 if ($missing === null || !array_key_exists($missing, $current)) {
                     throw $e;
@@ -472,7 +533,46 @@ if (!function_exists('sync_safe_upsert_with_column_stripping')) {
             }
         }
 
-        return $current;
+        if ($lastError !== null) {
+            throw $lastError;
+        }
+        throw new RuntimeException("Supabase {$table} upsert did not complete after {$maxRetries} attempts.");
+    }
+}
+
+if (!function_exists('sync_is_transient_sync_error')) {
+    /**
+     * Network / infra errors where the row should stay pending for cron / manual sync retries.
+     */
+    function sync_is_transient_sync_error(Throwable $e): bool
+    {
+        $m = strtolower($e->getMessage());
+        $needles = [
+            'curl error',
+            'timed out',
+            'timeout',
+            'connection refused',
+            'could not resolve host',
+            'temporary failure',
+            'network is unreachable',
+            'connection reset',
+            'ssl connection',
+            'failed to connect',
+            'operation timed out',
+            'eof occurred',
+            'name or service not known',
+            'getaddrinfo',
+            'connection aborted',
+            'premature eof',
+            'broken pipe',
+        ];
+        foreach ($needles as $needle) {
+            if (str_contains($m, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 
@@ -485,6 +585,9 @@ if (!function_exists('sync_push_row_now')) {
 
         $supabase = sync_supabase_client();
         if ($supabase === null) {
+            // Caller already marks row sync_status = pending; offline / unset cloud — batch sync retries later.
+            error_log("sync_push_row_now skipped {$table}#{$localId}: Supabase unavailable (offline or not configured) — leaving row pending.");
+
             return false;
         }
 
@@ -508,18 +611,27 @@ if (!function_exists('sync_push_row_now')) {
         $payload = sync_sanitize_patient_payload($payload);
         sync_record_runtime_status($db, $table, $localId, 'local_to_cloud', 'upsert', 'in_progress', 'Sync started', $payload, true, false);
 
-        $matchColumn = 'local_id';
-        $matchValue = $localId;
-        if (is_array($cloudCols) && !in_array('local_id', $cloudCols, true) && in_array('id', $cloudCols, true)) {
-            $matchColumn = 'id';
-        }
+        $matchFilter = sync_pick_match_filter($table, $payload, $cloudCols, $localId);
+        $matchColumn = (string) array_key_first($matchFilter);
+        $matchValue = $matchFilter[$matchColumn];
 
         try {
-            $existing = $supabase->select($table, [
-                'select' => 'id',
-                $matchColumn => 'eq.' . $matchValue,
-                'limit' => 1,
-            ]);
+            try {
+                $existing = $supabase->select($table, [
+                    'select' => 'id',
+                    $matchColumn => 'eq.' . $matchValue,
+                    'limit' => 1,
+                ]);
+            } catch (Throwable $existsErr) {
+                $fallbackFilter = sync_pick_match_filter($table, $payload, null, $localId);
+                $matchColumn = (string) array_key_first($fallbackFilter);
+                $matchValue = $fallbackFilter[$matchColumn];
+                $existing = $supabase->select($table, [
+                    'select' => 'id',
+                    $matchColumn => 'eq.' . $matchValue,
+                    'limit' => 1,
+                ]);
+            }
 
             if (!empty($existing)) {
                 $payload = sync_safe_update_with_column_stripping($supabase, $table, $payload, [$matchColumn => $matchValue]);
@@ -527,12 +639,15 @@ if (!function_exists('sync_push_row_now')) {
                 try {
                     $payload = sync_safe_insert_with_column_stripping($supabase, $table, $payload);
                 } catch (Throwable $insertErr) {
-                    if (sync_is_duplicate_primary_key_conflict($insertErr)) {
+                    if (sync_is_duplicate_primary_key_conflict($insertErr) || sync_is_missing_required_cloud_id($insertErr)) {
                         $payloadWithId = $payload;
                         $payloadWithId['id'] = $localId;
                         $payload = sync_safe_upsert_with_column_stripping($supabase, $table, $payloadWithId, 'id');
                     } else {
                         $uniqueColumn = sync_extract_unique_constraint_column($insertErr, $payload);
+                        if ($uniqueColumn === null && !str_contains(strtolower($insertErr->getMessage()), 'duplicate key value violates unique constraint')) {
+                            throw $insertErr;
+                        }
                         $candidateColumns = $uniqueColumn !== null
                             ? [$uniqueColumn]
                             : sync_conflict_fallback_columns($table);
@@ -547,7 +662,7 @@ if (!function_exists('sync_push_row_now')) {
                                 continue;
                             }
                             $rows = $supabase->select($table, [
-                                'select' => 'id,local_id',
+                                'select' => 'id',
                                 $candidate => 'eq.' . $candidateValue,
                                 'limit' => 1,
                             ]);
@@ -584,9 +699,26 @@ if (!function_exists('sync_push_row_now')) {
             error_log("sync_push_row_now synced {$table}#{$localId}");
             return true;
         } catch (Throwable $e) {
-            sync_update_local_state($db, $table, $pkColumn, $localId, 'failed', $e->getMessage());
-            sync_record_runtime_status($db, $table, $localId, 'local_to_cloud', 'upsert', 'failed', $e->getMessage(), $payload, false, true);
-            error_log("sync_push_row_now failed {$table}#{$localId}: " . $e->getMessage());
+            $errorMessage = $e->getMessage();
+            if (str_contains($errorMessage, 'row-level security policy') && function_exists('supabase_is_public_key') && supabase_is_public_key()) {
+                $errorMessage .= ' | Backend sync is using a publishable/anon Supabase key. Configure SUPABASE_SERVICE_ROLE_KEY for server-side sync.';
+            }
+            $transient = sync_is_transient_sync_error($e);
+            $localState = $transient ? 'pending' : 'failed';
+            sync_update_local_state($db, $table, $pkColumn, $localId, $localState, $errorMessage);
+            sync_record_runtime_status(
+                $db,
+                $table,
+                $localId,
+                'local_to_cloud',
+                'upsert',
+                $transient ? 'pending' : 'failed',
+                $transient ? ('Transient (will retry): ' . $errorMessage) : $errorMessage,
+                $payload,
+                false,
+                ! $transient
+            );
+            error_log(($transient ? 'sync_push_row_now deferred' : 'sync_push_row_now failed') . " {$table}#{$localId}: " . $errorMessage);
 
             return false;
         }
@@ -607,7 +739,7 @@ if (!function_exists('sync_process_delete_queue_now')) {
              FROM sync_delete_queue
              WHERE status = 'pending'
                 OR (status = 'failed' AND (last_attempt IS NULL OR last_attempt <= DATE_SUB(NOW(), INTERVAL 1 MINUTE)))
-             ORDER BY id ASC
+             ORDER BY CASE WHEN status = 'pending' THEN 0 ELSE 1 END, id ASC
              LIMIT ?",
             [$limit],
             'i'

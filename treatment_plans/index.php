@@ -16,6 +16,7 @@ unset($_SESSION['success'], $_SESSION['error']);
 $status = $_GET['status'] ?? '';
 $patientId = $_GET['patient_id'] ?? '';
 $priority = $_GET['priority'] ?? '';
+$planName = trim((string) ($_GET['plan_name'] ?? ''));
 
 // Get patients for filter dropdown
 $patients = repo_patient_list_for_select();
@@ -38,6 +39,11 @@ if (!empty($patientId)) {
 if (!empty($priority)) {
     $where[] = "tp.priority = ?";
     $params[] = $priority;
+    $types .= "s";
+}
+if ($planName !== '') {
+    $where[] = "tp.plan_name LIKE ?";
+    $params[] = '%' . $planName . '%';
     $types .= "s";
 }
 
@@ -97,8 +103,15 @@ include '../layouts/header.php';
     <!-- Filter Card -->
     <div class="card mb-4 treatment-plans-index-filter-card">
         <div class="card-body">
-            <form method="GET" class="row g-3">
-                <div class="col-12 col-md-6 col-lg-3">
+            <form method="GET" class="row g-3 align-items-end treatment-plans-index-filter-row">
+                <div class="col-12 col-lg-3">
+                    <label class="form-label">Search by Name</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span>
+                        <input type="text" class="form-control" name="plan_name" value="<?php echo htmlspecialchars($planName); ?>" placeholder="Plan name">
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-lg-2">
                     <label class="form-label">Status</label>
                     <select class="form-select" name="status">
                         <option value="">All</option>
@@ -109,7 +122,7 @@ include '../layouts/header.php';
                         <option value="cancelled" <?php echo $status == 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                     </select>
                 </div>
-                <div class="col-12 col-md-6 col-lg-3">
+                <div class="col-12 col-md-6 col-lg-2">
                     <label class="form-label">Priority</label>
                     <select class="form-select" name="priority">
                         <option value="">All</option>
@@ -119,7 +132,7 @@ include '../layouts/header.php';
                         <option value="emergency" <?php echo $priority == 'emergency' ? 'selected' : ''; ?>>Emergency</option>
                     </select>
                 </div>
-                <div class="col-12 col-md-8 col-lg-4">
+                <div class="col-12 col-md-6 col-lg-3">
                     <label class="form-label">Patient</label>
                     <select class="form-select" name="patient_id">
                         <option value="">All Patients</option>
@@ -130,8 +143,9 @@ include '../layouts/header.php';
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="col-12 col-md-4 col-lg-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary w-100">
+                <div class="col-12 col-md-6 col-lg-2 treatment-plans-index-filter-apply-col">
+                    <label class="form-label treatment-plans-index-filter-apply-label d-none d-md-block">&nbsp;</label>
+                    <button type="submit" class="btn btn-primary w-100 treatment-plans-index-filter-apply-btn">
                         <i class="fas fa-filter" aria-hidden="true"></i> Apply
                     </button>
                 </div>

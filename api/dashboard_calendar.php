@@ -70,7 +70,7 @@ if ($role === 'doctor') {
     }
 }
 
-$calConfig = getClinicBookingCalendarConfig($db);
+$calConfig = getClinicBookingCalendarConfig($db, $doctorId);
 $slotMinutes = $calConfig['slot_minutes'];
 $hours = $calConfig['hours'];
 
@@ -96,31 +96,23 @@ if ($minOpenMin === PHP_INT_MAX) {
 }
 
 $slotMinTime = minutesToHi($minOpenMin) . ':00';
-$slotMaxTime = minutesToHi($maxCloseMin) . ':00';
+$slotMaxTime = minutesToHi(min(24 * 60 - 1, $maxCloseMin + $slotMinutes)) . ':00';
 
 $businessHours = [];
-$wd = $hours['weekday'] ?? null;
-if ($wd && isset($wd['open'], $wd['close'])) {
+foreach ([1, 2, 3, 4, 5, 6, 7] as $dowN) {
+    $b = clinicHoursBandForWeekdayN($dowN, $hours);
+    if ($b === null || !isset($b['open'], $b['close'])) {
+        continue;
+    }
+    $fcDow = $dowN === 7 ? 0 : $dowN;
+    $closeMin = clinicTimeToMinutes((string) $b['close']);
+    $endHi = $closeMin !== null
+        ? minutesToHi(min(24 * 60 - 1, $closeMin + $slotMinutes)) . ':00'
+        : (string) $b['close'];
     $businessHours[] = [
-        'daysOfWeek' => [1, 2, 3, 4, 5],
-        'startTime' => normalizeHi($wd['open']),
-        'endTime' => normalizeHi($wd['close']),
-    ];
-}
-$sat = $hours['saturday'] ?? null;
-if ($sat && isset($sat['open'], $sat['close'])) {
-    $businessHours[] = [
-        'daysOfWeek' => [6],
-        'startTime' => normalizeHi($sat['open']),
-        'endTime' => normalizeHi($sat['close']),
-    ];
-}
-$sun = $hours['sunday'] ?? null;
-if ($sun && isset($sun['open'], $sun['close'])) {
-    $businessHours[] = [
-        'daysOfWeek' => [0],
-        'startTime' => normalizeHi($sun['open']),
-        'endTime' => normalizeHi($sun['close']),
+        'daysOfWeek' => [$fcDow],
+        'startTime' => normalizeHi($b['open']),
+        'endTime' => normalizeHi($endHi),
     ];
 }
 
@@ -252,11 +244,8 @@ for ($d = $startDt; $d < $endExclusive; $d = $d->modify('+1 day')) {
 
     $slotLen = new DateInterval('PT' . $slotMinutes . 'M');
     $cursor = $openDt;
-    while ($cursor < $closeDt) {
+    while ($cursor <= $closeDt) {
         $slotEnd = $cursor->add($slotLen);
-        if ($slotEnd > $closeDt) {
-            break;
-        }
 
         if ($slotEnd <= $now) {
             $cursor = $slotEnd;

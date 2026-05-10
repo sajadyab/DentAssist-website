@@ -313,10 +313,28 @@ function repo_appointment_find_active_chair_conflict(
 ): ?array {
     $db = Database::getInstance();
     if ($excludeAppointmentId === null) {
+        if ($chairNumber === null) {
+            return $db->fetchOne(
+                "SELECT id FROM appointments
+                 WHERE appointment_date = ? AND appointment_time = ? AND status != 'cancelled'",
+                [$appointmentDate, $appointmentTime],
+                'ss'
+            );
+        }
+
         return $db->fetchOne(
             "SELECT id FROM appointments
              WHERE appointment_date = ? AND appointment_time = ? AND chair_number = ? AND status != 'cancelled'",
             [$appointmentDate, $appointmentTime, $chairNumber],
+            'ssi'
+        );
+    }
+
+    if ($chairNumber === null) {
+        return $db->fetchOne(
+            "SELECT id FROM appointments
+             WHERE appointment_date = ? AND appointment_time = ? AND status != 'cancelled' AND id != ?",
+            [$appointmentDate, $appointmentTime, $excludeAppointmentId],
             'ssi'
         );
     }
@@ -865,11 +883,76 @@ function repo_xray_find_dental_history_handwritten_by_id(int $xrayId, int $patie
     );
 }
 
-function repo_xray_delete_by_id_for_patient(int $xrayId, int $patientId): bool
+function repo_xray_find_by_id_for_patient(int $xrayId, int $patientId): ?array
 {
     $db = Database::getInstance();
 
-    return $db->execute('DELETE FROM xrays WHERE id = ? AND patient_id = ? LIMIT 1', [$xrayId, $patientId], 'ii') !== false;
+    return $db->fetchOne(
+        "SELECT *
+         FROM xrays
+         WHERE id = ? AND patient_id = ?
+         LIMIT 1",
+        [$xrayId, $patientId],
+        'ii'
+    );
+}
+
+function repo_xray_update_by_id_for_patient(int $xrayId, int $patientId, array $payload): bool
+{
+    $db = Database::getInstance();
+
+    $setParts = [
+        'xray_type = ?',
+        'tooth_numbers = ?',
+        'findings = ?',
+        'notes = ?',
+    ];
+    $values = [
+        $payload['xray_type'] ?? null,
+        $payload['tooth_numbers'] ?? null,
+        $payload['findings'] ?? null,
+        $payload['notes'] ?? null,
+    ];
+    $types = 'ssss';
+
+    if (function_exists('dbColumnExists') && dbColumnExists('xrays', 'sync_status')) {
+        $setParts[] = "sync_status = 'pending'";
+    }
+
+    $values[] = $xrayId;
+    $values[] = $patientId;
+    $types .= 'ii';
+
+    $ok = $db->execute(
+        'UPDATE xrays SET ' . implode(', ', $setParts) . ' WHERE id = ? AND patient_id = ? LIMIT 1',
+        $values,
+        $types
+    ) !== false;
+
+    if ($ok && function_exists('sync_push_row_now')) {
+        try {
+            sync_push_row_now('xrays', $xrayId);
+        } catch (Throwable $ignored) {
+        }
+    }
+
+    return $ok;
+}
+
+function repo_xray_delete_by_id_for_patient(int $xrayId, int $patientId): bool
+{
+    $db = Database::getInstance();
+    $row = repo_xray_find_by_id_for_patient($xrayId, $patientId);
+    if (!$row) {
+        return false;
+    }
+
+    $deleted = $db->execute('DELETE FROM xrays WHERE id = ? AND patient_id = ? LIMIT 1', [$xrayId, $patientId], 'ii') !== false;
+    if ($deleted && function_exists('queueCloudDeletion')) {
+        queueCloudDeletion('xrays', $xrayId, 'local_id');
+    }
+
+    return $deleted;
 }
 
 /**
@@ -916,7 +999,7 @@ function repo_xray_insert_dental_history_handwritten_from_edit_form(
 ): int {
     $db = Database::getInstance();
 
-    return (int) $db->insert(
+    $newXrayId = (int) $db->insert(
         "INSERT INTO xrays (patient_id, file_name, file_path, file_size, mime_type, xray_type, tooth_numbers, findings, notes, uploaded_by)
          VALUES (?, ?, ?, ?, ?, 'Other', ?, ?, ?, ?)",
         [
@@ -932,6 +1015,23 @@ function repo_xray_insert_dental_history_handwritten_from_edit_form(
         ],
         'ississssi'
     );
+
+    if ($newXrayId > 0 && function_exists('dbColumnExists')) {
+        if (dbColumnExists('xrays', 'local_id')) {
+            $db->execute("UPDATE xrays SET local_id = ? WHERE id = ?", [$newXrayId, $newXrayId], 'ii');
+        }
+        if (dbColumnExists('xrays', 'sync_status')) {
+            $db->execute("UPDATE xrays SET sync_status = 'pending' WHERE id = ?", [$newXrayId], 'i');
+        }
+    }
+    if ($newXrayId > 0 && function_exists('sync_push_row_now')) {
+        try {
+            sync_push_row_now('xrays', $newXrayId);
+        } catch (Throwable $ignored) {
+        }
+    }
+
+    return $newXrayId;
 }
 
 /**
@@ -954,8 +1054,42 @@ function repo_xray_list_for_patient_excluding_dental_history(int $patientId): ar
 function repo_xray_delete_for_patient(int $patientId): bool
 {
     $db = Database::getInstance();
+    $rows = $db->fetchAll(
+        'SELECT id FROM xrays WHERE patient_id = ?',
+        [$patientId],
+        'i'
+    );
+    foreach ($rows as $row) {
+        $xrayId = (int) ($row['id'] ?? 0);
+        if ($xrayId > 0 && function_exists('queueCloudDeletion')) {
+            queueCloudDeletion('xrays', $xrayId, 'local_id');
+        }
+    }
 
-    return $db->execute('DELETE FROM xrays WHERE patient_id = ?', [$patientId], 'i') !== false;
+    if (function_exists('dbColumnExists') && dbColumnExists('xrays', 'deleted')) {
+        $ok = $db->execute(
+            "UPDATE xrays SET deleted = 1, sync_status = 'pending' WHERE patient_id = ?",
+            [$patientId],
+            'i'
+        ) !== false;
+        if ($ok && function_exists('sync_push_row_now')) {
+            foreach ($rows as $row) {
+                $xrayId = (int) ($row['id'] ?? 0);
+                if ($xrayId > 0) {
+                    sync_push_row_now('xrays', $xrayId);
+                }
+            }
+        }
+
+        return $ok;
+    }
+
+    $ok = $db->execute('DELETE FROM xrays WHERE patient_id = ?', [$patientId], 'i') !== false;
+    if ($ok && function_exists('sync_process_delete_queue_now')) {
+        sync_process_delete_queue_now(20);
+    }
+
+    return $ok;
 }
 
 /**
@@ -1151,6 +1285,17 @@ function repo_subscription_confirm_clinic_payment(int $patientId, string $refere
     $endDate = date('Y-m-d', strtotime('+1 year'));
     try {
         $plan = repo_subscription_get_patient_plan($patientId) ?? 'basic';
+        $pendingPatient = $db->fetchOne(
+            'SELECT subscription_start_date, subscription_end_date FROM patients WHERE id = ? LIMIT 1',
+            [$patientId],
+            'i'
+        );
+        if (!empty($pendingPatient['subscription_start_date']) && strtotime((string) $pendingPatient['subscription_start_date']) !== false) {
+            $startDate = date('Y-m-d', strtotime((string) $pendingPatient['subscription_start_date']));
+        }
+        if (!empty($pendingPatient['subscription_end_date']) && strtotime((string) $pendingPatient['subscription_end_date']) !== false) {
+            $endDate = date('Y-m-d', strtotime((string) $pendingPatient['subscription_end_date']));
+        }
         $db->beginTransaction();
         repo_subscription_activate($patientId, $startDate, $endDate);
         repo_subscription_complete_pending_payment($patientId, $reference, $processedBy);
@@ -1159,13 +1304,16 @@ function repo_subscription_confirm_clinic_payment(int $patientId, string $refere
             repo_invoice_mark_paid($invoiceId);
         } else {
             $prices = ['basic' => 29, 'premium' => 49, 'family' => 79];
-            $annualAmount = (float) (($prices[$plan] ?? 29) * 12);
+            $durationDays = max(1, (int) round((strtotime($endDate) - strtotime($startDate)) / 86400));
+            $isYearly = $durationDays > 45;
+            $amount = (float) (($prices[$plan] ?? 29) * ($isYearly ? 12 : 1));
+            $periodLabel = $isYearly ? 'Yearly' : 'Monthly';
             $invoiceNumber = generateInvoiceNumber();
-            $notes = "Subscription: {$plan} plan (Annual) - Paid at Clinic";
+            $notes = "Subscription: {$plan} plan ({$periodLabel}) - Paid at Clinic";
             repo_invoice_create_paid_subscription_invoice(
                 $patientId,
                 $invoiceNumber,
-                $annualAmount,
+                $amount,
                 $startDate,
                 $startDate,
                 $notes,

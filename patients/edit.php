@@ -195,16 +195,18 @@ include '../layouts/header.php';
         <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
     <?php endif; ?>
 
-    <div class="card bills-dash-section-card form-card patients-edit-form-card">
-        <div class="card-header bills-arrivals-header bills-arrivals-header--payment border-0">
-            <div class="bills-arrivals-section-header__inner align-items-center">
-                <div>
-                    <h5 class="card-title mb-0"><i class="fas fa-id-card me-2" aria-hidden="true"></i>Patient details</h5>
+    <div class="row">
+        <div class="col-12 col-xl-9 col-lg-10">
+            <div class="card bills-dash-section-card form-card patients-edit-form-card">
+                <div class="card-header bills-arrivals-header bills-arrivals-header--payment border-0">
+                    <div class="bills-arrivals-section-header__inner align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0"><i class="fas fa-id-card me-2" aria-hidden="true"></i>Patient details</h5>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </div>
-        <div class="card-body">
-            <form method="POST" action="" enctype="multipart/form-data" id="patientForm">
+                <div class="card-body">
+                    <form method="POST" action="" enctype="multipart/form-data" id="patientForm">
                 <ul class="nav nav-tabs mb-4 patients-edit-tabs-nav" id="patientTabs" role="tablist">
                     <li class="nav-item"><button class="nav-link active" id="info-tab" data-bs-toggle="tab" data-bs-target="#info" type="button">Patient Info</button></li>
                     <li class="nav-item"><button class="nav-link" id="dental-tab" data-bs-toggle="tab" data-bs-target="#dental" type="button">Dental History</button></li>
@@ -400,7 +402,9 @@ include '../layouts/header.php';
                     <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Update Patient</button>
                     <a href="view.php?id=<?php echo $patientId; ?>" class="btn btn-secondary">Cancel</a>
                 </div>
-            </form>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 </div>

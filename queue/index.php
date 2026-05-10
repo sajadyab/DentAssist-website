@@ -90,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_appointment_r
             throw new RuntimeException('Could not remove the pending request after booking. Please try again or fix the queue entry manually.');
         }
         $db->commit();
-        queueCloudDeletion('appointment_requests', $reqId, 'local_id');
+        syncAppointmentRequestCloudDeletion($req, $reqId);
     } catch (Throwable $e) {
         $db->rollback();
         $_SESSION['queue_flash_error'] = $e->getMessage();
@@ -191,7 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deny_appointment_requ
             throw new RuntimeException('Could not remove that request. It may have been processed already.');
         }
         $db->commit();
-        queueCloudDeletion('appointment_requests', $reqId, 'local_id');
+        syncAppointmentRequestCloudDeletion($req, $reqId);
     } catch (Throwable $e) {
         $db->rollback();
         $_SESSION['queue_flash_error'] = $e->getMessage();

@@ -27,6 +27,25 @@ $success = '';
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Get logged-in user ID
     $createdBy = $_SESSION['user_id'] ?? 0;
+    $rawTeeth = trim((string) ($_POST['teeth_affected'] ?? ''));
+    $parts = preg_split('/\s*,\s*/', $rawTeeth) ?: [];
+    $validTeeth = [];
+    foreach ($parts as $part) {
+        $part = trim((string) $part);
+        if ($part === '' || !ctype_digit($part)) {
+            continue;
+        }
+        $number = (int) $part;
+        if ($number < 0 || $number > 32) {
+            continue;
+        }
+        $value = (string) $number;
+        if (!in_array($value, $validTeeth, true)) {
+            $validTeeth[] = $value;
+        }
+    }
+    $normalizedTeeth = $validTeeth !== [] ? implode(',', $validTeeth) : null;
+
     $columns = [
         'patient_id', 'plan_name', 'description', 'teeth_affected',
         'estimated_cost', 'discount', 'status', 'priority',
@@ -36,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $_POST['patient_id'],
         $_POST['plan_name'],
         $_POST['description'] ?? null,
-        $_POST['teeth_affected'] ?? null,
+        $normalizedTeeth !== '' ? $normalizedTeeth : null,
         $_POST['estimated_cost'] ?? 0,
         $_POST['discount'] ?? 0,
         $_POST['status'] ?? 'proposed',
@@ -144,6 +163,8 @@ include '../layouts/header.php';
                             <div class="col-md-6 mb-3">
                                 <label class="form-label" for="tpAddTeeth">Teeth Affected</label>
                                 <input type="text" class="form-control form-control-modern" id="tpAddTeeth" name="teeth_affected"
+                                       inputmode="numeric" pattern="[0-9]+(?:,[0-9]+)*" title="Enter comma-separated tooth numbers from 0 to 32, e.g. 18,19,20"
+                                       oninput="this.value = this.value.replace(/[^0-9,]/g, '').replace(/,{2,}/g, ',').replace(/^,|,$/g, '').split(',').map(function(v){return v.trim();}).filter(function(v){return v !== '' && /^[0-9]+$/.test(v) && parseInt(v,10) >= 0 && parseInt(v,10) <= 32;}).map(function(v){return String(parseInt(v,10));}).join(',');"
                                        placeholder="e.g., 18,19,20">
                             </div>
 

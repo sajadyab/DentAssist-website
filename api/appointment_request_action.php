@@ -116,6 +116,7 @@ if ($action === 'approve') {
             throw new RuntimeException('Could not remove the pending request after booking.');
         }
         $db->commit();
+        syncAppointmentRequestCloudDeletion($req, $reqId);
     } catch (Throwable $e) {
         $db->rollback();
         http_response_code(500);
@@ -180,6 +181,7 @@ try {
         throw new RuntimeException('Could not remove that request.');
     }
     $db->commit();
+    syncAppointmentRequestCloudDeletion($req, $reqId);
 } catch (Throwable $e) {
     $db->rollback();
     http_response_code(500);

@@ -9,7 +9,6 @@ header('Content-Type: application/json');
 
 $date = $_GET['date'] ?? '';
 $time = $_GET['time'] ?? '';
-$chair = $_GET['chair'] ?? null;
 
 if (empty($date) || empty($time)) {
     echo json_encode(['available' => false, 'message' => 'Date and time required']);
@@ -18,23 +17,21 @@ if (empty($date) || empty($time)) {
 
 $db = Database::getInstance();
 
-// Check if any appointment exists for this date/time/chair (excluding cancelled)
-$params = [$date, $time];
-$types = "ss";
+$excludeId = (int) ($_GET['exclude_id'] ?? 0);
 
-$chairCondition = "";
-if (!empty($chair)) {
-    $chairCondition = " AND chair_number = ?";
-    $params[] = $chair;
-    $types .= "i";
+// Match HH:MM or HH:MM:SS from DB TIME column; ignore current appointment row when editing
+$sql = 'SELECT id FROM appointments 
+     WHERE appointment_date = ? AND TIME_FORMAT(appointment_time, \'%H:%i\') = TIME_FORMAT(?, \'%H:%i\')
+     AND status != \'cancelled\'';
+$params = [$date, $time];
+$types = 'ss';
+if ($excludeId > 0) {
+    $sql .= ' AND id != ?';
+    $params[] = $excludeId;
+    $types .= 'i';
 }
 
-$existing = $db->fetchOne(
-    "SELECT id FROM appointments 
-     WHERE appointment_date = ? AND appointment_time = ? AND status != 'cancelled' $chairCondition",
-    $params,
-    $types
-);
+$existing = $db->fetchOne($sql, $params, $types);
 
 if ($existing) {
     echo json_encode(['available' => false, 'message' => 'Slot already booked']);
